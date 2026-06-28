@@ -25,3 +25,8 @@ export function mountPanels(level: Level | null): HTMLElement {
   document.body.appendChild(wrap)
   return wrap
 }
+
+export function updateLevelName(name: string): void {
+  const h3 = document.querySelector('.pcb-info h3')
+  if (h3) h3.textContent = name
+}

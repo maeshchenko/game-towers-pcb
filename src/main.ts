@@ -8,7 +8,7 @@ import { Editor } from './editor/Editor'
 import { generateLevel } from './pipeline/generator'
 import { fitPitch } from './app/viewport'
 import { mountToolbar, levelToBlobUrl, readLevelFile } from './ui/Toolbar'
-import { mountPanels } from './ui/Panels'
+import { mountPanels, updateLevelName } from './ui/Panels'
 import type { Board } from './model/level'
 
 async function boot() {
@@ -36,11 +36,24 @@ async function boot() {
 
   let seedCounter = 1
   mountToolbar({
-    onNew: () => { editor.state.clear(); renderer.render(emptyLevel()) },
-    onGenerate: () => { editor.state.loadLevel(generateLevel({ board, difficulty: 5, seed: ++seedCounter })); editor.redraw() },
+    onNew: () => { editor.state.clear(); renderer.render(emptyLevel()); updateLevelName('Untitled') },
+    onGenerate: () => { editor.state.loadLevel(generateLevel({ board, difficulty: 5, seed: ++seedCounter })); editor.redraw(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --') },
     onReseed: () => { editor.state.reseed(++seedCounter); editor.redraw() },
     onSave: () => { if (!editor.state.level) return; const a = document.createElement('a'); a.href = levelToBlobUrl(editor.state.level); a.download = 'level.json'; a.click() },
-    onLoad: async (file) => { editor.state.loadLevel(await readLevelFile(file)); board = editor.state.board; editor.redraw() },
+    onLoad: async (file) => {
+      try {
+        const lvl = await readLevelFile(file)
+        editor.state.loadLevel(lvl)
+        const b = editor.state.board
+        board = { cols: b.cols, rows: b.rows, pitch: fitPitch(b.cols, b.rows, view().w, view().h) }
+        editor.state.board = board
+        if (editor.state.level) editor.state.level.board = board
+        editor.redraw()
+        updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
+      } catch (err) {
+        console.error(err); alert('Не удалось загрузить уровень: неверный файл')
+      }
+    },
     onResize: applyBoard,
   })
 }

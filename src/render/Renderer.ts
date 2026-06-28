@@ -18,7 +18,9 @@ export class Renderer {
   }
 
   render(level: Level): void {
-    for (const c of Object.values(this.layers)) c.removeChildren()
+    for (const c of Object.values(this.layers)) {
+      for (const child of c.removeChildren()) child.destroy()
+    }
     this.drawBoard(level)
     this.drawDecor(level)
     this.drawTrace(level)
@@ -87,10 +89,18 @@ export class Renderer {
         .stroke({ color: PALETTE.buildGold, width: 1, alpha: 0.8 })
       this.layers.spot.addChild(g)
     }
+    const oct = (cx: number, cy: number, r: number, g: Graphics) => {
+      for (let i = 0; i <= 8; i++) {
+        const a = (Math.PI / 4) * i + Math.PI / 8
+        const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r
+        if (i === 0) g.moveTo(x, y); else g.lineTo(x, y)
+      }
+    }
     for (const s of level.specialSpots) {
       const p = cellToPx(s.cell, level.board.pitch)
       const g = new Graphics()
-      g.circle(p.x, p.y, b).stroke({ color: PALETTE.specialCyan, width: 2 })
+      oct(p.x, p.y, b, g)
+      g.stroke({ color: PALETTE.specialCyan, width: 2 })
       g.circle(p.x, p.y, b * 0.45).fill({ color: PALETTE.specialCyan, alpha: 0.7 })
       this.layers.spot.addChild(g)
     }
