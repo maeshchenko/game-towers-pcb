@@ -1,0 +1,14 @@
+/* src/ui/styles.css */
+.pcb-toolbar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 10; }
+.pcb-toolbar button { background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 6px 12px; font: 12px monospace; cursor: pointer; }
+.pcb-toolbar button:hover { background: #14140f; }
+.pcb-toolbar .pcb-size { width: 46px; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; font: 12px monospace; padding: 5px 4px; }
+.pcb-toolbar { align-items: center; color: #6f8f7e; font: 12px monospace; }
+.pcb-panels { position: fixed; inset: 0; pointer-events: none; }
+.pcb-panel { position: fixed; background: rgba(13,31,23,0.85); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 14px; font: 12px monospace; }
+.pcb-legend { top: 70px; left: 16px; } .pcb-info { top: 16px; right: 16px; } .pcb-tips { bottom: 16px; left: 16px; max-width: 200px; }
+.pcb-panel h3 { color: #6cf2a0; margin: 0 0 6px; letter-spacing: 2px; }
+.pcb-panel ul { list-style: none; margin: 0; padding: 0; } .pcb-panel li { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+.sw { width: 14px; height: 14px; display: inline-block; }
+.sw.trace { background: #2bd06a; } .sw.build { border: 2px solid #e8c84a; } .sw.special { border: 2px solid #3fb6d8; border-radius: 50%; }
+.sw.start { background: #35e07a; } .sw.finish { background: #e8503a; }
