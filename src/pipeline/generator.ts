@@ -30,12 +30,13 @@ function buildSerpentine(board: Board, difficulty: number, rng: () => number): C
     else gap = 3 + Math.floor(r * 2)                          // medium
     y += gap
   }
-  // keep all lanes inside the board (compress proportionally if the stack overran)
-  const maxY = board.rows - 1 - m
-  if (ys[ys.length - 1] > maxY) {
-    const span = ys[ys.length - 1] - ys[0] || 1
-    const scale = (maxY - ys[0]) / span
-    for (let i = 0; i < ys.length; i++) ys[i] = Math.round(ys[0] + (ys[i] - ys[0]) * scale)
+  // normalize lanes to span the full board height (top margin -> bottom margin),
+  // preserving the relative tight/wide gap proportions (pacing) so the path fills the board.
+  const top = m
+  const bottom = board.rows - 1 - m
+  const span = ys[ys.length - 1] - ys[0] || 1
+  for (let i = 0; i < ys.length; i++) {
+    ys[i] = Math.round(top + ((ys[i] - ys[0]) / span) * (bottom - top))
   }
 
   const wp: Cell[] = []
