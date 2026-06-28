@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateLevel } from '../../src/pipeline/generator'
+import { generateLevel, minSpots } from '../../src/pipeline/generator'
 import { isOctilinear } from '../../src/geom/octilinear'
 
 describe('generateLevel', () => {
@@ -23,7 +23,7 @@ describe('generateLevel', () => {
       const wp = lvl.trace.waypoints
       expect(wp.length).toBeGreaterThanOrEqual(2)
       for (let i = 1; i < wp.length; i++) expect(isOctilinear(wp[i - 1], wp[i])).toBe(true)
-      expect(lvl.spots.length + lvl.specialSpots.length).toBeGreaterThanOrEqual(4)
+      expect(lvl.spots.length + lvl.specialSpots.length).toBeGreaterThanOrEqual(minSpots(4))
     }
   })
 })
