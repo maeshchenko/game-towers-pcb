@@ -7,12 +7,13 @@ const board = { cols: 40, rows: 30, pitch: 24 }
 
 describe('computeTowerSpots', () => {
   it('returns at most budget build spots', () => {
-    const { spots } = computeTowerSpots({ board, trace, budget: 8 })
+    const { spots, specialSpots } = computeTowerSpots({ board, trace, budget: 8 })
     expect(spots.length).toBeGreaterThan(0)
     expect(spots.length).toBeLessThanOrEqual(8)
+    expect(spots.length + specialSpots.length).toBeLessThanOrEqual(8)
   })
   it('never places a spot on a path cell', () => {
-    const pathCells = new Set(['2,2', '2,20', '25,20'])
+    const pathCells = new Set(['2,2', '2,11', '2,20', '13,20', '25,20'])
     const { spots } = computeTowerSpots({ board, trace, budget: 8 })
     for (const s of spots) expect(pathCells.has(cellKey(s.cell))).toBe(false)
   })
@@ -26,6 +27,7 @@ describe('computeTowerSpots', () => {
   })
   it('tags some special spots', () => {
     const { specialSpots } = computeTowerSpots({ board, trace, budget: 12, specialEvery: 4 })
+    expect(specialSpots.length).toBeGreaterThan(0)
     expect(specialSpots.every((s) => s.kind === 'special')).toBe(true)
   })
 })
