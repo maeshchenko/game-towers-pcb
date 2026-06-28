@@ -16,7 +16,8 @@ export function routeOctilinear(opts: {
 
   const h = (c: Cell) => Math.max(Math.abs(c[0] - goal[0]), Math.abs(c[1] - goal[1]))
   const gScore = new Map<string, number>()
-  const cameFrom = new Map<string, { c: Cell; dir: Cell | null }>()
+  const cameFrom = new Map<string, Cell>()
+  const closed = new Set<string>()
   const open: { c: Cell; dir: Cell | null; f: number }[] = []
   const startKey = cellKey(start)
   gScore.set(startKey, 0)
@@ -27,10 +28,12 @@ export function routeOctilinear(opts: {
     for (let i = 1; i < open.length; i++) if (open[i].f < open[bi].f) bi = i
     const cur = open.splice(bi, 1)[0]
     const curKey = cellKey(cur.c)
+    if (closed.has(curKey)) continue
+    closed.add(curKey)
     if (cur.c[0] === goal[0] && cur.c[1] === goal[1]) {
       const path: Cell[] = [cur.c]
       let k = curKey
-      while (cameFrom.has(k)) { const prev = cameFrom.get(k)!; path.push(prev.c); k = cellKey(prev.c) }
+      while (cameFrom.has(k)) { const prev = cameFrom.get(k)!; path.push(prev); k = cellKey(prev) }
       return path.reverse()
     }
     for (const d of DIRS) {
@@ -44,7 +47,7 @@ export function routeOctilinear(opts: {
       const tentative = (gScore.get(curKey) ?? Infinity) + stepCost + turn + jitter
       if (tentative < (gScore.get(nk) ?? Infinity)) {
         gScore.set(nk, tentative)
-        cameFrom.set(nk, { c: cur.c, dir: cur.dir })
+        cameFrom.set(nk, cur.c)
         open.push({ c: nc, dir: d, f: tentative + h(nc) })
       }
     }
