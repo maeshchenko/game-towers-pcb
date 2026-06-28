@@ -8,6 +8,27 @@ import type { Board } from '../model/level'
 export class Editor {
   state: EditorState
   private debounce: ReturnType<typeof setTimeout> | null = null
+
+  private onPointerDown = (e: PointerEvent): void => {
+    const w = this.worldFromEvent(e)
+    this.state.addPoint(snapToCell(w, this.state.board.pitch))
+    this.scheduleRecompute()
+  }
+
+  private onKeyDown = (e: KeyboardEvent): void => {
+    if (e.key === 'Enter') {
+      if (this.debounce) { clearTimeout(this.debounce); this.debounce = null }
+      this.state.commitTrace(); this.redraw()
+    }
+  }
+
+  private onWheel = (e: WheelEvent): void => {
+    e.preventDefault()
+    const r = this.app.canvas.getBoundingClientRect()
+    this.camera.zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.1 : 0.9)
+    this.camera.apply(this.renderer.world)
+  }
+
   constructor(private app: Application, private renderer: Renderer, private camera: Camera, board: Board, seed: number) {
     this.state = new EditorState(board, seed)
     this.bind()
@@ -19,20 +40,16 @@ export class Editor {
   }
 
   private bind(): void {
-    this.app.canvas.addEventListener('pointerdown', (e) => {
-      const w = this.worldFromEvent(e as PointerEvent)
-      this.state.addPoint(snapToCell(w, this.state.board.pitch))
-      this.scheduleRecompute()
-    })
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') { this.state.commitTrace(); this.redraw() }
-    })
-    this.app.canvas.addEventListener('wheel', (e) => {
-      e.preventDefault()
-      const r = this.app.canvas.getBoundingClientRect()
-      this.camera.zoomAt(e.clientX - r.left, e.clientY - r.top, e.deltaY < 0 ? 1.1 : 0.9)
-      this.camera.apply(this.renderer.world)
-    }, { passive: false })
+    this.app.canvas.addEventListener('pointerdown', this.onPointerDown)
+    window.addEventListener('keydown', this.onKeyDown)
+    this.app.canvas.addEventListener('wheel', this.onWheel, { passive: false })
+  }
+
+  destroy(): void {
+    this.app.canvas.removeEventListener('pointerdown', this.onPointerDown)
+    window.removeEventListener('keydown', this.onKeyDown)
+    this.app.canvas.removeEventListener('wheel', this.onWheel)
+    if (this.debounce) { clearTimeout(this.debounce); this.debounce = null }
   }
 
   private scheduleRecompute(): void {
