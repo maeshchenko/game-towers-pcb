@@ -98,6 +98,22 @@ function passive2T(shapes: ShapeSpec[], item: DecorItem, x: number, y: number, w
   designator(shapes, item, x, y, pitch)
 }
 
+// ---------- Footprint helper (exported for placement) ----------
+/**
+ * Returns the grid footprint in CELLS for the given kind/variant/rotation.
+ * Accounts for rotation swapping w↔h and header pin-count scaling via variant.
+ */
+export function footprintCells(kind: string, variant: number, rot: 0 | 90 | 180 | 270): { w: number; h: number } {
+  let base = FOOTPRINT[kind] ?? { w: 2, h: 2 }
+  // header width scales with variant (pin count)
+  if (kind === 'header') {
+    const pins = Math.max(2, variant || 4)
+    base = { w: pins, h: 1 }
+  }
+  const rotated = rot === 90 || rot === 270
+  return rotated ? { w: base.h, h: base.w } : { w: base.w, h: base.h }
+}
+
 // ---------- Main builder ----------
 export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
   const fp   = FOOTPRINT[item.kind] ?? { w: 2, h: 2 }
