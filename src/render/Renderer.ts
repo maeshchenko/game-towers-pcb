@@ -1,5 +1,5 @@
 // src/render/Renderer.ts
-import { Application, Container, Graphics } from 'pixi.js'
+import { Application, Container, Graphics, Text } from 'pixi.js'
 import type { Level } from '../model/level'
 import { PALETTE, RENDER } from '../style/palette'
 import { buildTraceStrokes, buildChevrons } from './traceBuilder'
@@ -29,11 +29,18 @@ export class Renderer {
 
   private drawBoard(level: Level): void {
     const g = new Graphics()
-    g.rect(0, 0, level.board.cols * level.board.pitch, level.board.rows * level.board.pitch).fill(PALETTE.substrate)
+    const bw = level.board.cols * level.board.pitch
+    const bh = level.board.rows * level.board.pitch
+    // Substrate fill
+    g.rect(0, 0, bw, bh).fill(PALETTE.substrate)
+    // Ground-plane crosshatch: 45° lines at ~6px spacing, low alpha
+    for (let d = -bh; d <= bw; d += 6) g.moveTo(d, 0).lineTo(d + bh, bh)
+    g.stroke({ color: PALETTE.hatch, width: 0.5, alpha: 0.25 })
+    // Silk cell grid
     for (let x = 0; x <= level.board.cols; x++)
-      g.moveTo(x * level.board.pitch, 0).lineTo(x * level.board.pitch, level.board.rows * level.board.pitch)
+      g.moveTo(x * level.board.pitch, 0).lineTo(x * level.board.pitch, bh)
     for (let y = 0; y <= level.board.rows; y++)
-      g.moveTo(0, y * level.board.pitch).lineTo(level.board.cols * level.board.pitch, y * level.board.pitch)
+      g.moveTo(0, y * level.board.pitch).lineTo(bw, y * level.board.pitch)
     g.stroke({ color: PALETTE.silk, width: 1, alpha: 0.4 })
     this.layers.board.addChild(g)
   }
@@ -41,11 +48,25 @@ export class Renderer {
   private drawDecor(level: Level): void {
     for (const item of level.decor) {
       const g = new Graphics()
+      const pendingText: { x: number; y: number; text: string; size: number; color: number }[] = []
       for (const s of buildDecorShapes(item, level.board.pitch)) {
-        if (s.type === 'rect') g.rect(s.x, s.y, s.w, s.h).fill({ color: s.color, alpha: s.alpha })
-        else g.circle(s.x, s.y, s.w).fill({ color: s.color, alpha: s.alpha })
+        if (s.type === 'rect') {
+          g.rect(s.x, s.y, s.w, s.h).fill({ color: s.color, alpha: s.alpha })
+        } else if (s.type === 'circle') {
+          g.circle(s.x, s.y, s.r).fill({ color: s.color, alpha: s.alpha })
+        } else if (s.type === 'line') {
+          g.moveTo(s.x1, s.y1).lineTo(s.x2, s.y2).stroke({ color: s.color, width: s.width, alpha: s.alpha })
+        } else if (s.type === 'text') {
+          pendingText.push(s)
+        }
       }
       this.layers.decor.addChild(g)
+      // Text objects rendered after graphics so they appear on top
+      for (const s of pendingText) {
+        const t = new Text({ text: s.text, style: { fontFamily: 'monospace', fontSize: s.size, fill: s.color } })
+        t.position.set(s.x, s.y)
+        this.layers.decor.addChild(t)
+      }
     }
   }
 

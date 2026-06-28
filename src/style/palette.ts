@@ -13,6 +13,20 @@ export const PALETTE = {
   icBody: 0x14140f,
   pinSilver: 0x9aa0a0,
   textDim: 0x6f8f7e,
+  // PCB realism – Stage 2
+  pour: 0x123a22,
+  hatch: 0x1c5a30,
+  padGold: 0xc9a84c,
+  padSilver: 0xc0c0c0,
+  silkWhite: 0xe8e8e8,
+  capTan: 0xc8a870,
+  resBlack: 0x141414,
+  tantalum: 0xc07820,
+  elecCan: 0x9a9a9a,
+  crystal: 0xa8a8a8,
+  inductor: 0x444444,
+  ledRed: 0xe05050,
+  ledGreen: 0x50e070,
 } as const
 
 export const RENDER = {
