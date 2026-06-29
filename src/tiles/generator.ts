@@ -1,5 +1,5 @@
 import type { Board } from '../model/level'
-import type { TileGrid } from './types'
+import type { Port, TileGrid } from './types'
 import { emptyGrid, layPath, setTile, rotForPorts } from './layout'
 import { makeRng } from '../pipeline/rng'
 
@@ -62,29 +62,71 @@ function spiral(g: TileGrid): void {
   layPath(g, clean)
 }
 
+function dedup(coords: [number, number][]): [number, number][] {
+  return coords.filter((c, i) => i === 0 || c[0] !== coords[i - 1][0] || c[1] !== coords[i - 1][1])
+}
+const col = (x: number, ys: number[]): [number, number][] => ys.map((y) => [x, y] as [number, number])
+const row = (y: number, xs: number[]): [number, number][] => xs.map((x) => [x, y] as [number, number])
+
+// branching: START → forkA (split) → up & down branches → forkB (merge) → single FINISH.
+// Both compiled routes share START (left, midY) and FINISH (right, midY).
 function branching(g: TileGrid): void {
   const midY = Math.floor(g.trows / 2)
-  const fx = Math.floor(g.tcols / 2)
-  layPath(g, range(1, fx).map((x) => [x, midY] as [number, number]))
-  setTile(g, fx, midY, { type: 'fork', rot: rotForPorts('fork', ['W', 'N', 'S']) })
-  layPath(g, [[fx, midY], ...range(midY - 1, 1).map((y) => [fx, y] as [number, number]), ...range(fx + 1, g.tcols - 2).map((x) => [x, 1] as [number, number])])
-  layPath(g, [[fx, midY], ...range(midY + 1, g.trows - 2).map((y) => [fx, y] as [number, number]), ...range(fx + 1, g.tcols - 2).map((x) => [x, g.trows - 2] as [number, number])])
+  const top = 1, bot = g.trows - 2
+  const fxA = Math.max(2, Math.floor(g.tcols / 3))
+  const fxB = Math.min(g.tcols - 3, Math.max(fxA + 2, Math.floor((2 * g.tcols) / 3)))
+  setTile(g, fxA, midY, { type: 'fork', rot: rotForPorts('fork', ['W', 'N', 'S']) }) // split
+  setTile(g, fxB, midY, { type: 'fork', rot: rotForPorts('fork', ['N', 'S', 'E']) }) // merge
+  const up = dedup([
+    ...row(midY, range(1, fxA)),           // START → forkA
+    ...col(fxA, range(midY - 1, top)),     // up
+    ...row(top, range(fxA + 1, fxB)),      // across top
+    ...col(fxB, range(top + 1, midY)),     // down → forkB
+    ...row(midY, range(fxB + 1, g.tcols - 2)), // forkB → FINISH
+  ])
+  const down = dedup([
+    ...row(midY, range(1, fxA)),
+    ...col(fxA, range(midY + 1, bot)),     // down
+    ...row(bot, range(fxA + 1, fxB)),      // across bottom
+    ...col(fxB, range(bot - 1, midY)),     // up → forkB
+    ...row(midY, range(fxB + 1, g.tcols - 2)),
+  ])
+  layPath(g, up)
+  layPath(g, down)
 }
 
-// multiSpawn: N independent parallel horizontal routes, each with its own start and finish
+// multiSpawn: N START tiles (left, different rows) → a vertical collector spine with merge
+// forks → one shared FINISH (right). Every compiled route ends at the same finish cell.
 function multiSpawn(g: TileGrid, n: number): void {
-  const count = Math.max(2, n)
-  const rowsFor = [1, g.trows - 2, Math.floor(g.trows / 3)].slice(0, count)
-  for (const ry of rowsFor) {
-    layPath(g, range(1, g.tcols - 2).map((x) => [x, ry] as [number, number]))
+  const count = Math.min(3, Math.max(2, n))
+  const sx = Math.max(3, g.tcols - 3)
+  const rows: number[] = []
+  for (let i = 0; i < count; i++) rows.push(Math.round(1 + (i / (count - 1)) * (g.trows - 3)))
+  const uniq = [...new Set(rows)].sort((a, b) => a - b)
+  const finishRow = uniq[uniq.length - 1]
+  // pre-place merge forks on the spine (all joins except the topmost, which layPath makes a corner)
+  for (let i = 1; i < uniq.length; i++) {
+    const r = uniq[i]
+    const ports: Port[] = i === uniq.length - 1 ? ['W', 'N', 'E'] : ['W', 'N', 'S']
+    setTile(g, sx, r, { type: 'fork', rot: rotForPorts('fork', ports) })
+  }
+  // each start: horizontal in → down the spine → horizontal out to the shared finish
+  for (const r of uniq) {
+    const chain = dedup([
+      ...row(r, range(1, sx)),                                   // START → spine join
+      ...(r < finishRow ? col(sx, range(r + 1, finishRow)) : []), // down the spine (none for bottom row)
+      ...row(finishRow, range(sx + 1, g.tcols - 2)),            // → shared FINISH
+    ])
+    layPath(g, chain)
   }
 }
 
+// cross: two routes crossing through a central bridge (independent, not merging).
 function cross(g: TileGrid): void {
   const cx = Math.floor(g.tcols / 2), cy = Math.floor(g.trows / 2)
   setTile(g, cx, cy, { type: 'bridge', rot: 0 })
-  layPath(g, range(1, g.tcols - 2).map((x) => [x, cy] as [number, number]))
-  layPath(g, range(1, g.trows - 2).map((y) => [cx, y] as [number, number]))
+  layPath(g, row(cy, range(1, g.tcols - 2)))
+  layPath(g, col(cx, range(1, g.trows - 2)))
 }
 
 function range(a: number, b: number): number[] {

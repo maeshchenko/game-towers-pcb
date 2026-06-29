@@ -91,22 +91,28 @@ describe('generateLevel', () => {
       })
     }
 
-    it('multiSpawn: produces at least 2 independent paths', () => {
-      // Tile-based multiSpawn creates N parallel independent horizontal routes;
-      // each has its own start and finish (no shared base cell).
+    it('multiSpawn: multiple spawns converge on ONE shared finish', () => {
       for (let seed = 0; seed < 5; seed++) {
         const lvl = generateLevel({ board, difficulty: 4, seed, archetype: 'multiSpawn' })
         const allPaths = lvl.paths!
         expect(allPaths.length).toBeGreaterThanOrEqual(2)
+        const finish = (p: typeof allPaths[number]) => p.waypoints[p.waypoints.length - 1]
+        const base = finish(allPaths[0])
+        for (const p of allPaths) expect(finish(p)).toEqual(base) // all converge on the same base
       }
     })
 
-    it('branching: both paths share the same START cell', () => {
-      // Tile-based branching: trunk → fork tile → two separate branches with different finish cells.
+    it('branching: both paths share the same START and the same FINISH (split→merge)', () => {
       for (let seed = 0; seed < 5; seed++) {
         const lvl = generateLevel({ board, difficulty: 3, seed, archetype: 'branching' })
-        const [pA, pB] = lvl.paths!
-        expect(pA.waypoints[0]).toEqual(pB.waypoints[0])
+        const paths = lvl.paths!
+        expect(paths.length).toBeGreaterThanOrEqual(2)
+        const start = paths[0].waypoints[0]
+        const finish = paths[0].waypoints[paths[0].waypoints.length - 1]
+        for (const p of paths) {
+          expect(p.waypoints[0]).toEqual(start)
+          expect(p.waypoints[p.waypoints.length - 1]).toEqual(finish)
+        }
       }
     })
   })
