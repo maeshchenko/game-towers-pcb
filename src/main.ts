@@ -11,7 +11,9 @@ import { mountToolbar, levelToBlobUrl, readLevelFile } from './ui/Toolbar'
 import { mountPanels, updateLevelName } from './ui/Panels'
 import { Game } from './game/Game'
 import { GameLayers } from './render/GameLayers'
+import { GameUI } from './ui/GameUI'
 import type { Board } from './model/level'
+import type { Tower } from './game/Tower'
 
 async function boot() {
   const app = await createPixiApp({ width: window.innerWidth, height: window.innerHeight, background: PALETTE.substrate })
@@ -37,14 +39,40 @@ async function boot() {
   }
 
   let seedCounter = 1
+  let game: Game | null = null
+  let selectedTower: Tower | null = null
+  const gameLayers = new GameLayers(renderer.layers.game)
+
+  // ui declared early so callbacks in mountToolbar can reference it via closure
+  // (definite assignment: all calls happen after ui is fully initialised below)
+  let ui!: GameUI
+
+  function resetPlay() {
+    game = null
+    selectedTower = null
+    gameLayers.clear()
+    editor.enabled = true
+  }
+
   mountToolbar({
-    onNew: () => { editor.state.clear(); renderer.render(emptyLevel()); updateLevelName('Untitled') },
-    onGenerate: () => { editor.state.loadLevel(generateLevel({ board, difficulty: 5, seed: ++seedCounter })); editor.redraw(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --') },
+    onNew: () => {
+      resetPlay(); ui.showTower(null, 0)
+      editor.state.clear(); renderer.render(emptyLevel()); updateLevelName('Untitled')
+    },
+    onGenerate: () => {
+      resetPlay(); ui.showTower(null, 0)
+      editor.state.loadLevel(generateLevel({ board, difficulty: 5, seed: ++seedCounter }))
+      editor.redraw(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
+    },
     onReseed: () => { editor.state.reseed(++seedCounter); editor.redraw() },
-    onSave: () => { if (!editor.state.level) return; const a = document.createElement('a'); a.href = levelToBlobUrl(editor.state.level); a.download = 'level.json'; a.click() },
+    onSave: () => {
+      if (!editor.state.level) return
+      const a = document.createElement('a'); a.href = levelToBlobUrl(editor.state.level); a.download = 'level.json'; a.click()
+    },
     onLoad: async (file) => {
       try {
         const lvl = await readLevelFile(file)
+        resetPlay(); ui.showTower(null, 0)
         editor.state.loadLevel(lvl)
         const b = editor.state.board
         board = { cols: b.cols, rows: b.rows, pitch: fitPitch(b.cols, b.rows, view().w, view().h) }
@@ -56,23 +84,58 @@ async function boot() {
         console.error(err); alert('Не удалось загрузить уровень: неверный файл')
       }
     },
-    onResize: applyBoard,
+    onResize: (cols, rows) => { resetPlay(); ui.showTower(null, 0); applyBoard(cols, rows) },
   })
 
-  // --- TEMP mini-demo (replaced by full play-mode wiring in G1 Task 12) ---
-  // Press "p" to play the current level: spawns a wave; enemies flow along the path.
-  const gameLayers = new GameLayers(renderer.layers.game)
-  let demo: Game | null = null
-  window.addEventListener('keydown', (e) => {
-    if (e.key === 'p' && editor.state.level) {
-      demo = new Game(editor.state.level, ++seedCounter)
-      demo.startWave()
+  function ensureGame() {
+    if (!game && editor.state.level) {
+      game = new Game(editor.state.level, ++seedCounter)
+      selectedTower = null
+      editor.enabled = false
+    }
+  }
+
+  ui = new GameUI({
+    onBuild: () => {},                       // arming handled inside GameUI; placement on canvas click
+    onStartWave: () => { ensureGame(); game!.startWave() },
+    onTogglePlay: () => { game && (game.speed = game.speed === 0 ? 1 : 0) },
+    onSpeed: (m) => { if (game) game.speed = m },
+    onUpgrade: () => { if (game && selectedTower) { game.upgrade(selectedTower); ui.showTower(selectedTower, game.sellValue(selectedTower)) } },
+    onSell: () => { if (game && selectedTower) { game.sell(selectedTower); selectedTower = null; ui.showTower(null, 0) } },
+    onTargetMode: () => { if (selectedTower) { selectedTower.cycleTargetMode(); ui.showTower(selectedTower, game!.sellValue(selectedTower)) } },
+  })
+  ui.mountHud()
+
+  // build/select on canvas click during play
+  app.canvas.addEventListener('pointerdown', (e) => {
+    if (!game) return
+    const r = app.canvas.getBoundingClientRect()
+    const wx = (e.clientX - r.left - camera.x) / camera.zoom
+    const wy = (e.clientY - r.top - camera.y) / camera.zoom
+    const cells = game.spotCells()
+    const pitch = editor.state.board.pitch
+    let bestI = -1, bestD = pitch
+    cells.forEach((c, i) => {
+      const cx = c[0] * pitch + pitch / 2, cy = c[1] * pitch + pitch / 2
+      const d = Math.hypot(cx - wx, cy - wy)
+      if (d < bestD) { bestD = d; bestI = i }
+    })
+    const kind = ui.selectedBuildKind()
+    if (bestI >= 0 && kind && game.canBuild(bestI)) {
+      game.build(kind, bestI)
+    } else {
+      const t = game.towers.find((tw) => Math.hypot(tw.pos.x - wx, tw.pos.y - wy) <= pitch)
+      selectedTower = t ?? null
+      ui.showTower(selectedTower, selectedTower ? game.sellValue(selectedTower) : 0)
     }
   })
-  app.ticker.add((t) => {
-    if (!demo) return
-    demo.tick(t.deltaMS / 1000)
-    gameLayers.draw(demo, null)
+
+  // game loop on the Pixi ticker
+  app.ticker.add((ticker) => {
+    if (!game) return
+    game.tick(ticker.deltaMS / 1000)
+    gameLayers.draw(game, selectedTower)
+    ui.update(game)
     camera.apply(renderer.world)
   })
 }

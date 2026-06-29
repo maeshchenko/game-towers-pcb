@@ -7,15 +7,18 @@ import type { Board } from '../model/level'
 
 export class Editor {
   state: EditorState
+  enabled = true
   private debounce: ReturnType<typeof setTimeout> | null = null
 
   private onPointerDown = (e: PointerEvent): void => {
+    if (!this.enabled) return
     const w = this.worldFromEvent(e)
     this.state.addPoint(snapToCell(w, this.state.board.pitch))
     this.scheduleRecompute()
   }
 
   private onKeyDown = (e: KeyboardEvent): void => {
+    if (!this.enabled) return
     if (e.key === 'Enter') {
       if (this.debounce) { clearTimeout(this.debounce); this.debounce = null }
       this.state.commitTrace(); this.redraw()
