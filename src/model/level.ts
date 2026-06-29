@@ -19,7 +19,7 @@ export interface Level {
   nets?: number[][]
   /** Copper polylines connecting pad anchors of electrically connected components. */
   copper?: Copper[]
-  meta: { name: string; difficulty: number }
+  meta: { name: string; difficulty: number; archetype?: string }
 }
 
 export function serializeLevel(l: Level): string {

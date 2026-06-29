@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { generateLevel, minSpots } from '../../src/pipeline/generator'
+import { generateLevel, minSpots, ARCHETYPES } from '../../src/pipeline/generator'
 import { isOctilinear } from '../../src/geom/octilinear'
 
 describe('generateLevel', () => {
@@ -24,6 +24,37 @@ describe('generateLevel', () => {
       expect(wp.length).toBeGreaterThanOrEqual(2)
       for (let i = 1; i < wp.length; i++) expect(isOctilinear(wp[i - 1], wp[i])).toBe(true)
       expect(lvl.spots.length + lvl.specialSpots.length).toBeGreaterThanOrEqual(minSpots(4))
+      expect(ARCHETYPES as readonly string[]).toContain(lvl.meta.archetype)
+    }
+  })
+
+  it('all archetypes are exercised across 100 seeds at difficulty 4', () => {
+    const seen = new Set<string>()
+    for (let seed = 0; seed < 100; seed++) {
+      const lvl = generateLevel({ board, difficulty: 4, seed })
+      seen.add(lvl.meta.archetype!)
+    }
+    for (const arch of ARCHETYPES) expect(seen).toContain(arch)
+  })
+
+  describe('archetype override', () => {
+    for (const arch of ARCHETYPES) {
+      it(`${arch}: octilinear, connected, bounding-box, spot count`, () => {
+        for (let seed = 0; seed < 5; seed++) {
+          const lvl = generateLevel({ board, difficulty: 3, seed, archetype: arch })
+          const wp = lvl.trace.waypoints
+          expect(wp.length).toBeGreaterThanOrEqual(2)
+          for (let i = 1; i < wp.length; i++)
+            expect(isOctilinear(wp[i - 1], wp[i])).toBe(true)
+          // Bounding box must span ≥ 60% of the board in each dimension
+          const xs = wp.map((c) => c[0])
+          const ys = wp.map((c) => c[1])
+          expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(board.cols * 0.6)
+          expect(Math.max(...ys) - Math.min(...ys)).toBeGreaterThan(board.rows * 0.6)
+          expect(lvl.meta.archetype).toBe(arch)
+          expect(lvl.spots.length + lvl.specialSpots.length).toBeGreaterThanOrEqual(minSpots(3))
+        }
+      })
     }
   })
 })
