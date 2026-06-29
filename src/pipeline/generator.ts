@@ -1,6 +1,8 @@
 import type { Board, Level } from '../model/level'
 import type { Cell } from '../geom/types'
 import { octilinearize } from '../geom/octilinear'
+import { stylePath } from '../geom/pathStyle'
+import { makeRng } from './rng'
 import { buildDecorWithNets } from './decor'
 import { routeCopper } from './copper'
 import { buildTileGrid } from '../tiles/generator'
@@ -17,7 +19,10 @@ export function generateLevel(params: {
 }): Level {
   const { board, difficulty, seed } = params
   const { grid, archetype } = buildTileGrid(board, difficulty, seed, params.archetype)
-  const routes = compileRoutes(grid).map((t) => ({ waypoints: octilinearize(t.waypoints), cornerRadius: 0.5 }))
+  const routes = compileRoutes(grid).map((t, i) => ({
+    waypoints: stylePath(octilinearize(t.waypoints), makeRng(seed * 131 + i + 1)),
+    cornerRadius: 0.5,
+  }))
   const paths = routes.length ? routes : [{ waypoints: [[1, 1], [board.cols - 2, board.rows - 2]] as Cell[], cornerRadius: 0.5 }]
   const { spots, specialSpots } = tileSpots({ board, routes: paths, difficulty })
   const { decor, nets } = buildDecorWithNets({ board, trace: paths, spots, specialSpots, seed })
