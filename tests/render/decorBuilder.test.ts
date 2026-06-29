@@ -10,8 +10,8 @@ describe('decorBuilder', () => {
     const shapes = buildDecorShapes({ kind: 'soic', variant: 8, cell: [4, 4], rot: 0, scale: 1 }, 24)
     // shadow + body + bevel×2 + pads(4pins × 2sides) + pin-1 dot + silk(4 lines) + specular ≥ 20
     expect(shapes.length).toBeGreaterThanOrEqual(12)
-    // first shape is drop-shadow (dark rect)
-    expect(shapes[0].type).toBe('rect')
+    // first shape is the drop-shadow (rounded body)
+    expect(shapes[0].type).toBe('roundRect')
     // has at least one gold pad
     expect(shapes.some(s => s.type === 'rect' && (s as { type: 'rect'; color: number }).color === PAD_GOLD)).toBe(true)
     // has silkscreen lines
@@ -64,7 +64,7 @@ describe('decorBuilder', () => {
     expect(() => {
       const shapes = buildDecorShapes({ kind: 'bogus_xyz', variant: 0, cell: [0, 0], rot: 0, scale: 1 }, 24)
       expect(shapes.length).toBeGreaterThan(0)
-      expect(shapes[0].type).toBe('rect')
+      expect(['rect', 'roundRect']).toContain(shapes[0].type)
     }).not.toThrow()
   })
 })

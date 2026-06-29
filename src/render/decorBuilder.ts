@@ -4,6 +4,7 @@ import { PALETTE } from '../style/palette'
 // ---------- ShapeSpec discriminated union ----------
 export type ShapeSpec =
   | { type: 'rect';   x: number; y: number; w: number; h: number; color: number; alpha: number }
+  | { type: 'roundRect'; x: number; y: number; w: number; h: number; r: number; color: number; alpha: number }
   | { type: 'circle'; x: number; y: number; r: number; color: number; alpha: number }
   | { type: 'line';   x1: number; y1: number; x2: number; y2: number; width: number; color: number; alpha: number }
   | { type: 'text';   x: number; y: number; text: string; size: number; color: number; align?: 'left' | 'center' }
@@ -59,12 +60,13 @@ function silkRect(shapes: ShapeSpec[], x: number, y: number, w: number, h: numbe
   shapes.push({ type: 'line', x1: xi, y1: ye, x2: xi, y2: yi, width: lw, color: SILK, alpha: a })
 }
 
-/** Fake-3D body: drop-shadow → body fill → top bevel → bottom bevel. */
+/** Fake-3D body: drop-shadow → rounded body fill → top bevel → bottom bevel. */
 function chipBody(shapes: ShapeSpec[], x: number, y: number, w: number, h: number, color: number): void {
-  rect(shapes, x + 2, y + 3, w, h, SHD, 0.5)                                        // drop-shadow
-  rect(shapes, x, y, w, h, color, 1)                                                 // body
-  rect(shapes, x, y, w, Math.max(1, h * 0.18), 0xffffff, 0.16)                      // top bevel light
-  rect(shapes, x, y + h - Math.max(1, h * 0.18), w, Math.max(1, h * 0.18), SHD, 0.4) // bottom bevel dark
+  const r = Math.min(w, h) * 0.12
+  shapes.push({ type: 'roundRect', x: x + 2, y: y + 3, w, h, r, color: SHD, alpha: 0.5 })   // drop-shadow
+  shapes.push({ type: 'roundRect', x, y, w, h, r, color, alpha: 1 })                          // body
+  rect(shapes, x + r, y + 1, w - 2 * r, Math.max(1, h * 0.16), 0xffffff, 0.16)               // top bevel light
+  rect(shapes, x + r, y + h - Math.max(1, h * 0.16) - 1, w - 2 * r, Math.max(1, h * 0.16), SHD, 0.4) // bottom bevel dark
 }
 
 function specular(shapes: ShapeSpec[], x: number, y: number, w: number, h: number): void {
@@ -429,11 +431,13 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
       chipBody(shapes, x, y, w, h, PALETTE.icBody)
       die(shapes, x, y, w, h)
       const pinCount = Math.max(2, Math.floor((item.variant || 8) / 2))
-      const padW = pitch * 0.30, padH = pitch * 0.15
+      const padW = pitch * 0.38, padH = pitch * 0.22
       for (let i = 0; i < pinCount; i++) {
         const px = x + ((i + 0.5) / pinCount) * w
-        rect(shapes, px - padW / 2, y - padH,     padW, padH, GOLD, 0.9)  // top gull-wing
-        rect(shapes, px - padW / 2, y + h,         padW, padH, GOLD, 0.9)  // bottom gull-wing
+        rect(shapes, px - padW / 2, y - padH,     padW, padH, GOLD, 1)            // top gull-wing
+        rect(shapes, px - padW / 2, y - padH,     padW, padH * 0.4, 0xffffff, 0.2) // sheen
+        rect(shapes, px - padW / 2, y + h,         padW, padH, GOLD, 1)            // bottom gull-wing
+        rect(shapes, px - padW / 2, y + h,         padW, padH * 0.4, 0xffffff, 0.2)
       }
       pin1Dot(shapes, x + pitch * 0.28, y + pitch * 0.28)
       silkRect(shapes, x, y, w, h)
@@ -447,14 +451,14 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
       chipBody(shapes, x, y, w, h, PALETTE.icBody)
       die(shapes, x, y, w, h)
       const pinsPerSide = Math.max(4, Math.floor((item.variant || 32) / 4))
-      const padW = pitch * 0.11, padH = pitch * 0.28
+      const padW = pitch * 0.15, padH = pitch * 0.30
       for (let i = 0; i < pinsPerSide; i++) {
         const px = x + ((i + 0.5) / pinsPerSide) * w
         const py = y + ((i + 0.5) / pinsPerSide) * h
-        rect(shapes, px - padW / 2, y - padH,      padW, padH, GOLD, 0.9)  // top
-        rect(shapes, px - padW / 2, y + h,          padW, padH, GOLD, 0.9)  // bottom
-        rect(shapes, x - padH,      py - padW / 2, padH, padW, GOLD, 0.9)  // left
-        rect(shapes, x + w,         py - padW / 2, padH, padW, GOLD, 0.9)  // right
+        rect(shapes, px - padW / 2, y - padH,      padW, padH, GOLD, 1)  // top
+        rect(shapes, px - padW / 2, y + h,          padW, padH, GOLD, 1)  // bottom
+        rect(shapes, x - padH,      py - padW / 2, padH, padW, GOLD, 1)  // left
+        rect(shapes, x + w,         py - padW / 2, padH, padW, GOLD, 1)  // right
       }
       pin1Dot(shapes, x + pitch * 0.32, y + pitch * 0.32)
       silkRect(shapes, x, y, w, h)

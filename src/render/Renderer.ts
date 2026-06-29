@@ -107,6 +107,8 @@ export class Renderer {
       for (const s of buildDecorShapes(item, level.board.pitch)) {
         if (s.type === 'rect') {
           g.rect(s.x, s.y, s.w, s.h).fill({ color: s.color, alpha: s.alpha })
+        } else if (s.type === 'roundRect') {
+          g.roundRect(s.x, s.y, s.w, s.h, s.r).fill({ color: s.color, alpha: s.alpha })
         } else if (s.type === 'circle') {
           g.circle(s.x, s.y, s.r).fill({ color: s.color, alpha: s.alpha })
         } else if (s.type === 'line') {

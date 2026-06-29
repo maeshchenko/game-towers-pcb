@@ -20,8 +20,8 @@ export const PALETTE = {
   finishRed: 0xe8503a,
   buildGold: 0xe8c84a,
   specialCyan: 0x3fb6d8,
-  icBody: 0x171f22,        // dark teal-navy IC body (ref chips), not pure black so bevel reads
-  icDie: 0x232f33,         // faint inner die rectangle on ICs
+  icBody: 0x18222e,        // cool dark navy IC body (ref chips), not pure black so bevel reads
+  icDie: 0x24303f,         // faint inner die rectangle on ICs
   pinSilver: 0x8a948c,
   textDim: 0x3c5446,
   // PCB realism. Bodies stay DARK/recessed; DETAIL (gold pins, metal caps, bevel) is kept crisp.
