@@ -1,5 +1,6 @@
 import type { Cell } from '../geom/types'
 import type { Copper } from '../pipeline/copper'
+import type { TileGrid } from '../tiles/types'
 
 export type { Copper }
 
@@ -21,6 +22,7 @@ export interface Level {
   nets?: number[][]
   /** Copper polylines connecting pad anchors of electrically connected components. */
   copper?: Copper[]
+  tiles?: TileGrid
   meta: { name: string; difficulty: number; archetype?: string }
 }
 
