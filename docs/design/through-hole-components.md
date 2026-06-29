@@ -163,7 +163,28 @@ R→LED anode, LED cathode→GND; battery +→clip +; R→transistor base, colle
 - trimpot → IC/node: adjustable input (gain/threshold).
 - inductor + electrolytic: LC ripple filter on a supply.
 
+## PCB routing rules (a trace that crosses a foreign pin/trace = a short)
+- **No same-layer crossings.** Two nets must never touch. If they must cross, one drops to another
+  layer through a **via** (drawn as a small ringed dot) and back — that's the only legal cross.
+- **Route around pads/pins**, never straight over a pin you don't connect to (keep clearance ~3× trace width).
+- **45° turns, not 90°** (no acute angles); smooth corners.
+- **Ground plane / pour** instead of long GND traces: GND pins connect to the pour with a short
+  **thermal via** (a ringed pad), so grounds don't need crossing wires.
+- **Power rail** along an edge; parts **tap** it with a short stub + via (the tap ends ON the rail).
+- **Teardrops**: pad↔trace junctions get a teardrop fillet (mechanical relief).
+- **Solder joint**: a good joint is a small **concave, shiny** fillet around the lead at the pad —
+  light tin with a slightly darker center, not a flat blob.
+
+Implementation: kit2 §3 routes each net with the octilinear A* (`geom/router.ts`) over a grid where
+component bodies + every foreign pin + already-routed traces are **blocked**, so routed copper never
+overlaps; GND uses a pour + thermal vias; VCC is a rail with stub taps; unavoidable crossings get a via.
+
 ## Sources
+- [PCB Routing Guide — Design Rules & Best Practices (PCBRunner)](https://www.pcbrunner.com/a-complete-guide-to-pcb-routing-design-rules-and-best-practices-for-success/)
+- [Routing Traces in PCBs: Best Practices (Cadence)](https://resources.pcb.cadence.com/blog/2024-routing-traces-in-pcbs-best-practices)
+- [Is it acceptable for PCB traces to cross on different layers? (Sierra)](https://sierraconnect.protoexpress.com/t/is-it-acceptable-for-pcb-traces-to-cross-on-different-layers/1634)
+- [PCB Teardrops Roles and Rules (JHDPCB)](https://jhdpcb.com/blog/pcb-teardrops/)
+- [Mastering Solder Joint Quality — IPC-A-610 fillets (ALLPCB)](https://www.allpcb.com/allelectrohub/mastering-solder-joint-quality-an-ipc-a-610-guide-to-acceptable-fillets)
 - [Through-hole technology — Wikipedia](https://en.wikipedia.org/wiki/Through-hole_technology)
 - [The Ultimate Guide to Through-Hole Component Identification — ALLPCB](https://www.allpcb.com/blog/pcb-assembly/the-ultimate-guide-to-through-hole-component-identification-a-beginners-handbook.html)
 - [Through-Hole Resistors Guide — TechSparks](https://www.tech-sparks.com/through-hole-resistors/)

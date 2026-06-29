@@ -6,7 +6,9 @@ import { createPixiApp } from './app/PixiApp'
 import { PALETTE } from './style/palette'
 import type { ShapeSpec } from './render/decorBuilder'
 import { buildVintageShapes, vintageLeadEnds, vintagePins, pin, VFOOT, type VintageKind, type VintageOpts } from './render/vintageDecor'
-import { makeRng } from './pipeline/rng'
+import { routeOctilinear } from './geom/router'
+import { cellKey } from './geom/grid'
+import type { Cell } from './geom/types'
 
 const P = 18
 const TILE = 172
@@ -114,60 +116,109 @@ async function boot() {
   })
   y += PH + 24
 
-  // ── SECTION 3 — full schematic ────────────────────────────────────────────
-  section('3 · FULL SCHEMATIC — every block on one board, copper routed under the parts')
+  // ── SECTION 3 — full schematic (obstacle-aware routing: no trace crosses a foreign pin/trace) ──
+  section('3 · FULL SCHEMATIC — A* routes around pins/traces, GND pour + VCC rail, vias on cross')
   const BX = 16, BY = y + 4, BW = 1180, BH = 560
-  const VCC = BY + 40, GND = BY + BH - 40
-  const COP = PALETTE.copperTrace
-  const sub = new Graphics(), copperG = new Graphics(), partsHolder = new Container()
-  world.addChild(sub, copperG, partsHolder)
-  sub.rect(BX, BY, BW, BH).fill({ color: 0x0a1712, alpha: 1 }).stroke({ color: 0x1c3a2b, width: 1 })
-  for (let d = -BH; d < BW; d += 7) sub.moveTo(BX + d, BY).lineTo(BX + d + BH, BY + BH)
-  sub.stroke({ color: PALETTE.hatch, width: 0.5, alpha: 0.18 })
-  const rng = makeRng(42), dirs = [[1, 0], [0, 1], [1, 1], [1, -1]] as const
-  for (let i = 0; i < 90; i++) { const x0 = BX + rng() * BW, y0 = BY + rng() * BH, [dx, dy] = dirs[Math.floor(rng() * 4)], len = (2 + rng() * 6) * P; sub.moveTo(x0, y0).lineTo(x0 + dx * len, y0 + dy * len) }
-  sub.stroke({ color: PALETTE.routing, width: 1.4, alpha: 0.5 })
-  for (let i = 0; i < 60; i++) sub.circle(BX + rng() * BW, BY + rng() * BH, 1.6).fill({ color: PALETTE.routing, alpha: 0.6 })
+  const VCC = BY + 30, COP = PALETTE.copperTrace
+  const sub = new Graphics(), copperG = new Graphics(), partsHolder = new Container(), topG = new Graphics()
+  world.addChild(sub, copperG, partsHolder, topG)
 
-  const partsList: { kind: VintageKind; x: number; y: number; opts?: VintageOpts }[] = []
-  const part = (kind: VintageKind, gx: number, gy: number, opts?: VintageOpts): Pt[] => { partsList.push({ kind, x: gx, y: gy, opts }); return leadsAt(kind, gx, gy) }
-  const via = (p: Pt) => { copperG.circle(p.x, p.y, 4).fill({ color: COP }); copperG.circle(p.x, p.y, 1.8).fill({ color: 0x0a1712 }) }
-  function route(pts: Pt[], w = 3): void {
-    copperG.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) copperG.lineTo(pts[i].x, pts[i].y)
-    copperG.stroke({ color: COP, width: w, cap: 'round', join: 'round' }); for (let i = 1; i < pts.length - 1; i++) via(pts[i])
+  // ground POUR (whole board is GND plane) + hatch — GND pins thermal-via straight into it
+  sub.rect(BX, BY, BW, BH).fill({ color: 0x0c2418, alpha: 1 }).stroke({ color: 0x1c3a2b, width: 1 })
+  for (let d = -BH; d < BW; d += 6) sub.moveTo(BX + d, BY).lineTo(BX + d + BH, BY + BH)
+  sub.stroke({ color: PALETTE.hatch, width: 0.5, alpha: 0.22 })
+
+  // routing grid: bodies + every pin + already-routed traces are blocked → no overlaps
+  const CELL = 9
+  const gcols = Math.floor(BW / CELL), grows = Math.floor(BH / CELL)
+  const blocked = new Set<string>()
+  const toC = (p: Pt): Cell => [Math.round((p.x - BX) / CELL), Math.round((p.y - BY) / CELL)]
+  const toP = (c: Cell): Pt => ({ x: BX + c[0] * CELL, y: BY + c[1] * CELL })
+  const blockCell = (c: Cell) => blocked.add(cellKey(c))
+  const unblockRing = (c: Cell) => { for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) blocked.delete(cellKey([c[0] + dx, c[1] + dy])) }
+  function blockBox(px: number, py: number, w: number, h: number, pad = 1): void {
+    const a = toC({ x: px, y: py }), b = toC({ x: px + w, y: py + h })
+    for (let cx = a[0] - pad; cx <= b[0] + pad; cx++) for (let cy = a[1] - pad; cy <= b[1] + pad; cy++) blockCell([cx, cy])
   }
-  const elbow = (a: Pt, b: Pt, atY: number): Pt[] => [a, { x: a.x, y: atY }, { x: b.x, y: atY }, b]
-  const cap = (t: string, x: number, yy: number) => text(t, x, yy, PALETTE.textDim, 11)
-  route([{ x: BX + 20, y: VCC }, { x: BX + BW - 20, y: VCC }], 5)
-  route([{ x: BX + 20, y: GND }, { x: BX + BW - 20, y: GND }], 5)
-  cap('VCC rail', BX + 24, VCC - 16); cap('GND rail', BX + 24, GND + 8)
-  const tapVcc = (p: Pt) => { route([{ x: p.x, y: VCC }, p]); via({ x: p.x, y: VCC }) }
-  const tapGnd = (p: Pt) => { route([p, { x: p.x, y: GND }]); via({ x: p.x, y: GND }) }
 
-  // pin-aware lead lookup
+  // place parts, collect leads; block bodies + all pins
+  const partsList: { kind: VintageKind; x: number; y: number; opts?: VintageOpts }[] = []
+  const allLeads: Pt[] = []
+  function part(kind: VintageKind, gx: number, gy: number, opts?: VintageOpts): Pt[] {
+    partsList.push({ kind, x: gx, y: gy, opts })
+    const fp = VFOOT[kind]; blockBox(gx, gy, fp.w * P, fp.h * P, 1)
+    const leads = leadsAt(kind, gx, gy)
+    for (const l of leads) { allLeads.push(l); const c = toC(l); blockCell(c) }
+    return leads
+  }
   const L = (kind: VintageKind, leads: Pt[], name: string): Pt => leads[Math.max(0, pin(kind, name))]
-  // power input chain: jack tip+ → diode (anode→cathode) → electrolytic + → 7805 IN; OUT→VCC, GND→GND
-  { const jack = part('powerJack', BX + 40, VCC + 50); const d = part('diodeAxial', BX + 150, VCC + 70); const el = part('electroRadial', BX + 320, VCC + 40); const reg = part('to220', BX + 460, VCC + 40)
-    route([L('powerJack', jack, 'tip+'), { x: jack[0].x, y: VCC + 64 }, { x: L('diodeAxial', d, 'anode').x, y: VCC + 64 }, L('diodeAxial', d, 'anode')])
-    route([L('diodeAxial', d, 'cathode'), L('electroRadial', el, '+')]); route([L('electroRadial', el, '+'), L('to220', reg, 'IN')])
-    tapVcc(L('to220', reg, 'OUT')); tapGnd(L('to220', reg, 'GND')); tapGnd(L('electroRadial', el, '-'))
-    cap('A · jack tip+ → diode → cap+ → 7805 IN; OUT→VCC, GND→GND', BX + 30, VCC + 30) }
-  // decoupled IC + crystal clock: VCC/GND taps, decap across VCC, crystal+load caps on OSC
-  { const ic = part('dipIC', BX + 620, BY + BH / 2 - 10); const dec = part('ceramicDisc', BX + 720, BY + BH / 2 - 60); const xtal = part('crystalHC49', BX + 780, BY + BH / 2 - 80); const lc1 = part('ceramicDisc', BX + 760, BY + BH / 2 + 70); const lc2 = part('ceramicDisc', BX + 840, BY + BH / 2 + 70)
-    const oscPins = vintagePins('dipIC').map((p, idx) => (p === 'OSC' ? idx : -1)).filter((i) => i >= 0)
-    tapVcc(L('dipIC', ic, 'VCC')); tapGnd(L('dipIC', ic, 'GND'))
-    route([dec[0], L('dipIC', ic, 'VCC')]); tapGnd(dec[1])
-    route([xtal[0], ic[oscPins[0]]]); route([xtal[1], ic[oscPins[1]]]); route([lc1[0], ic[oscPins[0]]]); tapGnd(lc1[1]); route([lc2[0], ic[oscPins[1]]]); tapGnd(lc2[1])
-    cap('B · IC VCC/GND + decap + crystal on OSC pins (load caps→GND)', BX + 600, BY + BH / 2 - 96) }
-  // LED indicator: VCC → R → LED anode; cathode → GND
-  { const r = part('resAxial', BX + 960, VCC + 50); const led = part('led5mm', BX + 1100, VCC + 44, { on: true })
-    tapVcc(L('resAxial', r, 'A')); route(elbow(L('resAxial', r, 'B'), L('led5mm', led, 'anode'), VCC + 64)); tapGnd(L('led5mm', led, 'cathode')); cap('C · LED: VCC→R→anode, cathode→GND', BX + 950, VCC + 30) }
-  // transistor stage: R→base, collector→VCC, emitter→GND, coupling cap off collector
-  { const rb = part('resAxial', BX + 940, GND - 120); const q = part('to92', BX + 1080, GND - 150); const cc = part('filmCap', BX + 1130, GND - 60)
-    route([L('resAxial', rb, 'B'), L('to92', q, 'B')]); tapVcc(L('to92', q, 'C')); tapGnd(L('to92', q, 'E')); route([L('to92', q, 'C'), cc[0]]); tapGnd(cc[1]); cap('D · R→base, C→VCC, E→GND, coupling cap off C', BX + 900, GND - 150) }
-  // RC filter: VCC → R → cap → GND
-  { const rf = part('resAxial', BX + 120, GND - 90); const cf = part('filmCap', BX + 300, GND - 110)
-    tapVcc(L('resAxial', rf, 'A')); route([L('resAxial', rf, 'B'), cf[0]]); tapGnd(cf[1]); cap('E · RC filter: VCC→R→C→GND', BX + 110, GND - 120) }
+
+  const via = (p: Pt) => { topG.circle(p.x, p.y, 4.5).fill({ color: COP }); topG.circle(p.x, p.y, 2).fill({ color: 0x0c2418 }) }
+  const thermal = (p: Pt) => { // GND pad into the pour: ring + 4 spokes
+    topG.circle(p.x, p.y, 5).stroke({ color: COP, width: 1.5 })
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) topG.moveTo(p.x, p.y).lineTo(p.x + dx * 5, p.y + dy * 5).stroke({ color: COP, width: 2 })
+  }
+  const teardrop = (p: Pt) => topG.circle(p.x, p.y, 3).fill({ color: COP })
+  // merge collinear px points
+  function simplify(pts: Pt[]): Pt[] {
+    if (pts.length < 3) return pts
+    const out = [pts[0]]
+    for (let i = 1; i < pts.length - 1; i++) {
+      const a = out[out.length - 1], b = pts[i], c = pts[i + 1]
+      if (Math.sign(b.x - a.x) !== Math.sign(c.x - b.x) || Math.sign(b.y - a.y) !== Math.sign(c.y - b.y)) out.push(b)
+    }
+    out.push(pts[pts.length - 1]); return out
+  }
+  // route a signal net A→B around obstacles; mark the path blocked so later nets can't overlap
+  function net(a: Pt, b: Pt): void {
+    const ca = toC(a), cb = toC(b)
+    unblockRing(ca); unblockRing(cb)
+    const path = routeOctilinear({ cols: gcols, rows: grows, start: ca, goal: cb, blocked, turnPenalty: 2 })
+    if (!path) { // last resort: direct + via marking a layer cross
+      copperG.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: COP, width: 2.5, cap: 'round' }); via({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
+      ;[ca, cb].forEach(blockCell); teardrop(a); teardrop(b); return
+    }
+    for (const c of path) blockCell(c)
+    const px = simplify([a, ...path.map(toP), b])
+    copperG.moveTo(px[0].x, px[0].y); for (let i = 1; i < px.length; i++) copperG.lineTo(px[i].x, px[i].y)
+    copperG.stroke({ color: COP, width: 2.5, cap: 'round', join: 'round' })
+    teardrop(a); teardrop(b)
+  }
+  const cap = (t: string, x: number, yy: number) => text(t, x, yy, PALETTE.textDim, 11)
+
+  // VCC rail (top) — drawn, and its row blocked so signals don't run along it; taps reach up to it
+  copperG.rect(BX + 16, VCC - 2.5, BW - 32, 5).fill({ color: COP })
+  for (let cx = 0; cx < gcols; cx++) blockCell([cx, Math.round((VCC - BY) / CELL)])
+  cap('VCC rail (top) · GND = ground pour (thermal vias)', BX + 20, VCC + 8)
+  const tapVcc = (p: Pt) => { net(p, { x: p.x, y: VCC }); via({ x: p.x, y: VCC }) }
+  const tapGnd = (p: Pt) => thermal(p) // straight into the pour — no crossing wire
+
+  // place all parts first (so every pin is a known obstacle before routing)
+  const jack = part('powerJack', BX + 60, VCC + 70), d = part('diodeAxial', BX + 170, VCC + 110)
+  const el = part('electroRadial', BX + 330, VCC + 70), reg = part('to220', BX + 470, VCC + 70)
+  const ic = part('dipIC', BX + 600, BY + BH / 2 + 20), dec = part('ceramicDisc', BX + 700, BY + BH / 2 - 40)
+  const xtal = part('crystalHC49', BX + 770, BY + BH / 2 - 60), lc1 = part('ceramicDisc', BX + 760, BY + BH / 2 + 120), lc2 = part('ceramicDisc', BX + 850, BY + BH / 2 + 120)
+  const r = part('resAxial', BX + 980, VCC + 80), led = part('led5mm', BX + 1110, VCC + 74, { on: true })
+  const rb = part('resAxial', BX + 950, BY + BH - 120), q = part('to92', BX + 1090, BY + BH - 150), cc = part('filmCap', BX + 1140, BY + BH - 70)
+
+  // nets (correct pins; GND→pour, VCC→rail, signals A* routed)
+  net(L('powerJack', jack, 'tip+'), L('diodeAxial', d, 'anode'))
+  net(L('diodeAxial', d, 'cathode'), L('electroRadial', el, '+'))
+  net(L('electroRadial', el, '+'), L('to220', reg, 'IN'))
+  tapVcc(L('to220', reg, 'OUT')); tapGnd(L('to220', reg, 'GND')); tapGnd(L('electroRadial', el, '-'))
+  cap('A · jack → diode → cap+ → 7805 IN; OUT→VCC, GND→pour', BX + 50, VCC + 50)
+
+  const oscPins = vintagePins('dipIC').map((p, idx) => (p === 'OSC' ? idx : -1)).filter((i) => i >= 0)
+  tapVcc(L('dipIC', ic, 'VCC')); tapGnd(L('dipIC', ic, 'GND'))
+  net(dec[0], L('dipIC', ic, 'VCC')); tapGnd(dec[1])
+  net(xtal[0], ic[oscPins[0]]); net(xtal[1], ic[oscPins[1]]); net(lc1[0], ic[oscPins[0]]); tapGnd(lc1[1]); net(lc2[0], ic[oscPins[1]]); tapGnd(lc2[1])
+  cap('B · IC + decap + crystal on OSC pins', BX + 600, BY + BH / 2 - 80)
+
+  tapVcc(L('resAxial', r, 'A')); net(L('resAxial', r, 'B'), L('led5mm', led, 'anode')); tapGnd(L('led5mm', led, 'cathode'))
+  cap('C · LED: VCC→R→anode, cathode→pour', BX + 970, VCC + 56)
+
+  net(L('resAxial', rb, 'B'), L('to92', q, 'B')); tapVcc(L('to92', q, 'C')); tapGnd(L('to92', q, 'E')); net(L('to92', q, 'C'), cc[0]); tapGnd(cc[1])
+  cap('D · R→base, C→VCC, E→pour, coupling cap', BX + 910, BY + BH - 150)
 
   for (const pt of partsList) partsHolder.addChild(drawShapes(buildVintageShapes(pt.kind, P, pt.opts), pt.x, pt.y))
 }
