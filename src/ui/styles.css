@@ -12,3 +12,9 @@
 .sw { width: 14px; height: 14px; display: inline-block; }
 .sw.trace { background: #2bd06a; } .sw.build { border: 2px solid #e8c84a; } .sw.special { border: 2px solid #3fb6d8; border-radius: 50%; }
 .sw.start { background: #35e07a; } .sw.finish { background: #e8503a; }
+.pcb-gamebar { position: fixed; bottom: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; align-items: center; z-index: 10; background: rgba(13,31,23,0.9); border: 1px solid #1f8f4d; padding: 6px 10px; color: #6cf2a0; font: 12px monospace; }
+.pcb-gamebar button { background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 5px 8px; font: 11px monospace; cursor: pointer; }
+.pcb-gamebar button:hover { background: #14140f; }
+.pcb-towerpanel { position: fixed; top: 120px; right: 16px; width: 190px; background: rgba(13,31,23,0.92); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 12px; font: 12px monospace; z-index: 11; }
+.pcb-towerpanel h3 { color: #6cf2a0; margin: 0 0 6px; letter-spacing: 1px; }
+.pcb-towerpanel button { display: block; width: 100%; margin-top: 6px; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 5px; font: 11px monospace; cursor: pointer; }
