@@ -29,6 +29,7 @@ const C = {
   diodeBody: 0x171717, diodeBand: 0xcdd2cf, ledRed: 0xe23a3a, ledGreen: 0x3ad26a, trim: 0x2f5fa8, brass: 0xc8a84c,
   can: 0x9aa3a0, dip: 0x141414, silk: 0xc9d2cc,
   battBody: 0x1b1b1f, battLabel: 0x2a4a8a, wireRed: 0xcf3a32, wireBlack: 0x202428, jackBody: 0x26262b, jackRing: 0x8a9290,
+  pad: 0xb9c2bd, hole: 0x0a1712, term: 0x2f6fd0,
 }
 // resistor 4-band example colors (brown,black,red,gold)
 const BANDS = [0x6b3a12, 0x101010, 0xc23b22, 0xc8a84c]
@@ -45,18 +46,30 @@ function ci(s: ShapeSpec[], x: number, y: number, rad: number, color: number, al
 function ln(s: ShapeSpec[], x1: number, y1: number, x2: number, y2: number, width: number, color: number, alpha = 1): void {
   s.push({ type: 'line', x1, y1, x2, y2, width, color, alpha })
 }
-/** Silver wire lead + solder joint at the pad end (px). */
-function lead(s: ShapeSpec[], x1: number, y1: number, x2: number, y2: number, p: number): void {
-  ln(s, x1, y1, x2, y2, Math.max(1.5, p * 0.1), C.wire, 1)
-  ci(s, x2, y2, p * 0.16, C.solder, 1)
-  ci(s, x2, y2, p * 0.07, C.solderMid, 1)
+// TOP-DOWN render helpers (single top-down camera + pseudo-3D: top face + side wall + highlight).
+/** Through-hole annular pad (donut): tin ring + drilled hole. */
+function padHole(s: ShapeSpec[], x: number, y: number, p: number): void {
+  ci(s, x, y, p * 0.24, C.pad, 1)
+  ci(s, x, y, p * 0.11, C.hole, 1)
 }
-/** Horizontal cylinder body: rounded-end fill + top highlight + bottom shadow. */
-function cylH(s: ShapeSpec[], x: number, y: number, w: number, h: number, color: number): void {
-  rr(s, x + 1, y + 2, w, h, h / 2, C.shadow, 0.4)        // drop shadow
-  rr(s, x, y, w, h, h / 2, color, 1)
-  rr(s, x + h * 0.4, y + h * 0.12, w - h * 0.8, h * 0.22, h * 0.1, C.white, 0.22) // top highlight
-  rr(s, x + h * 0.4, y + h * 0.66, w - h * 0.8, h * 0.22, h * 0.1, C.shadow, 0.28) // bottom shadow
+/** Silver lead wire from a body edge to a pad, then the annular pad. */
+function lead(s: ShapeSpec[], x1: number, y1: number, x2: number, y2: number, p: number): void {
+  ln(s, x1, y1, x2, y2, Math.max(1.6, p * 0.11), C.wire, 1)
+  padHole(s, x2, y2, p)
+}
+/** Pseudo-3D disc seen from top: cast shadow → side wall → top face → highlight. */
+function topDisc(s: ShapeSpec[], cx: number, cy: number, rad: number, color: number, wall = 3): void {
+  ci(s, cx + 2, cy + 4, rad, C.shadow, 0.4)
+  ci(s, cx, cy + wall, rad, color, 1); ci(s, cx, cy + wall, rad, C.shadow, 0.4) // darkened side wall
+  ci(s, cx, cy, rad, color, 1)                                                  // top face
+  ci(s, cx - rad * 0.32, cy - rad * 0.3, rad * 0.42, C.white, 0.18)             // highlight
+}
+/** Pseudo-3D box seen from top. */
+function topBox(s: ShapeSpec[], x: number, y: number, w: number, h: number, color: number, rad = 2, wall = 3): void {
+  rr(s, x + 2, y + 4, w, h, rad, C.shadow, 0.4)
+  rr(s, x, y + wall, w, h, rad, color, 1); rr(s, x, y + wall, w, h, rad, C.shadow, 0.4) // side wall
+  rr(s, x, y, w, h, rad, color, 1)                                                       // top face
+  rr(s, x + w * 0.1, y + h * 0.1, w * 0.6, Math.max(1.5, h * 0.16), rad, C.white, 0.16)  // highlight
 }
 
 /** Solder-joint (lead end) positions, origin-relative px — matches buildVintageShapes lead() calls. */
@@ -124,187 +137,155 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
   const cx = W / 2, cy = H / 2
 
   switch (kind) {
+    // axial parts: horizontal body, leads bent to annular pads at both ends (top-down)
     case 'resAxial':
     case 'inductorAxial':
     case 'diodeAxial': {
-      const bodyW = kind === 'diodeAxial' ? W * 0.5 : W * 0.62
-      const bh = H * 0.5
+      const bodyW = kind === 'diodeAxial' ? W * 0.5 : W * 0.62, bh = H * 0.46
       const bx = cx - bodyW / 2, by = cy - bh / 2
-      lead(s, bx, cy, 2, cy, pitch)                 // left lead
-      lead(s, bx + bodyW, cy, W - 2, cy, pitch)     // right lead
+      lead(s, bx, cy, 2, cy, pitch); lead(s, bx + bodyW, cy, W - 2, cy, pitch)
       const body = kind === 'resAxial' ? C.resTan : kind === 'inductorAxial' ? 0x2f7d6a : C.diodeBody
-      cylH(s, bx, by, bodyW, bh, body)
-      if (kind === 'diodeAxial') {
-        r(s, bx + bodyW * 0.78, by, bodyW * 0.1, bh, C.diodeBand, 0.95) // cathode band
-      } else {
-        const cols = kind === 'resAxial' ? BANDS : [0x2f7d6a, 0xc8a84c, 0x6b3a12]
-        cols.forEach((col, i) => r(s, bx + bodyW * (0.22 + i * 0.16), by + bh * 0.06, bodyW * 0.08, bh * 0.88, col, 0.95))
-      }
+      topBox(s, bx, by, bodyW, bh, body, bh / 2)
+      if (kind === 'diodeAxial') r(s, bx + bodyW * 0.76, by + bh * 0.1, bodyW * 0.1, bh * 0.8, C.diodeBand, 0.95)
+      else (kind === 'resAxial' ? BANDS : [0x2f7d6a, 0xc8a84c, 0x6b3a12]).forEach((col, i) =>
+        r(s, bx + bodyW * (0.22 + i * 0.16), by + bh * 0.1, bodyW * 0.08, bh * 0.8, col, 0.95))
       return s
     }
 
+    // radial parts: body on top, two leads down to annular pads at the bottom edge
     case 'ceramicDisc': {
-      lead(s, cx - W * 0.16, cy, cx - W * 0.16, H - 2, pitch)
-      lead(s, cx + W * 0.16, cy, cx + W * 0.16, H - 2, pitch)
-      const rad = W * 0.42
-      ci(s, cx, cy - H * 0.12, rad, C.shadow, 0.35)
-      ci(s, cx, cy - H * 0.16, rad, C.disc, 1)
-      ci(s, cx - rad * 0.3, cy - H * 0.16 - rad * 0.3, rad * 0.35, C.white, 0.22) // highlight
+      const px = [cx - W * 0.16, cx + W * 0.16]
+      const rad = W * 0.4, dcy = H * 0.36
+      px.forEach((x) => ln(s, x, dcy + rad * 0.6, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      topDisc(s, cx, dcy, rad, C.disc)
       return s
     }
 
     case 'filmCap': {
-      lead(s, cx - W * 0.18, cy + H * 0.1, cx - W * 0.18, H - 2, pitch)
-      lead(s, cx + W * 0.18, cy + H * 0.1, cx + W * 0.18, H - 2, pitch)
-      const bw = W * 0.74, bh = H * 0.6, bx = cx - bw / 2, by = cy - bh * 0.7
-      rr(s, bx + 1, by + 2, bw, bh, bw * 0.18, C.shadow, 0.4)
-      rr(s, bx, by, bw, bh, bw * 0.18, C.filmRed, 1)
-      rr(s, bx + bw * 0.12, by + bh * 0.12, bw * 0.5, bh * 0.18, 2, C.white, 0.18)
+      const px = [cx - W * 0.18, cx + W * 0.18], bw = W * 0.7, bh = H * 0.52, bx = cx - bw / 2, by = H * 0.1
+      px.forEach((x) => ln(s, x, by + bh, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      topBox(s, bx, by, bw, bh, C.filmRed, bw * 0.16)
       return s
     }
 
     case 'electroRadial': {
-      lead(s, cx - W * 0.18, H * 0.8, cx - W * 0.18, H - 2, pitch)
-      lead(s, cx + W * 0.18, H * 0.8, cx + W * 0.18, H - 2, pitch)
-      const bw = W * 0.8, bh = H * 0.82, bx = cx - bw / 2, by = 2
-      rr(s, bx + 2, by + 2, bw, bh, bw * 0.18, C.shadow, 0.45)
-      rr(s, bx, by, bw, bh, bw * 0.18, C.elecBlue, 1)
-      r(s, bx + bw * 0.78, by + bh * 0.08, bw * 0.16, bh * 0.84, C.stripe, 0.9) // negative stripe
-      rr(s, bx, by, bw, bh * 0.18, bw * 0.18, C.elecTop, 1)                     // dark top
-      ln(s, cx - bw * 0.18, by + bh * 0.09, cx + bw * 0.18, by + bh * 0.09, 1.5, C.stripe, 0.7) // vent
-      ln(s, cx, by + bh * 0.02, cx, by + bh * 0.16, 1.5, C.stripe, 0.7)
-      rr(s, bx + bw * 0.12, by + bh * 0.22, bw * 0.16, bh * 0.6, 2, C.white, 0.16) // highlight
+      // top-down can: a CIRCLE with vent cross + negative-side mark on the rim
+      const px = [cx - W * 0.18, cx + W * 0.18], rad = W * 0.42, dcy = H * 0.4
+      px.forEach((x) => ln(s, x, dcy + rad * 0.6, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      topDisc(s, cx, dcy, rad, C.elecBlue, 4)
+      ln(s, cx - rad * 0.5, dcy, cx + rad * 0.5, dcy, 1.6, C.elecTop, 0.8)  // vent cross
+      ln(s, cx, dcy - rad * 0.5, cx, dcy + rad * 0.5, 1.6, C.elecTop, 0.8)
+      r(s, cx + rad * 0.55, dcy - rad * 0.12, rad * 0.32, rad * 0.24, C.stripe, 0.9) // − mark on rim
       return s
     }
 
     case 'tantalum': {
-      lead(s, cx - W * 0.16, cy + H * 0.2, cx - W * 0.16, H - 2, pitch)
-      lead(s, cx + W * 0.16, cy + H * 0.2, cx + W * 0.16, H - 2, pitch)
-      const bw = W * 0.7, bh = H * 0.6
-      rr(s, cx - bw / 2, cy - bh * 0.6, bw, bh, bw * 0.4, C.tantal, 1)
-      r(s, cx - bw / 2, cy - bh * 0.55, bw * 0.12, bh * 0.9, C.shadow, 0.3)
-      r(s, cx + bw * 0.32, cy - bh * 0.55, bw * 0.1, bh * 0.5, C.shadow, 0.4) // + mark
+      const px = [cx - W * 0.16, cx + W * 0.16], rad = W * 0.36, dcy = H * 0.36
+      px.forEach((x) => ln(s, x, dcy + rad * 0.6, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      topDisc(s, cx, dcy, rad, C.tantal)
+      r(s, cx - rad * 0.7, dcy - rad * 0.12, rad * 0.3, rad * 0.24, C.shadow, 0.4) // + mark
       return s
     }
 
     case 'led5mm': {
-      const col = opts.color ?? C.ledRed
-      const on = opts.on ?? true
-      lead(s, cx - W * 0.14, cy + H * 0.15, cx - W * 0.14, H - 2, pitch)
-      lead(s, cx + W * 0.14, cy + H * 0.15, cx + W * 0.14, H - 2, pitch)
-      const rad = W * 0.4
-      if (on) ci(s, cx, cy, rad * 1.7, col, 0.18)                         // glow when lit
-      r(s, cx - rad, cy + rad * 0.5, rad * 2, rad * 0.5, col, on ? 0.5 : 0.35) // flange
-      ci(s, cx, cy, rad, col, on ? 0.9 : 0.5)                             // dome (dim when off)
-      if (on) ci(s, cx, cy, rad * 0.45, 0xffffff, 0.92)                   // emissive core
-      else ci(s, cx, cy, rad * 0.55, C.shadow, 0.3)                       // dark unlit center
-      ci(s, cx - rad * 0.3, cy - rad * 0.35, rad * 0.25, C.white, on ? 0.6 : 0.3) // dome highlight
+      const col = opts.color ?? C.ledRed, on = opts.on ?? true
+      const px = [cx - W * 0.14, cx + W * 0.14], rad = W * 0.4, dcy = H * 0.36
+      px.forEach((x) => ln(s, x, dcy + rad * 0.6, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      if (on) ci(s, cx, dcy, rad * 1.7, col, 0.18)                       // glow
+      ci(s, cx + 2, dcy + 4, rad, C.shadow, 0.4)                         // shadow
+      ci(s, cx, dcy, rad, col, on ? 0.92 : 0.5)                          // dome
+      if (on) ci(s, cx, dcy, rad * 0.45, 0xffffff, 0.92)                 // emissive core
+      else ci(s, cx, dcy, rad * 0.5, C.shadow, 0.3)
+      ci(s, cx - rad * 0.32, dcy - rad * 0.32, rad * 0.3, C.white, on ? 0.6 : 0.3)
       return s
     }
 
     case 'battery9v': {
-      // 9V "Krona" battery: tall block + two snap terminals on top (round + , hex −)
-      const bw = W * 0.78, bh = H * 0.86, bx = cx - bw / 2, by = H * 0.1
-      rr(s, bx + 3, by + 3, bw, bh, 4, C.shadow, 0.5)
-      rr(s, bx, by, bw, bh, 4, C.battBody, 1)
-      rr(s, bx + bw * 0.1, by + bh * 0.18, bw * 0.8, bh * 0.4, 2, C.battLabel, 1)       // label
-      rr(s, bx + bw * 0.1, by + bh * 0.18, bw * 0.8, bh * 0.1, 2, C.white, 0.12)
-      ci(s, bx + bw * 0.34, by - 1, bw * 0.13, C.jackRing, 1)                            // + snap
-      ci(s, bx + bw * 0.34, by - 1, bw * 0.06, C.shadow, 0.8)
-      r(s, bx + bw * 0.56, by - bw * 0.13, bw * 0.22, bw * 0.22, C.jackRing, 1)          // − snap
+      // top-down block + two terminal pads on the top edge
+      const bw = W * 0.8, bh = H * 0.84, bx = cx - bw / 2, by = H * 0.1
+      topBox(s, bx, by, bw, bh, C.battBody, 4)
+      rr(s, bx + bw * 0.12, by + bh * 0.3, bw * 0.76, bh * 0.4, 2, C.battLabel, 1)
+      padHole(s, bx + bw * 0.34, by, pitch); padHole(s, bx + bw * 0.67, by, pitch)
+      r(s, bx + bw * 0.3, by - pitch * 0.4, 4, 5, C.silk, 0.8); r(s, bx + bw * 0.62, by - pitch * 0.35, 6, 2, C.silk, 0.8) // +/−
       return s
     }
 
     case 'batteryClip': {
-      // Krona snap connector: cap + two snap fasteners + red/black wire leads
-      const bw = W * 0.7, bh = H * 0.34, bx = cx - bw / 2, by = H * 0.16
-      ln(s, cx - bw * 0.22, by + bh, cx - W * 0.18, H - 2, pitch * 0.14, C.wireRed, 1)   // red wire
-      ci(s, cx - W * 0.18, H - 2, pitch * 0.16, C.solder, 1); ci(s, cx - W * 0.18, H - 2, pitch * 0.07, C.solderMid, 1)
-      ln(s, cx + bw * 0.22, by + bh, cx + W * 0.18, H - 2, pitch * 0.14, C.wireBlack, 1) // black wire
-      ci(s, cx + W * 0.18, H - 2, pitch * 0.16, C.solder, 1); ci(s, cx + W * 0.18, H - 2, pitch * 0.07, C.solderMid, 1)
-      rr(s, bx + 2, by + 2, bw, bh, 3, C.shadow, 0.5)
-      rr(s, bx, by, bw, bh, 3, C.battBody, 1)
-      ci(s, cx - bw * 0.22, by + bh * 0.5, bw * 0.12, C.jackRing, 1)                     // snaps
-      r(s, cx + bw * 0.12, by + bh * 0.2, bw * 0.2, bh * 0.6, C.jackRing, 1)
+      // board-mount 2-pad screw terminal (blue) — pads, not flying wires
+      const bw = W * 0.86, bh = H * 0.6, bx = cx - bw / 2, by = H * 0.12
+      const px = [cx - W * 0.18, cx + W * 0.18]
+      px.forEach((x) => ln(s, x, by + bh, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      topBox(s, bx, by, bw, bh, C.term, 3)
+      ;[0.3, 0.7].forEach((f) => { ci(s, bx + bw * f, by + bh * 0.42, bw * 0.13, C.jackRing, 1); ln(s, bx + bw * f - 4, by + bh * 0.42, bx + bw * f + 4, by + bh * 0.42, 1.5, C.shadow, 0.8) }) // screws
       return s
     }
 
     case 'powerJack': {
-      // DC barrel jack: cylindrical socket front + body + 3 pins
-      const bw = W * 0.6, bh = H * 0.6, bx = cx - bw / 2, by = cy - bh / 2
-      lead(s, bx + bw * 0.5, by + bh, bx + bw * 0.5, H - 2, pitch)
-      lead(s, bx, cy, 2, cy, pitch)
-      lead(s, bx + bw, cy, W - 2, cy, pitch)
-      rr(s, bx + 2, by + 3, bw, bh, 3, C.shadow, 0.5)
-      rr(s, bx, by, bw, bh, 3, C.jackBody, 1)
-      ci(s, cx, cy, bh * 0.42, C.jackRing, 1)        // barrel ring
-      ci(s, cx, cy, bh * 0.22, C.shadow, 1)          // socket hole
-      ci(s, cx, cy, bh * 0.08, C.jackRing, 1)        // center pin
+      const bw = W * 0.62, bh = H * 0.56, bx = cx - bw / 2, dcy = cy - H * 0.06
+      lead(s, bx + bw * 0.5, dcy + bh / 2, bx + bw * 0.5, H - 2, pitch); lead(s, bx, dcy, 2, dcy, pitch); lead(s, bx + bw, dcy, W - 2, dcy, pitch)
+      topBox(s, bx, dcy - bh / 2, bw, bh, C.jackBody, 3)
+      ci(s, cx, dcy, bh * 0.38, C.jackRing, 1); ci(s, cx, dcy, bh * 0.2, C.shadow, 1); ci(s, cx, dcy, bh * 0.07, C.jackRing, 1)
       return s
     }
 
     case 'trimpot': {
-      const bw = W * 0.8, bh = H * 0.8, bx = cx - bw / 2, by = cy - bh / 2
-      lead(s, bx + bw * 0.2, by + bh, bx + bw * 0.2, H - 2, pitch)
-      lead(s, bx + bw * 0.8, by + bh, bx + bw * 0.8, H - 2, pitch)
-      rr(s, bx + 2, by + 2, bw, bh, 2, C.shadow, 0.4)
-      rr(s, bx, by, bw, bh, 2, C.trim, 1)
-      ci(s, cx, cy, bw * 0.3, C.brass, 1)                  // screw
-      ln(s, cx - bw * 0.22, cy, cx + bw * 0.22, cy, 2, C.shadow, 0.7) // slot
+      const bw = W * 0.78, bh = H * 0.6, bx = cx - bw / 2, by = H * 0.1
+      ;[bx + bw * 0.2, bx + bw * 0.8].forEach((x) => ln(s, x, by + bh, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      ;[bx + bw * 0.2, bx + bw * 0.8].forEach((x) => padHole(s, x, H - 2, pitch))
+      topBox(s, bx, by, bw, bh, C.trim, 2)
+      ci(s, cx, by + bh * 0.5, bw * 0.28, C.brass, 1)
+      ln(s, cx - bw * 0.2, by + bh * 0.5, cx + bw * 0.2, by + bh * 0.5, 2, C.shadow, 0.7)
       return s
     }
 
     case 'to92': {
-      const bw = W * 0.72, bh = H * 0.62, bx = cx - bw / 2, by = 2
-      lead(s, bx + bw * 0.18, by + bh, bx + bw * 0.18, H - 2, pitch)
-      lead(s, cx, by + bh, cx, H - 2, pitch)
-      lead(s, bx + bw * 0.82, by + bh, bx + bw * 0.82, H - 2, pitch)
-      // D-shape: rounded back + flat front (bottom)
-      rr(s, bx + 2, by + 2, bw, bh, bw * 0.42, C.shadow, 0.4)
-      rr(s, bx, by, bw, bh, bw * 0.42, C.to92, 1)
-      r(s, bx, by + bh * 0.5, bw, bh * 0.5, C.to92, 1)     // flatten the front
-      rr(s, bx + bw * 0.2, by + bh * 0.12, bw * 0.5, bh * 0.16, 2, C.white, 0.14)
+      // top-down D: rounded top + flat lead side (bottom), 3 leads to annular pads
+      const bw = W * 0.7, bh = H * 0.5, bx = cx - bw / 2, by = H * 0.08
+      const px = [bx + bw * 0.18, cx, bx + bw * 0.82]
+      px.forEach((x) => ln(s, x, by + bh, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      rr(s, bx + 2, by + 4, bw, bh, bw * 0.45, C.shadow, 0.4)
+      rr(s, bx, by + 3, bw, bh, bw * 0.45, C.to92, 1); r(s, bx, by + bh * 0.5, bw, bh * 0.5 + 3, C.to92, 1) // wall
+      rr(s, bx, by, bw, bh, bw * 0.45, C.to92, 1); r(s, bx, by + bh * 0.5, bw, bh * 0.5, C.to92, 1)         // top, flat front
+      rr(s, bx + bw * 0.2, by + bh * 0.1, bw * 0.5, bh * 0.16, 2, C.white, 0.14)
       return s
     }
 
     case 'to220': {
-      const bw = W * 0.8, bx = cx - bw / 2
-      const tabH = H * 0.3, bodyH = H * 0.42, by = 2 + tabH
-      lead(s, bx + bw * 0.18, by + bodyH, bx + bw * 0.18, H - 2, pitch)
-      lead(s, cx, by + bodyH, cx, H - 2, pitch)
-      lead(s, bx + bw * 0.82, by + bodyH, bx + bw * 0.82, H - 2, pitch)
-      rr(s, bx, 2, bw, tabH, 2, C.tab, 1)                  // metal heatsink tab
-      ci(s, cx, 2 + tabH * 0.5, tabH * 0.28, C.shadow, 0.8) // mounting hole
-      r(s, bx + 2, 2, bw - 4, tabH * 0.3, C.white, 0.18)
-      rr(s, bx, by, bw, bodyH, 2, C.to220, 1)              // black body
-      r(s, bx + bw * 0.12, by + bodyH * 0.18, bw * 0.5, bodyH * 0.2, C.white, 0.1)
+      const bw = W * 0.8, bx = cx - bw / 2, tabH = H * 0.26, bodyH = H * 0.4, by = H * 0.06 + tabH
+      const px = [bx + bw * 0.18, cx, bx + bw * 0.82]
+      px.forEach((x) => ln(s, x, by + bodyH, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      px.forEach((x) => padHole(s, x, H - 2, pitch))
+      topBox(s, bx, H * 0.06, bw, tabH, C.tab, 2)                       // heatsink tab
+      ci(s, cx, H * 0.06 + tabH * 0.5, tabH * 0.28, C.shadow, 0.9)      // mount hole
+      topBox(s, bx, by, bw, bodyH, C.to220, 2)                         // black body
       return s
     }
 
     case 'crystalHC49': {
-      lead(s, cx - W * 0.22, cy + H * 0.2, cx - W * 0.22, H - 2, pitch)
-      lead(s, cx + W * 0.22, cy + H * 0.2, cx + W * 0.22, H - 2, pitch)
-      const bw = W * 0.7, bh = H * 0.62
-      rr(s, cx - bw / 2 + 2, cy - bh / 2 + 2, bw, bh, bh * 0.5, C.shadow, 0.4)
-      rr(s, cx - bw / 2, cy - bh / 2, bw, bh, bh * 0.5, C.can, 1)
-      rr(s, cx - bw * 0.3, cy - bh * 0.3, bw * 0.5, bh * 0.22, 2, C.white, 0.22)
+      const bw = W * 0.7, bh = H * 0.5, bx = cx - bw / 2, by = H * 0.12
+      ;[cx - W * 0.22, cx + W * 0.22].forEach((x) => ln(s, x, by + bh, x, H - 2, Math.max(1.6, pitch * 0.11), C.wire, 1))
+      ;[cx - W * 0.22, cx + W * 0.22].forEach((x) => padHole(s, x, H - 2, pitch))
+      topBox(s, bx, by, bw, bh, C.can, bh * 0.5)
       return s
     }
 
     case 'dipIC': {
-      const bw = W * 0.84, bh = H * 0.6, bx = cx - bw / 2, by = cy - bh / 2
-      const pins = 7
+      const bw = W * 0.84, bh = H * 0.56, bx = cx - bw / 2, by = cy - bh / 2, pins = 7
       for (let i = 0; i < pins; i++) {
         const px = bx + bw * (0.1 + (i / (pins - 1)) * 0.8)
-        lead(s, px, by, px, by - H * 0.18, pitch)
-        lead(s, px, by + bh, px, by + bh + H * 0.18, pitch)
+        ln(s, px, by, px, by - H * 0.16, Math.max(1.6, pitch * 0.1), C.wire, 1); padHole(s, px, by - H * 0.16, pitch)
+        ln(s, px, by + bh, px, by + bh + H * 0.16, Math.max(1.6, pitch * 0.1), C.wire, 1); padHole(s, px, by + bh + H * 0.16, pitch)
       }
-      rr(s, bx + 2, by + 2, bw, bh, 3, C.shadow, 0.45)
-      rr(s, bx, by, bw, bh, 3, C.dip, 1)
-      ci(s, bx + bw * 0.14, by + bh * 0.5, bw * 0.06, C.silk, 0.8) // pin-1 dot
-      // notch
-      s.push({ type: 'circle', x: bx + bw * 0.5, y: by, r: bw * 0.06, color: C.shadow, alpha: 0.8 })
-      r(s, bx + bw * 0.1, by + bh * 0.16, bw * 0.5, bh * 0.12, C.white, 0.08)
+      topBox(s, bx, by, bw, bh, C.dip, 3)
+      ci(s, bx + bw * 0.12, by + bh * 0.5, bw * 0.05, C.silk, 0.85)                                   // pin-1 dot
+      s.push({ type: 'circle', x: bx + bw * 0.5, y: by, r: bw * 0.06, color: C.shadow, alpha: 0.85 }) // notch
       return s
     }
   }
