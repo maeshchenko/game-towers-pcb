@@ -6,6 +6,16 @@ import { createPixiApp } from './app/PixiApp'
 import { PALETTE } from './style/palette'
 import type { ShapeSpec } from './render/decorBuilder'
 import { buildVintageShapes, vintageLeadEnds, vintagePins, pin, VFOOT, type VintageKind, type VintageOpts } from './render/vintageDecor'
+import { footprintCells } from './render/decorBuilder'
+import { amplifierStage, timer555, ledBar, opAmp, transistorSwitch, mcuCore, powerSupply, type RefAlloc, type BlockResult } from './pipeline/circuits'
+
+// SMD decor kind → vintage part (same mapping the game uses)
+const KMAP: Record<string, VintageKind> = {
+  soic: 'dipIC', qfp: 'dipIC', qfn: 'dipIC', dip: 'dipIC', res: 'resAxial', smdRes: 'resAxial',
+  inductor: 'inductorAxial', smdCap: 'ceramicDisc', mlcc: 'ceramicDisc', electrolytic: 'electroRadial',
+  elec: 'electroRadial', tant: 'tantalum', tantalum: 'tantalum', diode: 'diodeAxial', led: 'led5mm',
+  sot23: 'to92', crystal: 'crystalHC49', xtal: 'crystalHC49', pwrind: 'to220', header: 'batteryClip',
+}
 
 const P = 18
 const TILE = 172
@@ -188,5 +198,51 @@ async function boot() {
   cap('IC: VCC from the regulator node, decoupling cap across VCC/GND, timing cap on a pin', BX + 60, SY2 + VFOOT.dipIC.h * P / 2 + 6)
 
   for (const pt of partsList) partsHolder.addChild(drawShapes(buildVintageShapes(pt.kind, P, pt.opts), pt.x, pt.y))
+
+  // ── SECTION 4 — large real circuits (multi-part functional blocks, vintage + copper) ──
+  y = BY + BH + 24
+  section('4 · LARGE CIRCUITS — real multi-part blocks (amplifier · 555 timer · LED-bar driver)')
+  let cN = 1, rN = 1, uN = 1, dN = 1, qN = 1, lN = 1, jN = 1, yN = 1
+  const alloc: RefAlloc = { nextC: () => `C${cN++}`, nextR: () => `R${rN++}`, nextU: () => `U${uN++}`, nextD: () => `D${dN++}`, nextQ: () => `Q${qN++}`, nextL: () => `L${lN++}`, nextJ: () => `J${jN++}`, nextY: () => `Y${yN++}` }
+  const COP4 = PALETTE.copperTrace
+  function renderBlock(blk: BlockResult, bx: number, by: number, title: string, panelW: number, panelH: number): void {
+    const g = new Graphics(); g.rect(bx, by, panelW, panelH).fill({ color: 0x0c2418, alpha: 1 }).stroke({ color: 0x1c3a2b, width: 1 }); world.addChild(g)
+    text(title, bx + 8, by + 8, 0x8fb8a0, 11)
+    const innerX = bx + 16, innerY = by + 30
+    const center = (it: { kind: string; variant: number; rot: 0 | 90 | 180 | 270; cell: [number, number] }) => {
+      const fp = footprintCells(it.kind, it.variant, it.rot)
+      return { x: innerX + it.cell[0] * P + fp.w * P / 2, y: innerY + it.cell[1] * P + fp.h * P / 2 }
+    }
+    const cg = new Graphics() // copper under the parts
+    for (const net of blk.nets) for (let k = 1; k < net.length; k++) {
+      const a = center(blk.items[net[0]]), b = center(blk.items[net[k]])
+      cg.moveTo(a.x, a.y).lineTo(b.x, a.y).lineTo(b.x, b.y).stroke({ color: COP4, width: 2.5, cap: 'round', join: 'round' })
+    }
+    world.addChild(cg)
+    for (const it of blk.items) {
+      const v = KMAP[it.kind]; if (!v) continue
+      const fp = footprintCells(it.kind, it.variant, it.rot), boxW = fp.w * P, boxH = fp.h * P, vf = VFOOT[v]
+      const vp = Math.min(boxW / vf.w, boxH / vf.h)
+      const ox = innerX + it.cell[0] * P + (boxW - vf.w * vp) / 2, oy = innerY + it.cell[1] * P + (boxH - vf.h * vp) / 2
+      world.addChild(drawShapes(buildVintageShapes(v, vp), ox, oy))
+    }
+  }
+  // 20 generated large circuits in a grid (varied real blocks)
+  const big: { make: () => BlockResult; title: string }[] = [
+    { make: () => amplifierStage([0, 0], alloc), title: 'Common-emitter amplifier' },
+    { make: () => timer555([0, 0], alloc), title: '555 timer + LED' },
+    { make: () => ledBar([0, 0], alloc, 5), title: 'LED-bar driver' },
+    { make: () => opAmp([0, 0], alloc), title: 'Op-amp stage' },
+    { make: () => transistorSwitch([0, 0], alloc), title: 'Transistor switch' },
+    { make: () => mcuCore([0, 0], alloc), title: 'MCU core + decoupling' },
+    { make: () => powerSupply([0, 0], alloc), title: 'Linear power supply' },
+  ]
+  const B4W = 582, B4H = 156, B4COLS = 2
+  for (let i = 0; i < 20; i++) {
+    const col = i % B4COLS, row = Math.floor(i / B4COLS)
+    const bx = 16 + col * (B4W + 12), by = y + row * (B4H + 12)
+    const sel = big[i % big.length]
+    renderBlock(sel.make(), bx, by, `${i + 1}. ${sel.title}`, B4W, B4H)
+  }
 }
 boot()

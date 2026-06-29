@@ -1,6 +1,19 @@
-import { defineConfig } from 'vite'
+import { defineConfig, type Plugin } from 'vite'
 import { resolve } from 'path'
+
+// serve /kit and /kit2 (no trailing slash) by redirecting to the directory index
+const kitRoutes: Plugin = {
+  name: 'kit-routes',
+  configureServer(server) {
+    server.middlewares.use((req, _res, next) => {
+      if (req.url === '/kit' || req.url === '/kit2') req.url += '/'
+      next()
+    })
+  },
+}
+
 export default defineConfig({
+  plugins: [kitRoutes],
   server: { port: 5173 },
   build: {
     rollupOptions: {

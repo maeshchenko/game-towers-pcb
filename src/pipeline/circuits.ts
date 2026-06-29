@@ -225,20 +225,68 @@ export function transistorSwitch(origin: Cell, alloc: RefAlloc): BlockResult {
 // ── 6. Passive Bank ───────────────────────────────────────────────────────────
 //  Tidy row of 4–6 alternating res/mlcc (bus termination / filters)
 //  All same horizontal orientation, uniform spacing.
+// A small VARIED functional cluster (not a row of identical parts) — a real fragment that fills space.
+// `count` selects the template so the caller's loop yields variety.
 export function passiveBank(origin: Cell, count: number, alloc: RefAlloc): BlockResult {
   const [ox, oy] = origin
   const items: DecorItem[] = []
   const nets: number[][] = []
-
-  for (let i = 0; i < count; i++) {
-    const isRes = i % 2 === 0
-    const ref   = isRes ? alloc.nextR() : alloc.nextC()
-    const kind  = isRes ? 'res' : 'mlcc'
-    const xOff  = isRes ? i * 3 : i * 3  // res=2w+1gap, mlcc=1w+2gap → uniform 3-col pitch
-    items.push(item(kind, 1, [ox + xOff, oy], 0, ref))
-    // pair consecutive items as a net (simple bus filter pair)
-    if (i > 0) nets.push([i - 1, i])
+  const add = (kind: string, ref: string, dc: number, dr: number): number => {
+    items.push(item(kind, 1, [ox + dc, oy + dr], 0, ref)); return items.length - 1
   }
+  // `count` is a template selector (0..N-1). Electrolytic (big blue can) is intentionally RARE.
+  switch (count % 9) {
+    case 0: { const a = add('res', alloc.nextR(), 0, 0), b = add('mlcc', alloc.nextC(), 3, 0); nets.push([a, b]); break }      // RC filter
+    case 1: { const a = add('res', alloc.nextR(), 0, 0), b = add('diode', alloc.nextD(), 3, 0); nets.push([a, b]); break }     // R + diode
+    case 2: { const a = add('res', alloc.nextR(), 0, 0), b = add('led', alloc.nextD(), 3, 0); nets.push([a, b]); break }       // R → LED
+    case 3: {                                                                                                                   // transistor stage
+      const rb = add('res', alloc.nextR(), 0, 1), q = add('sot23', alloc.nextQ(), 3, 0), rc = add('res', alloc.nextR(), 6, 1)
+      nets.push([rb, q], [q, rc]); break
+    }
+    case 4: { const a = add('mlcc', alloc.nextC(), 0, 0), b = add('mlcc', alloc.nextC(), 2, 0); nets.push([a, b]); break }     // decoupling pair
+    case 5: { const a = add('res', alloc.nextR(), 0, 0), b = add('res', alloc.nextR(), 3, 0); nets.push([a, b]); break }       // R divider
+    case 6: { const a = add('diode', alloc.nextD(), 0, 0), b = add('mlcc', alloc.nextC(), 3, 0); nets.push([a, b]); break }    // snubber
+    case 7: {                                                                                                                   // crystal oscillator
+      const x = add('xtal', alloc.nextY(), 0, 0), c1 = add('mlcc', alloc.nextC(), 0, 2), c2 = add('mlcc', alloc.nextC(), 2, 2)
+      nets.push([x, c1], [x, c2]); break
+    }
+    default: { const a = add('inductor', alloc.nextL(), 0, 0), b = add('elec', alloc.nextC(), 3, 0); nets.push([a, b]) }       // LC filter (rare elec)
+  }
+  return { items, nets }
+}
 
+// ── Large functional blocks (occupy big areas — real multi-part circuits) ──────────────────────
+
+/** Common-emitter amplifier stage (~8 parts): input cap, bias divider, transistor, Rc/Re/Ce, output cap. */
+export function amplifierStage(origin: Cell, alloc: RefAlloc): BlockResult {
+  const [ox, oy] = origin, items: DecorItem[] = [], nets: number[][] = []
+  const add = (k: string, ref: string, dc: number, dr: number) => { items.push(item(k, 1, [ox + dc, oy + dr], 0, ref)); return items.length - 1 }
+  const cin = add('mlcc', alloc.nextC(), 0, 2), r1 = add('res', alloc.nextR(), 2, 0), r2 = add('res', alloc.nextR(), 2, 4)
+  const rc = add('res', alloc.nextR(), 5, 0), q = add('sot23', alloc.nextQ(), 5, 2), re = add('res', alloc.nextR(), 5, 5)
+  const ce = add('mlcc', alloc.nextC(), 8, 5), cout = add('mlcc', alloc.nextC(), 8, 2)
+  nets.push([cin, q], [r1, q], [r2, q], [rc, q], [q, re], [re, ce], [q, cout])
+  return { items, nets }
+}
+
+/** 555-style timer block (~7 parts): DIP IC + 2 timing R + 2 C + output R + LED. */
+export function timer555(origin: Cell, alloc: RefAlloc): BlockResult {
+  const [ox, oy] = origin, items: DecorItem[] = [], nets: number[][] = []
+  const add = (k: string, ref: string, dc: number, dr: number, v = 1) => { items.push(item(k, v, [ox + dc, oy + dr], 0, ref)); return items.length - 1 }
+  const ic = add('dip', alloc.nextU(), 3, 2, 8), r1 = add('res', alloc.nextR(), 0, 0), r2 = add('res', alloc.nextR(), 0, 2)
+  const c1 = add('mlcc', alloc.nextC(), 0, 4), c2 = add('mlcc', alloc.nextC(), 9, 2), ro = add('res', alloc.nextR(), 9, 0), led = add('led', alloc.nextD(), 9, 4)
+  nets.push([r1, ic], [r2, ic], [c1, ic], [ic, c2], [ic, ro], [ro, led])
+  return { items, nets }
+}
+
+/** LED bar driver (big, ~13 parts): DIP IC + a row of series resistors + a row of LEDs. */
+export function ledBar(origin: Cell, alloc: RefAlloc, n = 6): BlockResult {
+  const [ox, oy] = origin, items: DecorItem[] = [], nets: number[][] = []
+  const add = (k: string, ref: string, dc: number, dr: number, v = 1) => { items.push(item(k, v, [ox + dc, oy + dr], 0, ref)); return items.length - 1 }
+  const ic = add('dip', alloc.nextU(), 0, 3, 16)
+  for (let i = 0; i < n; i++) {
+    const r = add('res', alloc.nextR(), 7 + i * 3, 0)
+    const d = add('led', alloc.nextD(), 7 + i * 3, 5)
+    nets.push([ic, r], [r, d])
+  }
   return { items, nets }
 }

@@ -10,6 +10,9 @@ import {
   ledIndicator,
   transistorSwitch,
   passiveBank,
+  amplifierStage,
+  timer555,
+  ledBar,
   type RefAlloc,
 } from './circuits'
 
@@ -273,13 +276,25 @@ export function buildDecorWithNets(args: {
 
   // ── 5. Passive banks — fill open space ─────────────────────────────────────
   {
-    const bankTarget = Math.floor((board.cols * board.rows) / 260)
+    // big real circuits first — they should occupy large areas
+    const bigFactories = [
+      () => amplifierStage([0, 0], alloc),
+      () => timer555([0, 0], alloc),
+      () => ledBar([0, 0], alloc, 4 + Math.floor(rng() * 4)),
+      () => amplifierStage([0, 0], alloc),
+      () => opAmp([0, 0], alloc),
+    ]
+    const bigTarget = Math.max(3, Math.floor((board.cols * board.rows) / 700))
+    for (let b = 0; b < bigTarget; b++) {
+      const blk = bigFactories[Math.floor(rng() * bigFactories.length)]()
+      const off = scanBlock(blk.items, 2, 2, board.cols - 2, board.rows - 2, occupied, board, rng)
+      if (off) mergeBlock(blk.items, blk.nets, off, items, nets)
+    }
+    // a few small clusters only to fill leftover gaps
+    const bankTarget = Math.floor((board.cols * board.rows) / 700)
     for (let b = 0; b < bankTarget; b++) {
-      const count = 4 + Math.floor(rng() * 3) // 4..6
-      const blk = passiveBank([0, 0], count, alloc)
-      const x0 = 2, y0 = 2, x1 = board.cols - count * 3 - 2, y1 = board.rows - 2
-      if (x1 <= x0) continue
-      const off = scanBlock(blk.items, x0, y0, x1, y1, occupied, board, rng)
+      const blk = passiveBank([0, 0], Math.floor(rng() * 9), alloc)
+      const off = scanBlock(blk.items, 2, 2, board.cols - 10, board.rows - 2, occupied, board, rng)
       if (off) mergeBlock(blk.items, blk.nets, off, items, nets)
     }
   }
