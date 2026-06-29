@@ -116,6 +116,125 @@ export function footprintCells(kind: string, variant: number, rot: 0 | 90 | 180 
   return rotated ? { w: base.h, h: base.w } : { w: base.w, h: base.h }
 }
 
+// ---------- Pad anchors (exported for copper routing) ----------
+/**
+ * Returns the ABSOLUTE grid-cell coordinates of each pad/pin of the component.
+ * Accounts for rotation via footprintCells (fp.w/fp.h are already rotated).
+ * - 2-pad passives → 2 anchors at the two ends
+ * - ICs → representative pin cells along each edge
+ * - via/testpoint → 1 anchor at center
+ * - mount → no electrical pads (empty)
+ */
+export function padAnchors(item: DecorItem): [number, number][] {
+  const fp = footprintCells(item.kind, item.variant, item.rot)
+  const cx = item.cell[0]
+  const cy = item.cell[1]
+  const w = fp.w
+  const h = fp.h
+
+  switch (item.kind) {
+    // No electrical pads
+    case 'mount':
+      return []
+
+    // Single pad at cell origin
+    case 'via':
+    case 'testpoint':
+      return [[cx, cy]]
+
+    // 2-pad SMD passives: pads at the two ends (rotation handled via fp dimensions)
+    case 'smdRes': case 'res':
+    case 'smdCap': case 'mlcc':
+    case 'tant': case 'tantalum':
+    case 'diode': case 'led':
+    case 'inductor': {
+      if (w >= h) {
+        // Wider than tall: pads on left and right
+        const midy = Math.floor(h / 2)
+        return [[cx, cy + midy], [cx + w - 1, cy + midy]]
+      } else {
+        // Taller than wide (rotated): pads on top and bottom
+        const midx = Math.floor(w / 2)
+        return [[cx + midx, cy], [cx + midx, cy + h - 1]]
+      }
+    }
+
+    // Electrolytic: 2×2, two pins at top-center and bottom-center
+    case 'electrolytic': case 'elec': {
+      const midx = Math.floor(w / 2)
+      return [[cx + midx, cy], [cx + midx, cy + h - 1]]
+    }
+
+    // Power inductor: side pads at mid-height
+    case 'pwrind':
+      return [[cx, cy + Math.floor(h / 2)], [cx + w - 1, cy + Math.floor(h / 2)]]
+
+    // SOT-23: 3 pads (2 bottom + 1 top)
+    case 'sot23':
+      return [
+        [cx, cy + h - 1],
+        [cx + w - 1, cy + h - 1],
+        [cx + Math.floor(w / 2), cy],
+      ]
+
+    // Crystal: 4 corner pads
+    case 'crystal': case 'xtal':
+      return [
+        [cx, cy],
+        [cx + w - 1, cy],
+        [cx, cy + h - 1],
+        [cx + w - 1, cy + h - 1],
+      ]
+
+    // Header connector: one pad per pin, laid out along the longer axis
+    case 'header': {
+      const pinCount = Math.max(2, item.variant || 4)
+      const anchors: [number, number][] = []
+      if (w >= h) {
+        for (let i = 0; i < Math.min(pinCount, w); i++) anchors.push([cx + i, cy])
+      } else {
+        for (let i = 0; i < Math.min(pinCount, h); i++) anchors.push([cx, cy + i])
+      }
+      return anchors
+    }
+
+    // SOIC / DIP: pins along top and bottom edges
+    case 'soic': case 'dip': {
+      const pinCount = item.kind === 'soic'
+        ? Math.max(2, Math.floor((item.variant || 8) / 2))
+        : Math.max(2, Math.floor((item.variant || 8) / 2))
+      const anchors: [number, number][] = []
+      for (let i = 0; i < pinCount; i++) {
+        const px = cx + Math.min(Math.round(((i + 0.5) / pinCount) * w), w - 1)
+        anchors.push([px, cy])
+        anchors.push([px, cy + h - 1])
+      }
+      return anchors
+    }
+
+    // QFP / QFN: pins on all 4 sides
+    case 'qfp': case 'qfn': {
+      const pps = item.kind === 'qfp'
+        ? Math.max(4, Math.floor((item.variant || 32) / 4))
+        : Math.max(3, Math.floor((item.variant || 16) / 4))
+      const anchors: [number, number][] = []
+      for (let i = 0; i < pps; i++) {
+        const px = cx + Math.min(Math.round(((i + 0.5) / pps) * w), w - 1)
+        const py = cy + Math.min(Math.round(((i + 0.5) / pps) * h), h - 1)
+        anchors.push([px, cy])
+        anchors.push([px, cy + h - 1])
+        anchors.push([cx, py])
+        anchors.push([cx + w - 1, py])
+      }
+      return anchors
+    }
+
+    // Default: return center cell
+    default:
+      return [[cx + Math.floor(w / 2), cy + Math.floor(h / 2)]]
+  }
+}
+
 // ---------- Main builder ----------
 export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
   const fp   = FOOTPRINT[item.kind] ?? { w: 2, h: 2 }

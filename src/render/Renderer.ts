@@ -9,11 +9,14 @@ import { cellToPx } from '../geom/grid'
 export class Renderer {
   readonly world = new Container()
   readonly layers = {
-    board: new Container(), decor: new Container(), trace: new Container(),
-    spot: new Container(), overlay: new Container(),
+    board: new Container(), copper: new Container(), decor: new Container(),
+    trace: new Container(), spot: new Container(), overlay: new Container(),
   }
   constructor(private app: Application) {
-    this.world.addChild(this.layers.board, this.layers.decor, this.layers.trace, this.layers.spot, this.layers.overlay)
+    this.world.addChild(
+      this.layers.board, this.layers.copper, this.layers.decor,
+      this.layers.trace, this.layers.spot, this.layers.overlay,
+    )
     this.app.stage.addChild(this.world)
   }
 
@@ -22,6 +25,7 @@ export class Renderer {
       for (const child of c.removeChildren()) child.destroy()
     }
     this.drawBoard(level)
+    this.drawCopper(level)
     this.drawDecor(level)
     this.drawTrace(level)
     this.drawSpots(level)
@@ -43,6 +47,27 @@ export class Renderer {
       g.moveTo(0, y * level.board.pitch).lineTo(bw, y * level.board.pitch)
     g.stroke({ color: PALETTE.silk, width: 1, alpha: 0.4 })
     this.layers.board.addChild(g)
+  }
+
+  private drawCopper(level: Level): void {
+    if (!level.copper || level.copper.length === 0) return
+    const pitch = level.board.pitch
+    const traceW = Math.max(2, pitch * 0.18)
+    const viaR = Math.max(2, pitch * 0.12)
+
+    for (const copper of level.copper) {
+      if (copper.points.length < 2) continue
+      const g = new Graphics()
+      const pts = copper.points.map(c => cellToPx(c, pitch))
+      g.moveTo(pts[0].x, pts[0].y)
+      for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y)
+      g.stroke({ color: PALETTE.copperTrace, width: traceW, alpha: 0.85, cap: 'round', join: 'round' })
+      // Tiny via dot at each endpoint
+      const first = pts[0], last = pts[pts.length - 1]
+      g.circle(first.x, first.y, viaR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+      g.circle(last.x, last.y, viaR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+      this.layers.copper.addChild(g)
+    }
   }
 
   private drawDecor(level: Level): void {

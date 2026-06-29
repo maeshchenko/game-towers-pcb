@@ -1,4 +1,7 @@
 import type { Cell } from '../geom/types'
+import type { Copper } from '../pipeline/copper'
+
+export type { Copper }
 
 export interface Board { cols: number; rows: number; pitch: number }
 export interface Trace { waypoints: Cell[]; cornerRadius: number }
@@ -14,6 +17,8 @@ export interface Level {
   decor: DecorItem[]
   /** Each net is an array of indices into decor[]. Optional; produced by step 2 routing. */
   nets?: number[][]
+  /** Copper polylines connecting pad anchors of electrically connected components. */
+  copper?: Copper[]
   meta: { name: string; difficulty: number }
 }
 

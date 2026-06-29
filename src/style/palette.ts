@@ -27,6 +27,7 @@ export const PALETTE = {
   inductor: 0x444444,
   ledRed: 0xe05050,
   ledGreen: 0x50e070,
+  copperTrace: 0x3a7a4a,
 } as const
 
 export const RENDER = {

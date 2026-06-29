@@ -3,6 +3,7 @@ import type { Cell } from '../geom/types'
 import { octilinearize } from '../geom/octilinear'
 import { computeTowerSpots } from './spots'
 import { buildDecorWithNets } from './decor'
+import { routeCopper } from './copper'
 import { makeRng } from './rng'
 
 export function minSpots(difficulty: number): number {
@@ -72,6 +73,7 @@ export function generateLevel(params: { board: Board; difficulty: number; seed: 
   }
 
   const { decor, nets } = buildDecorWithNets({ board, trace, spots, specialSpots, seed })
+  const copper = routeCopper({ decor, nets, board, trace })
 
   return {
     version: 1,
@@ -82,6 +84,7 @@ export function generateLevel(params: { board: Board; difficulty: number; seed: 
     specialSpots,
     decor,
     nets,
+    copper,
     meta: { name: `Level ${difficulty.toString().padStart(2, '0')}`, difficulty },
   }
 }
