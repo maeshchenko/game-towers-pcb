@@ -190,17 +190,21 @@ export class Renderer {
   }
 
   private drawSpots(level: Level): void {
-    const b = RENDER.spotBracket
+    const pitch = level.board.pitch
+    const b = Math.max(11, pitch * 0.62)   // bracket half-size scales with the (now larger) pitch
+    const lw = Math.max(2.5, pitch * 0.1)
     for (const s of level.spots) {
-      const p = cellToPx(s.cell, level.board.pitch)
+      const p = cellToPx(s.cell, pitch)
       const g = new Graphics()
-      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {
-        g.moveTo(p.x + sx * b, p.y + sy * b - sy * (b / 2)).lineTo(p.x + sx * b, p.y + sy * b)
-          .lineTo(p.x + sx * b - sx * (b / 2), p.y + sy * b)
+      g.roundRect(p.x - b, p.y - b, b * 2, b * 2, 3).fill({ color: PALETTE.buildGold, alpha: 0.13 }) // glow plate
+      for (const [sx, sy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const) {                        // corner brackets
+        g.moveTo(p.x + sx * b, p.y + sy * b - sy * b * 0.55).lineTo(p.x + sx * b, p.y + sy * b)
+          .lineTo(p.x + sx * b - sx * b * 0.55, p.y + sy * b)
       }
-      g.stroke({ color: PALETTE.buildGold, width: 2 })
-      g.moveTo(p.x - 3, p.y).lineTo(p.x + 3, p.y).moveTo(p.x, p.y - 3).lineTo(p.x, p.y + 3)
-        .stroke({ color: PALETTE.buildGold, width: 1, alpha: 0.8 })
+      g.stroke({ color: PALETTE.buildGold, width: lw })
+      g.moveTo(p.x - b * 0.4, p.y).lineTo(p.x + b * 0.4, p.y).moveTo(p.x, p.y - b * 0.4).lineTo(p.x, p.y + b * 0.4)
+        .stroke({ color: PALETTE.buildGold, width: lw * 0.7 })                                        // crosshair
+      g.circle(p.x, p.y, Math.max(2, pitch * 0.12)).fill({ color: PALETTE.buildGold, alpha: 0.55 })   // centre dot
       this.layers.spot.addChild(g)
     }
     const oct = (cx: number, cy: number, r: number, g: Graphics) => {
@@ -211,11 +215,12 @@ export class Renderer {
       }
     }
     for (const s of level.specialSpots) {
-      const p = cellToPx(s.cell, level.board.pitch)
+      const p = cellToPx(s.cell, pitch)
       const g = new Graphics()
+      g.circle(p.x, p.y, b).fill({ color: PALETTE.specialCyan, alpha: 0.12 })
       oct(p.x, p.y, b, g)
-      g.stroke({ color: PALETTE.specialCyan, width: 2 })
-      g.circle(p.x, p.y, b * 0.45).fill({ color: PALETTE.specialCyan, alpha: 0.7 })
+      g.stroke({ color: PALETTE.specialCyan, width: lw })
+      g.circle(p.x, p.y, b * 0.4).fill({ color: PALETTE.specialCyan, alpha: 0.85 })
       this.layers.spot.addChild(g)
     }
   }

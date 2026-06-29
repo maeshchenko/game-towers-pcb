@@ -5,7 +5,9 @@ import { PALETTE } from './style/palette'
 import { Renderer } from './render/Renderer'
 import { Camera } from './render/Camera'
 import { Editor } from './editor/Editor'
-import { fitPitch } from './app/viewport'
+import { MAP_PRESETS } from './app/viewport'
+
+const PITCH_PX = 30 // fixed cell size → bigger board = bigger track on screen (pan to navigate)
 import { mountToolbar, levelToBlobUrl, readLevelFile } from './ui/Toolbar'
 import { mountPanels, updateLevelName } from './ui/Panels'
 import { Game } from './game/Game'
@@ -26,7 +28,7 @@ async function boot() {
   const camera = new Camera()
 
   const view = () => ({ w: window.innerWidth, h: window.innerHeight })
-  let board: Board = { cols: 64, rows: 48, pitch: fitPitch(64, 48, view().w, view().h) }
+  let board: Board = { cols: 32, rows: 24, pitch: PITCH_PX }
   const editor = new Editor(app, renderer, camera, board, 1)
   mountPanels(null)
 
@@ -36,7 +38,7 @@ async function boot() {
   })
 
   const applyBoard = (cols: number, rows: number) => {
-    board = { cols, rows, pitch: fitPitch(cols, rows, view().w, view().h) }
+    board = { cols, rows, pitch: PITCH_PX }
     editor.state.board = board
     if (editor.state.level) { editor.state.level.board = board; editor.state.recompute(); editor.redraw() }
     else renderer.render(emptyLevel())
@@ -59,9 +61,27 @@ async function boot() {
       minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y)
     }
     if (!isFinite(minX)) return
-    const pad = pitch * 4 // breathing room so the board (decor) shows around the path, like the refs
-    camera.frameBounds(minX - pad, minY - pad, maxX + pad, maxY + pad, view().w, view().h, 0.62)
+    // FIXED zoom (no fit-to-fill) → a bigger board shows as a bigger track; pan to explore the rest
+    camera.zoom = 1
+    camera.x = view().w / 2 - (minX + maxX) / 2
+    camera.y = view().h / 2 - (minY + maxY) / 2
     camera.apply(renderer.world)
+  }
+
+  // generate a specific reproducible level (size + difficulty + seed → always the same track) + show its code
+  function makeLevel(cols: number, rows: number, difficulty: number, seed: number): void {
+    resetPlay(); ui.showTower(null, 0)
+    board = { cols, rows, pitch: PITCH_PX }; editor.state.board = board
+    editor.state.loadLevel(generateBalancedLevel({ board, difficulty, seed }))
+    editor.redraw(); frameLevel(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
+    const code = `${cols}x${rows}.${difficulty}.${seed}`
+    history.replaceState(null, '', `${location.pathname}?t=${code}`)
+    if (seedLabel) seedLabel.textContent = `track ${code}`
+  }
+  function newRandomLevel(): void {
+    const difficulty = DIFFICULTY_RAMP[Math.min(campaign++, DIFFICULTY_RAMP.length - 1)]
+    const sz = MAP_PRESETS[Math.floor(Math.random() * MAP_PRESETS.length)]
+    makeLevel(sz.cols, sz.rows, difficulty, Math.floor(Math.random() * 1_000_000))
   }
 
   // ui declared early so callbacks in mountToolbar can reference it via closure
@@ -73,7 +93,7 @@ async function boot() {
     game = null
     selectedTower = null
     gameLayers.clear()
-    editor.enabled = true
+    editor.enabled = false // freehand trace off — board is generated; canvas drag pans the camera
     const ip = infoPanel(); if (ip) ip.style.display = '' // show static panel back in edit mode
   }
 
@@ -83,10 +103,7 @@ async function boot() {
       editor.state.clear(); renderer.render(emptyLevel()); updateLevelName('Untitled')
     },
     onGenerate: () => {
-      resetPlay(); ui.showTower(null, 0)
-      const difficulty = DIFFICULTY_RAMP[Math.min(campaign++, DIFFICULTY_RAMP.length - 1)]
-      editor.state.loadLevel(generateBalancedLevel({ board, difficulty, seed: ++seedCounter }))
-      editor.redraw(); frameLevel(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
+      newRandomLevel()
     },
     onReseed: () => { editor.state.reseed(++seedCounter); editor.redraw() },
     onSave: () => {
@@ -99,7 +116,7 @@ async function boot() {
         resetPlay(); ui.showTower(null, 0)
         editor.state.loadLevel(lvl)
         const b = editor.state.board
-        board = { cols: b.cols, rows: b.rows, pitch: fitPitch(b.cols, b.rows, view().w, view().h) }
+        board = { cols: b.cols, rows: b.rows, pitch: PITCH_PX }
         editor.state.board = board
         if (editor.state.level) editor.state.level.board = board
         editor.redraw(); frameLevel()
@@ -152,13 +169,40 @@ async function boot() {
   const modeBtn = (label: string, fn: () => void) => {
     const b = document.createElement('button'); b.textContent = label; b.onclick = fn; modeBar.appendChild(b)
   }
-  modeBtn('✎ Редактор', () => setMode('edit'))
-  modeBtn('▶ Играть', () => setMode('play'))
-  document.body.appendChild(modeBar)
-  setMode('edit') // start in the level editor
+  // copyable track-code label (bottom-right) — same code in the URL reproduces the track
+  const seedLabel = document.createElement('div')
+  seedLabel.className = 'pcb-seed'; seedLabel.title = 'код трассы — скопируй или открой этот URL, чтобы повторить'
+  document.body.appendChild(seedLabel)
 
-  // build/select on canvas click — only in Play mode (game exists)
-  app.canvas.addEventListener('pointerdown', (e) => {
+  // start from ?t=COLSxROWS.DIFF.SEED if present (reproducible), else a fresh random track
+  const t = new URLSearchParams(location.search).get('t')
+  const m = t && /^(\d+)x(\d+)\.(\d+)\.(\d+)$/.exec(t)
+  if (m) makeLevel(+m[1], +m[2], +m[3], +m[4]); else newRandomLevel()
+
+  // Routes: `/editor` = level editor; `/` = game (plays immediately on the level).
+  const isEditor = location.pathname.replace(/\/+$/, '').endsWith('/editor')
+  if (isEditor) {
+    modeBtn('▶ Играть', () => { location.href = '/' })
+    setMode('edit')
+  } else {
+    modeBtn('🗺 Новая карта', () => { newRandomLevel(); ensureGame() })
+    modeBtn('✎ Редактор', () => { location.href = '/editor' })
+    setMode('play')
+  }
+  document.body.appendChild(modeBar)
+
+  // DRAG to pan the camera; a CLICK (no drag) builds/selects in play mode
+  let drag: { x: number; y: number; cx: number; cy: number } | null = null
+  let dragged = false
+  app.canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, cx: camera.x, cy: camera.y }; dragged = false })
+  window.addEventListener('pointermove', (e) => {
+    if (!drag) return
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y
+    if (!dragged && Math.hypot(dx, dy) > 4) dragged = true
+    if (dragged) { camera.x = drag.cx + dx; camera.y = drag.cy + dy; camera.apply(renderer.world) }
+  })
+  window.addEventListener('pointerup', (e) => { if (drag && !dragged) handleClick(e); drag = null })
+  function handleClick(e: PointerEvent): void {
     if (!game) return
     const r = app.canvas.getBoundingClientRect()
     const wx = (e.clientX - r.left - camera.x) / camera.zoom
@@ -179,7 +223,7 @@ async function boot() {
       selectedTower = t ?? null
       ui.showTower(selectedTower, selectedTower ? game.sellValue(selectedTower) : 0)
     }
-  })
+  }
 
   // game loop on the Pixi ticker
   app.ticker.add((ticker) => {

@@ -15,6 +15,7 @@ export class Tower {
   private lvl = 0
   private cooldown: number
   targetMode: TargetMode = 'first'
+  special = false // placed on a special spot → boosted range + damage
   constructor(readonly kind: TowerKind, readonly pos: Pt, private pitch: number) {
     this.cooldown = 1 / TOWER_DEFS[kind][0].fireRate
   }
@@ -29,8 +30,9 @@ export class Tower {
 
   update(dt: number, enemies: Enemy[]): ShotResult | null {
     const s = this.stats
-    const rangePx = s.range * this.pitch
-    if (s.aura) return { aura: { slow: s.slow ?? 0, range: rangePx }, from: this.pos }
+    const k = this.special ? 1.35 : 1 // special-spot boost
+    const rangePx = s.range * this.pitch * k
+    if (s.aura) return { aura: { slow: (s.slow ?? 0) * k, range: rangePx }, from: this.pos }
     this.cooldown -= dt
     let target: Enemy | undefined
     for (const e of enemies) {
@@ -45,7 +47,7 @@ export class Tower {
     if (!target || this.cooldown > 0) return null
     this.cooldown = 1 / s.fireRate
     return {
-      from: this.pos, target, damage: s.damage, slow: s.slow,
+      from: this.pos, target, damage: s.damage * k, slow: s.slow,
       splashRadius: s.splashRadius, chainCount: s.chainCount, chainRange: s.chainRange, pierce: s.pierce,
     }
   }

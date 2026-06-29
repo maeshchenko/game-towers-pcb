@@ -18,26 +18,33 @@ function poly(g: Graphics, cx: number, cy: number, r: number, sides: number, rot
   }
 }
 
-// Tower = dark IC chip + gold pin rows + a bright neon function icon + colored glow (concept Ref-B).
-function drawTower(g: Graphics, t: Tower): void {
+// Tower = dark IC chip + gold pin rows + neon icon. Size LINKED to the build-spot bracket via pitch
+// (the chip fills the bracket). Build spot bracket half-size = pitch*0.62, so the chip uses ~pitch*0.55.
+function drawTower(g: Graphics, t: Tower, pitch: number): void {
   const { x, y } = t.pos
-  const th = TOWER_THEME[t.kind], c = th.color, s = 13
+  const th = TOWER_THEME[t.kind], c = th.color
+  const s = Math.max(11, pitch * 0.55), ic = s * 0.5, pinW = Math.max(2, s * 0.18)
+  g.roundRect(x - s - 3, y - s - 3, (s + 3) * 2, (s + 3) * 2, 4).fill({ color: PALETTE.substrate, alpha: 0.9 }) // small mask: hide the bracket under the chip (don't cover the path)
   g.circle(x, y, s + 5).fill({ color: c, alpha: 0.14 })                          // soft glow
   g.roundRect(x - s + 1, y - s + 2, s * 2, s * 2, 3).fill({ color: 0x000000, alpha: 0.5 }) // shadow
   g.roundRect(x - s, y - s, s * 2, s * 2, 3).fill({ color: 0x16202b })           // navy IC body
   g.roundRect(x - s, y - s, s * 2, s * 0.4, 3).fill({ color: 0xffffff, alpha: 0.06 })
   for (let i = 0; i < 4; i++) {                                                  // gold pin rows (top+bottom)
-    const px = x - s + 5 + i * 6
-    g.rect(px, y - s - 3, 3, 3).fill({ color: PALETTE.padGold }); g.rect(px, y + s, 3, 3).fill({ color: PALETTE.padGold })
+    const px = x - s + s * 0.4 + i * (s * 0.5)
+    g.rect(px, y - s - pinW, pinW, pinW).fill({ color: PALETTE.padGold }); g.rect(px, y + s, pinW, pinW).fill({ color: PALETTE.padGold })
   }
-  // neon function icon
-  if (th.icon === 'rings') { g.circle(x, y, 6).stroke({ color: c, width: 2 }); g.circle(x, y, 2.5).fill({ color: c }) }
-  else if (th.icon === 'diamond') { poly(g, x, y, 6, 4, 0); g.fill({ color: c }) }
-  else if (th.icon === 'targetRing') { g.circle(x, y, 6).stroke({ color: c, width: 2 }); g.moveTo(x - 7, y).lineTo(x + 7, y).moveTo(x, y - 7).lineTo(x, y + 7).stroke({ color: c, width: 1.5 }) }
-  else if (th.icon === 'triangle') { poly(g, x, y, 7, 3, -Math.PI / 2); g.fill({ color: c }) }
-  else { g.moveTo(x - 2, y - 6).lineTo(x + 3, y - 1).lineTo(x - 1, y).lineTo(x + 2, y + 6).lineTo(x - 4, y - 1).lineTo(x, y).closePath().fill({ color: c }) } // bolt
-  g.circle(x, y, 1.6).fill({ color: 0xffffff, alpha: 0.9 })                      // hot core
-  for (let i = 0; i <= t.level; i++) g.rect(x - s + 3 + i * 4, y - s - 6, 2.5, 2).fill({ color: c }) // level pips
+  // neon function icon (sized to the chip)
+  if (th.icon === 'rings') { g.circle(x, y, ic).stroke({ color: c, width: 2 }); g.circle(x, y, ic * 0.4).fill({ color: c }) }
+  else if (th.icon === 'diamond') { poly(g, x, y, ic, 4, 0); g.fill({ color: c }) }
+  else if (th.icon === 'targetRing') { g.circle(x, y, ic).stroke({ color: c, width: 2 }); g.moveTo(x - ic * 1.2, y).lineTo(x + ic * 1.2, y).moveTo(x, y - ic * 1.2).lineTo(x, y + ic * 1.2).stroke({ color: c, width: 1.5 }) }
+  else if (th.icon === 'triangle') { poly(g, x, y, ic * 1.15, 3, -Math.PI / 2); g.fill({ color: c }) }
+  else { const u = ic / 6; g.moveTo(x - 2 * u, y - 6 * u).lineTo(x + 3 * u, y - u).lineTo(x - u, y).lineTo(x + 2 * u, y + 6 * u).lineTo(x - 4 * u, y - u).lineTo(x, y).closePath().fill({ color: c }) } // bolt
+  g.circle(x, y, Math.max(1.5, s * 0.13)).fill({ color: 0xffffff, alpha: 0.9 })  // hot core
+  for (let i = 0; i <= t.level; i++) g.rect(x - s + 3 + i * (s * 0.35), y - s - pinW * 2.5, s * 0.22, 2).fill({ color: c }) // level pips
+  if (t.special) {                                                              // special-spot boost → cyan octagon badge
+    g.circle(x, y, s + 7).fill({ color: PALETTE.specialCyan, alpha: 0.1 })
+    poly(g, x, y, s + 6, 8, Math.PI / 8); g.stroke({ color: PALETTE.specialCyan, width: 2, alpha: 0.9 })
+  }
 }
 
 // Enemies ride ON the path as bright neon tokens (concept Ref-B): soft glow halo + bright glyph
@@ -101,7 +108,7 @@ export class GameLayers {
     const g = new Graphics()
     for (const t of game.towers) {
       if (t.stats.aura) g.circle(t.pos.x, t.pos.y, t.stats.range * game.pitch).fill({ color: PALETTE.specialCyan, alpha: 0.06 }).stroke({ color: PALETTE.specialCyan, width: 1, alpha: 0.3 })
-      drawTower(g, t)
+      drawTower(g, t, game.pitch)
     }
     if (selected) g.circle(selected.pos.x, selected.pos.y, selected.stats.range * game.pitch).stroke({ color: PALETTE.traceCore, width: 1.5, alpha: 0.5 })
     for (const f of game.fx) drawFx(g, f)

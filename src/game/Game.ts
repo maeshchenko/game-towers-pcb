@@ -12,7 +12,7 @@ import { WaveManager, mapWaves } from './WaveManager'
 import { GameState } from './GameState'
 import { hpScale, SPEED_SCALE } from './difficulty'
 
-interface Spot { cell: Cell; pos: Pt; tower: Tower | null }
+interface Spot { cell: Cell; pos: Pt; tower: Tower | null; special: boolean }
 
 /** A transient fire effect for one shot, drawn as a fading beam. */
 export interface Fx { from: Pt; to: Pt; kind: TowerKind; ttl: number }
@@ -36,7 +36,10 @@ export class Game {
     const waves = mapWaves(diff)
     this.state = new GameState(diff, waves.length)
     this.wm = new WaveManager(paths, waves, hpScale(diff), this.pitch * SPEED_SCALE, seed)
-    this.spots = [...level.spots, ...level.specialSpots].map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null }))
+    this.spots = [
+      ...level.spots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: false })),
+      ...level.specialSpots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: true })),
+    ]
   }
 
   enemies(): Enemy[] { return this.wm.active }
@@ -48,6 +51,7 @@ export class Game {
     const cost = TOWER_DEFS[kind][0].cost
     if (!this.state.spend(cost)) return false
     const t = new Tower(kind, this.spots[i].pos, this.pitch)
+    t.special = this.spots[i].special
     this.spots[i].tower = t
     this.towers.push(t)
     this.spent.set(t, cost)

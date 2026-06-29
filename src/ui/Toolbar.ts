@@ -30,8 +30,8 @@ export function mountToolbar(opts: {
   const load = btn('Load', () => file.click()); load.appendChild(file)
 
   // map-size controls: presets + manual cols×rows
-  const colsIn = document.createElement('input'); colsIn.type = 'number'; colsIn.value = '64'; colsIn.className = 'pcb-size'; colsIn.title = 'cols'
-  const rowsIn = document.createElement('input'); rowsIn.type = 'number'; rowsIn.value = '48'; rowsIn.className = 'pcb-size'; rowsIn.title = 'rows'
+  const colsIn = document.createElement('input'); colsIn.type = 'number'; colsIn.value = '32'; colsIn.className = 'pcb-size'; colsIn.title = 'cols'
+  const rowsIn = document.createElement('input'); rowsIn.type = 'number'; rowsIn.value = '24'; rowsIn.className = 'pcb-size'; rowsIn.title = 'rows'
   for (const p of MAP_PRESETS)
     btn(p.label, () => { colsIn.value = String(p.cols); rowsIn.value = String(p.rows); opts.onResize(p.cols, p.rows) })
   bar.appendChild(colsIn); bar.appendChild(document.createTextNode('×')); bar.appendChild(rowsIn)

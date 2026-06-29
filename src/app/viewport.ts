@@ -1,9 +1,9 @@
 // src/app/viewport.ts
 export const MAP_PRESETS: { label: string; cols: number; rows: number }[] = [
-  { label: 'S', cols: 32, rows: 24 },
-  { label: 'M', cols: 48, rows: 36 },
-  { label: 'L', cols: 64, rows: 48 },
-  { label: 'XL', cols: 96, rows: 72 },
+  { label: 'S', cols: 24, rows: 18 },
+  { label: 'M', cols: 32, rows: 24 },
+  { label: 'L', cols: 44, rows: 33 },
+  { label: 'XL', cols: 60, rows: 45 },
 ]
 
 export function fitPitch(
