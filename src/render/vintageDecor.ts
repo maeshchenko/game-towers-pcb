@@ -38,10 +38,13 @@ function rr(s: ShapeSpec[], x: number, y: number, w: number, h: number, rad: num
 function ci(s: ShapeSpec[], x: number, y: number, rad: number, color: number, alpha = 1): void { s.push({ type: 'circle', x, y, r: rad, color, alpha }) }
 function ln(s: ShapeSpec[], x1: number, y1: number, x2: number, y2: number, width: number, color: number, alpha = 1): void { s.push({ type: 'line', x1, y1, x2, y2, width, color, alpha }) }
 
-/** Through-hole annular pad (donut): tin ring + drilled hole. */
+/** Through-hole joint: annular pad + concave shiny solder fillet (IPC-A-610) + drilled hole. */
 function padHole(s: ShapeSpec[], x: number, y: number, p: number): void {
-  ci(s, x, y, p * 0.26, C.pad, 1)
-  ci(s, x, y, p * 0.12, C.hole, 1)
+  ci(s, x + 0.5, y + 1, p * 0.3, C.shadow, 0.35)         // soft seat shadow
+  ci(s, x, y, p * 0.3, C.solderMid, 1)                    // fillet base (darker tin)
+  ci(s, x, y, p * 0.24, C.pad, 1)                         // bright tin ring
+  ci(s, x - p * 0.07, y - p * 0.08, p * 0.12, C.white, 0.55) // specular catch-light (concave + shiny)
+  ci(s, x, y, p * 0.1, C.hole, 1)                         // hole
 }
 /** Pseudo-3D disc from top: cast shadow → side wall → top face → highlight. */
 function topDisc(s: ShapeSpec[], cx: number, cy: number, rad: number, color: number, wall = 3): void {
