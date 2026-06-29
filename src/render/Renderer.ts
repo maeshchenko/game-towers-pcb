@@ -6,6 +6,7 @@ import { PALETTE, RENDER } from '../style/palette'
 import { buildTraceStrokes, buildChevrons } from './traceBuilder'
 import { buildDecorShapes } from './decorBuilder'
 import { cellToPx } from '../geom/grid'
+import { makeRng } from '../pipeline/rng'
 
 export class Renderer {
   readonly world = new Container()
@@ -50,6 +51,31 @@ export class Renderer {
     for (let y = 0; y <= level.board.rows; y++)
       g.moveTo(0, y * level.board.pitch).lineTo(bw, y * level.board.pitch)
     g.stroke({ color: PALETTE.silk, width: 1, alpha: 0.4 })
+    this.layers.board.addChild(g)
+    this.drawRoutingWeb(level)
+  }
+
+  // Faint background copper-routing web (thin teal stubs + sparse via field) for authentic PCB
+  // texture. Seeded by the level so it stays stable across re-renders; sits under copper/decor/path.
+  private drawRoutingWeb(level: Level): void {
+    const { cols, rows, pitch } = level.board
+    const rng = makeRng((level.seed ?? 1) ^ 0x5eed)
+    const g = new Graphics()
+    const stubs = Math.floor((cols * rows) / 22)
+    const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]] as const
+    for (let i = 0; i < stubs; i++) {
+      const cx = Math.floor(rng() * cols), cy = Math.floor(rng() * rows)
+      const [dx, dy] = dirs[Math.floor(rng() * dirs.length)]
+      const len = 2 + Math.floor(rng() * 5)
+      const x0 = cx * pitch + pitch / 2, y0 = cy * pitch + pitch / 2
+      g.moveTo(x0, y0).lineTo(x0 + dx * len * pitch, y0 + dy * len * pitch)
+    }
+    g.stroke({ color: PALETTE.routing, width: Math.max(1, pitch * 0.08), alpha: 0.5 })
+    const vias = Math.floor((cols * rows) / 30)
+    for (let i = 0; i < vias; i++) {
+      const x = (Math.floor(rng() * cols) + 0.5) * pitch, y = (Math.floor(rng() * rows) + 0.5) * pitch
+      g.circle(x, y, Math.max(1, pitch * 0.1)).fill({ color: PALETTE.routing, alpha: 0.6 })
+    }
     this.layers.board.addChild(g)
   }
 

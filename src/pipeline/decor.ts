@@ -273,7 +273,7 @@ export function buildDecorWithNets(args: {
 
   // ── 5. Passive banks — fill open space ─────────────────────────────────────
   {
-    const bankTarget = Math.floor((board.cols * board.rows) / 120)
+    const bankTarget = Math.floor((board.cols * board.rows) / 260)
     for (let b = 0; b < bankTarget; b++) {
       const count = 4 + Math.floor(rng() * 3) // 4..6
       const blk = passiveBank([0, 0], count, alloc)
@@ -286,7 +286,7 @@ export function buildDecorWithNets(args: {
 
   // ── 6. Vias (singles + small clusters) ─────────────────────────────────────
   {
-    const viaTarget = Math.floor((board.cols * board.rows) / 60)
+    const viaTarget = Math.floor((board.cols * board.rows) / 150)
     for (let i = 0; i < viaTarget * 4; i++) {
       if (items.filter(it => it.kind === 'via').length >= viaTarget) break
       const cell: Cell = [Math.floor(rng() * board.cols), Math.floor(rng() * board.rows)]
@@ -305,7 +305,7 @@ export function buildDecorWithNets(args: {
 
   // ── 7. Test points ──────────────────────────────────────────────────────────
   {
-    const tpTarget = 8 + Math.floor(rng() * 13)
+    const tpTarget = 4 + Math.floor(rng() * 5)
     for (let i = 0; i < tpTarget * 4; i++) {
       if (tpN - 1 >= tpTarget) break
       const cell: Cell = [Math.floor(rng() * board.cols), Math.floor(rng() * board.rows)]

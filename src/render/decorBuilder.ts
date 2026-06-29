@@ -336,24 +336,8 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
     // ── smdRes / res (chip resistor) ──────────────────────────────────────────
     case 'smdRes':
     case 'res': {
+      // Dark recessed chip resistor — no value label (kept clean so it recedes behind the path).
       passive2T(shapes, item, x, y, w, h, PALETTE.resBlack, pitch)
-      // Value code centered on body; width-constrained so it never overflows.
-      // Body inner width excludes end pads (~20 % each side) → use 56 % of w.
-      const code = '100'
-      const innerW = w * 0.56
-      const codeSize = Math.min(pitch * 0.4, innerW / (code.length * 0.62))
-      // Drop the label when the result would be unreadably tiny (< 5 px)
-      if (codeSize >= 5) {
-        shapes.push({
-          type: 'text',
-          x: x + w / 2,
-          y: y + (h - codeSize) / 2,
-          text: code,
-          size: codeSize,
-          color: 0x888888,
-          align: 'center',
-        })
-      }
       return shapes
     }
 

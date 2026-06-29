@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest'
 import { buildDecorShapes } from '../../src/render/decorBuilder'
+import { PALETTE } from '../../src/style/palette'
 
-const PAD_GOLD = 0xc9a84c
-const SILK_WHITE = 0xe8e8e8
+const PAD_GOLD = PALETTE.padGold
+const SILK_WHITE = PALETTE.silkWhite
 
 describe('decorBuilder', () => {
   it('soic emits shadow rect, gold pads, silk lines, and pin-1 circle', () => {
@@ -53,20 +54,10 @@ describe('decorBuilder', () => {
     expect(shapes.some(s => s.type === 'line')).toBe(true)
   })
 
-  it('res value code fits inside body and is center-aligned', () => {
-    const pitch = 24
-    const shapes = buildDecorShapes({ kind: 'res', variant: 1, cell: [1, 1], rot: 0, scale: 1 }, pitch)
-    const code = shapes.find(s => s.type === 'text' && (s as { type: 'text'; text: string }).text === '100')
-    expect(code).toBeDefined()
-    if (code && code.type === 'text') {
-      // code.size * chars * char-width-factor must not exceed inner body width
-      const w = 2 * pitch  // res footprint is 2×1 cells
-      const innerW = w * 0.56
-      expect(code.size * 3 * 0.62).toBeLessThanOrEqual(innerW + 0.5)
-      expect(code.align).toBe('center')
-      // size must stay below the pitch-based cap
-      expect(code.size).toBeLessThanOrEqual(pitch * 0.4 + 0.01)
-    }
+  it('res renders as a clean dark chip with no value label (recedes behind the path)', () => {
+    const shapes = buildDecorShapes({ kind: 'res', variant: 1, cell: [1, 1], rot: 0, scale: 1 }, 24)
+    expect(shapes.some(s => s.type === 'rect')).toBe(true) // chip body + pads
+    expect(shapes.some(s => s.type === 'text')).toBe(false) // no '100' label
   })
 
   it('unknown kind falls back to a generic rect without throwing', () => {
