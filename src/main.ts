@@ -108,6 +108,7 @@ async function boot() {
 
   // build/select on canvas click during play
   app.canvas.addEventListener('pointerdown', (e) => {
+    ensureGame() // first board interaction on a level enters play (build phase) so towers can be placed pre-wave
     if (!game) return
     const r = app.canvas.getBoundingClientRect()
     const wx = (e.clientX - r.left - camera.x) / camera.zoom
