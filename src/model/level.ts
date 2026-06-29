@@ -23,7 +23,7 @@ export interface Level {
   /** Copper polylines connecting pad anchors of electrically connected components. */
   copper?: Copper[]
   tiles?: TileGrid
-  meta: { name: string; difficulty: number; archetype?: string }
+  meta: { name: string; difficulty: number; archetype?: string; balance?: { won: boolean; pressure: number } }
 }
 
 /** Returns the authoritative set of enemy paths for a level. */

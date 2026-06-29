@@ -5,11 +5,11 @@ import { PALETTE } from './style/palette'
 import { Renderer } from './render/Renderer'
 import { Camera } from './render/Camera'
 import { Editor } from './editor/Editor'
-import { generateLevel } from './pipeline/generator'
 import { fitPitch } from './app/viewport'
 import { mountToolbar, levelToBlobUrl, readLevelFile } from './ui/Toolbar'
 import { mountPanels, updateLevelName } from './ui/Panels'
 import { Game } from './game/Game'
+import { generateBalancedLevel } from './game/balance'
 import { GameLayers } from './render/GameLayers'
 import { GameUI } from './ui/GameUI'
 import type { Board } from './model/level'
@@ -63,7 +63,7 @@ async function boot() {
     },
     onGenerate: () => {
       resetPlay(); ui.showTower(null, 0)
-      editor.state.loadLevel(generateLevel({ board, difficulty: 5, seed: ++seedCounter }))
+      editor.state.loadLevel(generateBalancedLevel({ board, difficulty: 5, seed: ++seedCounter }))
       editor.redraw(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
     },
     onReseed: () => { editor.state.reseed(++seedCounter); editor.redraw() },
