@@ -276,10 +276,11 @@ export function buildDecorWithNets(args: {
 
   // ── 5. Functional circuit blocks — fill the open space, then wire blocks together ──
   {
-    const blockReps: number[] = [] // global index of one item per placed block (for inter-block links)
+    // per placed block: global index of its first item (input side) and last item (output side)
+    const blocks: { first: number; last: number }[] = []
     const placeBlk = (blk: { items: DecorItem[]; nets: number[][] }): void => {
       const off = scanBlock(blk.items, 2, 2, board.cols - 2, board.rows - 2, occupied, board, rng)
-      if (off) { blockReps.push(items.length); mergeBlock(blk.items, blk.nets, off, items, nets) }
+      if (off) { const base = items.length; mergeBlock(blk.items, blk.nets, off, items, nets); blocks.push({ first: base, last: base + blk.items.length - 1 }) }
     }
     const bigFactories = [
       () => amplifierStage([0, 0], alloc), () => timer555([0, 0], alloc),
@@ -293,20 +294,21 @@ export function buildDecorWithNets(args: {
     const bankTarget = Math.floor((board.cols * board.rows) / 380)
     for (let b = 0; b < bankTarget; b++) placeBlk(passiveBank([0, 0], Math.floor(rng() * 9), alloc))
 
-    // wire ALL blocks into ONE connected network (minimum spanning tree over block reps)
-    const cellOf = (i: number): Cell => items[blockReps[i]].cell
+    // wire ALL blocks into ONE network: MST over blocks, each edge = OUTPUT of one block → INPUT of
+    // the next (signal flows block-to-block), so it reads as a single connected schematic.
+    const cellOf = (i: number): Cell => items[blocks[i].last].cell
     const dist = (a: number, b: number) => { const ca = cellOf(a), cb = cellOf(b); return Math.abs(ca[0] - cb[0]) + Math.abs(ca[1] - cb[1]) }
-    if (blockReps.length > 1) {
+    if (blocks.length > 1) {
       const inTree = new Set<number>([0])
-      while (inTree.size < blockReps.length) {
+      while (inTree.size < blocks.length) {
         let bestA = -1, bestB = -1, bestD = Infinity
-        for (const a of inTree) for (let b = 0; b < blockReps.length; b++) {
+        for (const a of inTree) for (let b = 0; b < blocks.length; b++) {
           if (inTree.has(b)) continue
           const d = dist(a, b)
           if (d < bestD) { bestD = d; bestA = a; bestB = b }
         }
         if (bestB < 0) break
-        inTree.add(bestB); nets.push([blockReps[bestA], blockReps[bestB]])
+        inTree.add(bestB); nets.push([blocks[bestA].last, blocks[bestB].first]) // out → in
       }
     }
   }

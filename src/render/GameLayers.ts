@@ -3,18 +3,12 @@ import { Container, Graphics } from 'pixi.js'
 import type { Game, Fx } from '../game/Game'
 import type { Tower } from '../game/Tower'
 import type { Enemy } from '../game/Enemy'
-import type { TowerKind } from '../game/towerTypes'
 import { PALETTE } from '../style/palette'
-import { enemyTheme } from './theme'
+import { enemyTheme, TOWER_THEME } from './theme'
 
 export function enemyColor(kind: string): number { return enemyTheme(kind).color }
 
 const ENEMY_RADIUS: Record<string, number> = { normal: 8, fast: 6, tank: 12, rogue: 5, brute: 14, healer: 9, boss: 20 }
-
-// PCB-styled accent colour per tower kind (body is a dark IC; this is the function marker).
-const TOWER_ACCENT: Record<TowerKind, number> = {
-  cannon: 0xe8c84a, slow: 0x3fb6d8, sniper: 0xe8503a, mortar: 0xc8843a, tesla: 0xb060e0,
-}
 
 function poly(g: Graphics, cx: number, cy: number, r: number, sides: number, rot = 0): void {
   for (let i = 0; i <= sides; i++) {
@@ -24,33 +18,26 @@ function poly(g: Graphics, cx: number, cy: number, r: number, sides: number, rot
   }
 }
 
+// Tower = dark IC chip + gold pin rows + a bright neon function icon + colored glow (concept Ref-B).
 function drawTower(g: Graphics, t: Tower): void {
   const { x, y } = t.pos
-  const accent = TOWER_ACCENT[t.kind]
-  const s = 12 // half-size
-  g.circle(x, y, s + 4).fill({ color: accent, alpha: 0.12 }) // soft glow by kind
-  // drop shadow + dark IC body (chip) with corner pads
-  g.rect(x - s + 1, y - s + 2, s * 2, s * 2).fill({ color: 0x000000, alpha: 0.45 })
-  g.roundRect(x - s, y - s, s * 2, s * 2, 2).fill({ color: PALETTE.icBody })
-  for (const [dx, dy] of [[-1, -1], [1, -1], [1, 1], [-1, 1]] as const)
-    g.rect(x + dx * s - 2, y + dy * s - 2, 4, 4).fill({ color: PALETTE.padGold, alpha: 0.9 })
-  // per-kind function marker on the chip
-  if (t.kind === 'cannon') {
-    g.circle(x, y, 4).fill({ color: accent }); g.rect(x - 1.5, y - s - 2, 3, 6).fill({ color: accent }) // barrel up
-  } else if (t.kind === 'slow') {
-    g.circle(x, y, 5).stroke({ color: accent, width: 2 }); g.circle(x, y, 2).fill({ color: accent })
-  } else if (t.kind === 'sniper') {
-    g.rect(x - 1, y - s - 4, 2, s + 4).fill({ color: accent }); g.circle(x, y, 3).fill({ color: accent }) // long barrel
-  } else if (t.kind === 'mortar') {
-    g.circle(x, y, 5).fill({ color: accent }); g.circle(x, y, 2.2).fill({ color: PALETTE.icBody }) // muzzle ring
-  } else { // tesla
-    g.circle(x, y, 5).stroke({ color: accent, width: 1.5 }); g.circle(x, y, 3).stroke({ color: accent, width: 1.5 })
-    g.circle(x, y, 1.5).fill({ color: 0xffffff })
+  const th = TOWER_THEME[t.kind], c = th.color, s = 13
+  g.circle(x, y, s + 5).fill({ color: c, alpha: 0.14 })                          // soft glow
+  g.roundRect(x - s + 1, y - s + 2, s * 2, s * 2, 3).fill({ color: 0x000000, alpha: 0.5 }) // shadow
+  g.roundRect(x - s, y - s, s * 2, s * 2, 3).fill({ color: 0x16202b })           // navy IC body
+  g.roundRect(x - s, y - s, s * 2, s * 0.4, 3).fill({ color: 0xffffff, alpha: 0.06 })
+  for (let i = 0; i < 4; i++) {                                                  // gold pin rows (top+bottom)
+    const px = x - s + 5 + i * 6
+    g.rect(px, y - s - 3, 3, 3).fill({ color: PALETTE.padGold }); g.rect(px, y + s, 3, 3).fill({ color: PALETTE.padGold })
   }
-  // level pips (top edge): level+1 small accent ticks
-  for (let i = 0; i <= t.level; i++) g.rect(x - s + 2 + i * 4, y - s - 3, 2.5, 2).fill({ color: accent })
-  // specular
-  g.rect(x - s + 1, y - s + 1, s * 0.9, 2).fill({ color: 0xffffff, alpha: 0.12 })
+  // neon function icon
+  if (th.icon === 'rings') { g.circle(x, y, 6).stroke({ color: c, width: 2 }); g.circle(x, y, 2.5).fill({ color: c }) }
+  else if (th.icon === 'diamond') { poly(g, x, y, 6, 4, 0); g.fill({ color: c }) }
+  else if (th.icon === 'targetRing') { g.circle(x, y, 6).stroke({ color: c, width: 2 }); g.moveTo(x - 7, y).lineTo(x + 7, y).moveTo(x, y - 7).lineTo(x, y + 7).stroke({ color: c, width: 1.5 }) }
+  else if (th.icon === 'triangle') { poly(g, x, y, 7, 3, -Math.PI / 2); g.fill({ color: c }) }
+  else { g.moveTo(x - 2, y - 6).lineTo(x + 3, y - 1).lineTo(x - 1, y).lineTo(x + 2, y + 6).lineTo(x - 4, y - 1).lineTo(x, y).closePath().fill({ color: c }) } // bolt
+  g.circle(x, y, 1.6).fill({ color: 0xffffff, alpha: 0.9 })                      // hot core
+  for (let i = 0; i <= t.level; i++) g.rect(x - s + 3 + i * 4, y - s - 6, 2.5, 2).fill({ color: c }) // level pips
 }
 
 // Enemies ride ON the path as bright neon tokens (concept Ref-B): soft glow halo + bright glyph
@@ -84,7 +71,7 @@ function drawEnemy(g: Graphics, e: Enemy): void {
 
 function drawFx(g: Graphics, f: Fx): void {
   const a = Math.min(1, f.ttl / 0.14)
-  const col = TOWER_ACCENT[f.kind]
+  const col = TOWER_THEME[f.kind].color
   const { from, to } = f
   if (f.kind === 'tesla') {
     // jagged lightning between from and to
