@@ -12,6 +12,8 @@ export interface Level {
   spots: TowerSpot[]
   specialSpots: TowerSpot[]
   decor: DecorItem[]
+  /** Each net is an array of indices into decor[]. Optional; produced by step 2 routing. */
+  nets?: number[][]
   meta: { name: string; difficulty: number }
 }
 

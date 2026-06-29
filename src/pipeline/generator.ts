@@ -2,7 +2,7 @@ import type { Board, Level, TowerSpot } from '../model/level'
 import type { Cell } from '../geom/types'
 import { octilinearize } from '../geom/octilinear'
 import { computeTowerSpots } from './spots'
-import { growDecor } from './decor'
+import { buildDecorWithNets } from './decor'
 import { makeRng } from './rng'
 
 export function minSpots(difficulty: number): number {
@@ -71,7 +71,7 @@ export function generateLevel(params: { board: Board; difficulty: number; seed: 
     if (spots.length + specialSpots.length >= target) break
   }
 
-  const decor = growDecor({ board, trace, spots, specialSpots, seed })
+  const { decor, nets } = buildDecorWithNets({ board, trace, spots, specialSpots, seed })
 
   return {
     version: 1,
@@ -81,6 +81,7 @@ export function generateLevel(params: { board: Board; difficulty: number; seed: 
     spots,
     specialSpots,
     decor,
+    nets,
     meta: { name: `Level ${difficulty.toString().padStart(2, '0')}`, difficulty },
   }
 }

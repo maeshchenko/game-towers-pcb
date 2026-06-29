@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { makeRng } from '../../src/pipeline/rng'
-import { growDecor } from '../../src/pipeline/decor'
+import { growDecor, buildDecorWithNets } from '../../src/pipeline/decor'
 import { footprintCells } from '../../src/render/decorBuilder'
 import { cellKey } from '../../src/geom/grid'
 
@@ -118,5 +118,36 @@ describe('growDecor', () => {
       expect(ic.ref, `IC kind=${ic.kind} at ${ic.cell} missing ref`).toBeDefined()
       expect(ic.ref!.startsWith('U'), `IC ref "${ic.ref}" does not start with U`).toBe(true)
     }
+  })
+})
+
+describe('buildDecorWithNets', () => {
+  const args = { board, trace, spots, specialSpots, seed: 7 }
+
+  it('returns a non-empty nets array', () => {
+    const { nets } = buildDecorWithNets(args)
+    expect(nets.length).toBeGreaterThan(0)
+  })
+
+  it('all net indices are valid decor indices', () => {
+    const { decor, nets } = buildDecorWithNets(args)
+    for (const net of nets) {
+      for (const idx of net) {
+        expect(idx, `net index ${idx} out of range (decor.length=${decor.length})`).toBeGreaterThanOrEqual(0)
+        expect(idx).toBeLessThan(decor.length)
+      }
+    }
+  })
+
+  it('is deterministic — two runs produce identical decor and nets', () => {
+    const a = buildDecorWithNets(args)
+    const b = buildDecorWithNets(args)
+    expect(a).toEqual(b)
+  })
+
+  it('decor matches growDecor output', () => {
+    const { decor } = buildDecorWithNets(args)
+    const legacy = growDecor(args)
+    expect(decor).toEqual(legacy)
   })
 })

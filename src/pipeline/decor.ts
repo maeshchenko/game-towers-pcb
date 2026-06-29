@@ -3,6 +3,15 @@ import type { Cell } from '../geom/types'
 import { cellKey } from '../geom/grid'
 import { makeRng } from './rng'
 import { footprintCells } from '../render/decorBuilder'
+import {
+  powerSupply,
+  mcuCore,
+  opAmp,
+  ledIndicator,
+  transistorSwitch,
+  passiveBank,
+  type RefAlloc,
+} from './circuits'
 
 // ---------- Occupancy helpers ----------
 
@@ -62,61 +71,133 @@ function tryPlace(
 }
 
 /**
- * Scan a rectangular region (shuffled) and place the first fitting location.
+ * Compute the bounding box (in cells) of a list of items.
+ * Returns { minX, minY, maxX, maxY } relative to cell coords.
  */
-function placeScan(
-  kind: string,
-  variant: number,
-  rot: 0 | 90 | 180 | 270,
+function blockBBox(items: DecorItem[]): { minX: number; minY: number; maxX: number; maxY: number } {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+  for (const it of items) {
+    const fp = footprintCells(it.kind, it.variant, it.rot)
+    if (it.cell[0] < minX) minX = it.cell[0]
+    if (it.cell[1] < minY) minY = it.cell[1]
+    if (it.cell[0] + fp.w > maxX) maxX = it.cell[0] + fp.w
+    if (it.cell[1] + fp.h > maxY) maxY = it.cell[1] + fp.h
+  }
+  return { minX, minY, maxX, maxY }
+}
+
+/**
+ * Try to place a block at a given origin. All items must fit (no overlap, within board).
+ * On success marks occupancy and returns true; on failure returns false (no partial marking).
+ */
+function tryPlaceBlock(
+  blockItems: DecorItem[],
+  originOffset: Cell,
+  occupied: Set<string>,
+  board: Board,
+): boolean {
+  const [dx, dy] = originOffset
+  // First check all items fit
+  for (const it of blockItems) {
+    const cell: Cell = [it.cell[0] + dx, it.cell[1] + dy]
+    const fp = footprintCells(it.kind, it.variant, it.rot)
+    if (!fits(cell, fp.w, fp.h, occupied, board)) return false
+  }
+  // Then mark all
+  for (const it of blockItems) {
+    const cell: Cell = [it.cell[0] + dx, it.cell[1] + dy]
+    const fp = footprintCells(it.kind, it.variant, it.rot)
+    mark(cell, fp.w, fp.h, occupied)
+  }
+  return true
+}
+
+/**
+ * Scan for a valid placement of a block (which has items relative to [0,0]).
+ * Returns the offset [ox,oy] that makes all items fit, or null.
+ */
+function scanBlock(
+  blockItems: DecorItem[],
   x0: number, y0: number, x1: number, y1: number,
   occupied: Set<string>,
   board: Board,
   rng: () => number,
-  ref?: string,
-): DecorItem | null {
-  // collect candidate cells and shuffle
+): Cell | null {
+  const bbox = blockBBox(blockItems)
+  const bw = bbox.maxX - bbox.minX
+  const bh = bbox.maxY - bbox.minY
+  // Adjust scan bounds so the block stays in-bounds
+  const sx0 = x0, sy0 = y0
+  const sx1 = Math.max(sx0, x1 - bw)
+  const sy1 = Math.max(sy0, y1 - bh)
+
   const candidates: Cell[] = []
-  for (let x = x0; x < x1; x++) for (let y = y0; y < y1; y++) candidates.push([x, y])
-  // Fisher-Yates partial shuffle (try at most 60 random picks)
-  const tries = Math.min(60, candidates.length)
+  for (let x = sx0; x <= sx1; x++) for (let y = sy0; y <= sy1; y++) candidates.push([x, y])
+  const tries = Math.min(80, candidates.length)
   for (let i = 0; i < tries; i++) {
     const j = i + Math.floor(rng() * (candidates.length - i))
     const tmp = candidates[i]; candidates[i] = candidates[j]; candidates[j] = tmp
-    const item = tryPlace(kind, variant, rot, candidates[i], occupied, board, ref)
-    if (item) return item
+    const [cx, cy] = candidates[i]
+    // offset so block's top-left bbox aligns to candidate
+    const off: Cell = [cx - bbox.minX, cy - bbox.minY]
+    if (tryPlaceBlock(blockItems, off, occupied, board)) return off
   }
   return null
 }
 
-// ---------- Main export ----------
+/**
+ * Apply an offset to all items in a block result and offset its net indices.
+ * Net indices are already local to the block — just add the global item offset.
+ */
+function mergeBlock(
+  blockItems: DecorItem[],
+  blockNets: number[][],
+  offset: Cell,
+  globalItems: DecorItem[],
+  globalNets: number[][],
+): void {
+  const idxOffset = globalItems.length
+  for (const it of blockItems) {
+    globalItems.push({
+      ...it,
+      cell: [it.cell[0] + offset[0], it.cell[1] + offset[1]],
+    })
+  }
+  for (const net of blockNets) {
+    globalNets.push(net.map(i => i + idxOffset))
+  }
+}
 
-export function growDecor(args: {
+// ---------- Main exports ----------
+
+export interface DecorWithNets {
+  decor: DecorItem[]
+  nets: number[][]
+}
+
+export function buildDecorWithNets(args: {
   board: Board; trace: Trace; spots: TowerSpot[]; specialSpots: TowerSpot[]; seed: number
-}): DecorItem[] {
+}): DecorWithNets {
   const { board } = args
   const rng = makeRng(args.seed)
   const occupied = blockedCells(args.trace, args.spots, args.specialSpots)
   const items: DecorItem[] = []
+  const nets: number[][] = []
 
-  let cCounter = 1  // C (capacitor) designator counter
-  let rCounter = 1  // R (resistor) designator counter
-  let uCounter = 1  // U (IC) designator counter
-  let tpCounter = 1 // TP designator counter
-  let qCounter = 1  // Q designator counter
-  let dCounter = 1  // D designator counter
-  let lCounter = 1  // L designator counter
+  // Shared designator allocators (globally unique refs)
+  let cN = 1, rN = 1, uN = 1, dN = 1, qN = 1, lN = 1, jN = 1, yN = 1, tpN = 1
+  const alloc: RefAlloc = {
+    nextC: () => `C${cN++}`,
+    nextR: () => `R${rN++}`,
+    nextU: () => `U${uN++}`,
+    nextD: () => `D${dN++}`,
+    nextQ: () => `Q${qN++}`,
+    nextL: () => `L${lN++}`,
+    nextJ: () => `J${jN++}`,
+    nextY: () => `Y${yN++}`,
+  }
 
-  const nextC = () => `C${cCounter++}`
-  const nextR = () => `R${rCounter++}`
-  const nextU = () => `U${uCounter++}`
-  const nextTP = () => `TP${tpCounter++}`
-  const nextQ = () => `Q${qCounter++}`
-  const nextD = () => `D${dCounter++}`
-  const nextL = () => `L${lCounter++}`
-
-  // ── 1. Mounting holes at 4 corners ──────────────────────────────────────────
-  // Structural elements: always exactly 4, one per corner.  Bypasses the
-  // occupied-check so trace / spots never prevent a corner hole from appearing.
+  // ── 1. Mounting holes at 4 corners ─────────────────────────────────────────
   {
     const cornerOffsets: Cell[] = [
       [2, 2],
@@ -127,234 +208,113 @@ export function growDecor(args: {
     const fp = footprintCells('mount', 1, 0)
     for (let i = 0; i < 4; i++) {
       const cell = cornerOffsets[i]
-      mark(cell, fp.w, fp.h, occupied)   // reserve space so other items stay clear
+      mark(cell, fp.w, fp.h, occupied)
       items.push({ kind: 'mount', variant: 1, cell, rot: 0, scale: 1, ref: `MH${i + 1}` })
     }
   }
 
-  // ── 2. Major ICs ─────────────────────────────────────────────────────────────
-  const icKinds = ['soic', 'soic', 'qfp', 'qfp', 'qfn', 'dip'] as const
-  const icVariants: Record<string, number[]> = {
-    soic: [8, 14, 16],
-    qfp:  [32, 44, 64],
-    qfn:  [16, 20, 24],
-    dip:  [8, 16],
-  }
-
-  const icCount = 3 + Math.floor(rng() * 4) + Math.floor((board.cols * board.rows) / 600)
-  const placedICs: { item: DecorItem; cx: number; cy: number; area: number }[] = []
-
-  for (let attempt = 0; attempt < icCount * 8 && placedICs.length < Math.min(icCount, 10); attempt++) {
-    const kind = icKinds[Math.floor(rng() * icKinds.length)]
-    const variants = icVariants[kind]
-    const variant = variants[Math.floor(rng() * variants.length)]
-    const rot: 0 | 90 = rng() < 0.5 ? 0 : 90
-
-    // Keep ICs away from board edges (≥3 cells) and from each other (≥4 cells)
-    const fp = footprintCells(kind, variant, rot)
-    const x0 = 3, y0 = 3
-    const x1 = board.cols - fp.w - 3
-    const y1 = board.rows - fp.h - 3
-    if (x1 <= x0 || y1 <= y0) continue
-
-    const item = placeScan(kind, variant, rot, x0, y0, x1, y1, occupied, board, rng, nextU())
-    if (!item) { uCounter--; continue }  // undo ref increment if placement failed
-
-    // Check separation from other ICs (≥4 cells center-to-center)
-    const fp2 = footprintCells(item.kind, item.variant, item.rot)
-    const cx = item.cell[0] + fp2.w / 2
-    const cy = item.cell[1] + fp2.h / 2
-    let tooClose = false
-    for (const ic of placedICs) {
-      if (Math.abs(cx - ic.cx) < 4 && Math.abs(cy - ic.cy) < 4) { tooClose = true; break }
-    }
-    if (tooClose) {
-      // remove from occupancy is complex; just skip (mark stays, item not added)
-      uCounter--
-      continue
-    }
-
-    items.push(item)
-    placedICs.push({ item, cx, cy, area: fp2.w * fp2.h })
-  }
-
-  // ── 3. Decoupling caps per IC (mlcc adjacent to IC body) ─────────────────────
-  for (const { item: ic } of placedICs) {
-    const icFp = footprintCells(ic.kind, ic.variant, ic.rot)
-    const capCount = 2 + Math.floor(rng() * 3) // 2..4
-    // Prefer placing caps just below the IC body
-    const side = rng() < 0.5 ? 1 : -1 // below or above
-    for (let c = 0; c < capCount; c++) {
-      let placed = false
-      // Try adjacent rows: just below, just above, just left, just right
-      const offsets: Cell[] = [
-        [ic.cell[0] + c, ic.cell[1] + icFp.h + 1],         // below
-        [ic.cell[0] + c, ic.cell[1] - 2],                   // above
-        [ic.cell[0] + icFp.w + 1, ic.cell[1] + c],          // right
-        [ic.cell[0] - 2, ic.cell[1] + c],                   // left
-      ]
-      // Bias to one side
-      const preferred = side > 0 ? offsets : [offsets[1], offsets[0], offsets[2], offsets[3]]
-      for (const cell of preferred) {
-        if (cell[0] < 0 || cell[1] < 0 || cell[0] >= board.cols || cell[1] >= board.rows) continue
-        const item = tryPlace('mlcc', 1, 0, cell, occupied, board, nextC())
-        if (item) { items.push(item); placed = true; break }
-      }
-      if (!placed) cCounter-- // undo if not placed
-    }
-  }
-
-  // ── 4. Support passives per IC (rows of res/mlcc within ~5 cells) ────────────
-  for (const { item: ic } of placedICs) {
-    const icFp = footprintCells(ic.kind, ic.variant, ic.rot)
-    const passiveCount = 3 + Math.floor(rng() * 4) // 3..6
-    const rowRot: 0 | 90 = rng() < 0.5 ? 0 : 90
-    const radius = 5
-    const x0 = Math.max(0, ic.cell[0] - radius)
-    const y0 = Math.max(0, ic.cell[1] - radius)
-    const x1 = Math.min(board.cols, ic.cell[0] + icFp.w + radius)
-    const y1 = Math.min(board.rows, ic.cell[1] + icFp.h + radius)
-
-    // Place a contiguous row: pick a start cell, then extend in +x or +y
-    const startCell: Cell = [
-      x0 + Math.floor(rng() * Math.max(1, x1 - x0 - passiveCount)),
-      y0 + Math.floor(rng() * Math.max(1, y1 - y0)),
+  // ── 2. Power Supply block — near a board edge ───────────────────────────────
+  {
+    const ps = powerSupply([0, 0], alloc)
+    // Try top edge first, then bottom edge
+    const edgeCandidates: [number, number, number, number][] = [
+      [3, 1, board.cols - 16, 4],
+      [3, board.rows - 5, board.cols - 16, board.rows - 2],
+      [1, 3, 4, board.rows - 5],
     ]
-    let rowX = startCell[0], rowY = startCell[1]
-    for (let p = 0; p < passiveCount; p++) {
-      const kind = rng() < 0.5 ? 'res' : 'mlcc'
-      const ref = kind === 'res' ? nextR() : nextC()
-      const item = tryPlace(kind, 1, rowRot, [rowX, rowY], occupied, board, ref)
-      if (!item) { if (kind === 'res') rCounter--; else cCounter--; break }
-      items.push(item)
-      const fp = footprintCells(kind, 1, rowRot)
-      if (rowRot === 0) rowX += fp.w + 1
-      else rowY += fp.h + 1
+    let placed = false
+    for (const [x0, y0, x1, y1] of edgeCandidates) {
+      if (x1 <= x0 || y1 <= y0) continue
+      const off = scanBlock(ps.items, x0, y0, x1, y1, occupied, board, rng)
+      if (off) { mergeBlock(ps.items, ps.nets, off, items, nets); placed = true; break }
+    }
+    if (!placed) {
+      // undo alloc side-effects — refs will be re-used in subsequent blocks, acceptable for fallback
     }
   }
 
-  // ── 5. Crystal near the largest IC ───────────────────────────────────────────
-  if (placedICs.length > 0) {
-    const biggest = placedICs.reduce((a, b) => b.area > a.area ? b : a)
-    const ic = biggest.item
-    const icFp = footprintCells(ic.kind, ic.variant, ic.rot)
-    const radius = 6
-    const x0 = Math.max(0, ic.cell[0] - radius)
-    const y0 = Math.max(0, ic.cell[1] - radius)
-    const x1 = Math.min(board.cols - 2, ic.cell[0] + icFp.w + radius)
-    const y1 = Math.min(board.rows - 2, ic.cell[1] + icFp.h + radius)
-    const xtal = placeScan('crystal', 1, 0, x0, y0, x1, y1, occupied, board, rng, 'Y1')
-    if (xtal) {
-      items.push(xtal)
-      // 2 load caps beside it
-      for (let i = 0; i < 2; i++) {
-        const offsets: Cell[] = [
-          [xtal.cell[0] + i, xtal.cell[1] + 3],
-          [xtal.cell[0] + i, xtal.cell[1] - 2],
-          [xtal.cell[0] + 3, xtal.cell[1] + i],
-        ]
-        for (const cell of offsets) {
-          const item = tryPlace('mlcc', 1, 0, cell, occupied, board, nextC())
-          if (item) { items.push(item); break }
-          else cCounter--
+  // ── 3. MCU Core block(s) — central region ──────────────────────────────────
+  {
+    const mcuCount = board.cols * board.rows > 900 ? 2 : 1
+    for (let m = 0; m < mcuCount; m++) {
+      const mcu = mcuCore([0, 0], alloc)
+      const margin = 4
+      const x0 = margin, y0 = margin
+      const x1 = board.cols - margin, y1 = board.rows - margin
+      const off = scanBlock(mcu.items, x0, y0, x1, y1, occupied, board, rng)
+      if (off) mergeBlock(mcu.items, mcu.nets, off, items, nets)
+    }
+  }
+
+  // ── 4. Secondary blocks: opAmp, transistorSwitch, ledIndicator ─────────────
+  {
+    const secondaryCount = 2 + Math.floor(rng() * 3) // 2..4
+    const factories = [
+      () => opAmp([0, 0], alloc),
+      () => transistorSwitch([0, 0], alloc),
+      () => ledIndicator([0, 0], alloc),
+      () => opAmp([0, 0], alloc),
+    ]
+    for (let i = 0; i < secondaryCount; i++) {
+      const blk = factories[i % factories.length]()
+      const margin = 3
+      const x0 = margin, y0 = margin
+      const x1 = board.cols - margin, y1 = board.rows - margin
+      const off = scanBlock(blk.items, x0, y0, x1, y1, occupied, board, rng)
+      if (off) mergeBlock(blk.items, blk.nets, off, items, nets)
+    }
+  }
+
+  // ── 5. Passive banks — fill open space ─────────────────────────────────────
+  {
+    const bankTarget = Math.floor((board.cols * board.rows) / 120)
+    for (let b = 0; b < bankTarget; b++) {
+      const count = 4 + Math.floor(rng() * 3) // 4..6
+      const blk = passiveBank([0, 0], count, alloc)
+      const x0 = 2, y0 = 2, x1 = board.cols - count * 3 - 2, y1 = board.rows - 2
+      if (x1 <= x0) continue
+      const off = scanBlock(blk.items, x0, y0, x1, y1, occupied, board, rng)
+      if (off) mergeBlock(blk.items, blk.nets, off, items, nets)
+    }
+  }
+
+  // ── 6. Vias (singles + small clusters) ─────────────────────────────────────
+  {
+    const viaTarget = Math.floor((board.cols * board.rows) / 18)
+    for (let i = 0; i < viaTarget * 4; i++) {
+      if (items.filter(it => it.kind === 'via').length >= viaTarget) break
+      const cell: Cell = [Math.floor(rng() * board.cols), Math.floor(rng() * board.rows)]
+      const it = tryPlace('via', 1, 0, cell, occupied, board)
+      if (it) {
+        items.push(it)
+        if (rng() < 0.3) {
+          for (const nc of [[cell[0] + 2, cell[1]], [cell[0], cell[1] + 2]] as Cell[]) {
+            const n2 = tryPlace('via', 1, 0, nc, occupied, board)
+            if (n2) items.push(n2)
+          }
         }
       }
     }
   }
 
-  // ── 6. Passive rows in open areas ────────────────────────────────────────────
-  const targetPassiveRows = Math.floor((board.cols * board.rows) / 80)
-  let rowsPlaced = 0
-  let rowAttempts = 0
-  while (rowsPlaced < targetPassiveRows && rowAttempts < targetPassiveRows * 6) {
-    rowAttempts++
-    const rowLen = 2 + Math.floor(rng() * 3) // 2..4
-    const rowRot: 0 | 90 = rng() < 0.5 ? 0 : 90
-    const startX = Math.floor(rng() * board.cols)
-    const startY = Math.floor(rng() * board.rows)
-    let rx = startX, ry = startY
-    let placedInRow = 0
-    for (let p = 0; p < rowLen; p++) {
-      const kind = p % 2 === 0 ? 'res' : 'mlcc'
-      const ref = kind === 'res' ? nextR() : nextC()
-      const item = tryPlace(kind, 1, rowRot, [rx, ry], occupied, board, ref)
-      if (!item) { if (kind === 'res') rCounter--; else cCounter--; break }
-      items.push(item)
-      placedInRow++
-      const fp = footprintCells(kind, 1, rowRot)
-      if (rowRot === 0) rx += fp.w + 1
-      else ry += fp.h + 1
-    }
-    if (placedInRow > 0) rowsPlaced++
-  }
-
-  // ── 7. Vias ───────────────────────────────────────────────────────────────────
-  const viaTarget = Math.floor((board.cols * board.rows) / 18)
-  for (let i = 0; i < viaTarget * 4; i++) {
-    if (items.filter(it => it.kind === 'via').length >= viaTarget) break
-    const cell: Cell = [Math.floor(rng() * board.cols), Math.floor(rng() * board.rows)]
-    const item = tryPlace('via', 1, 0, cell, occupied, board)
-    if (item) items.push(item)
-    // small clusters: try neighbours
-    if (item && rng() < 0.3) {
-      const neighbours: Cell[] = [[cell[0] + 2, cell[1]], [cell[0], cell[1] + 2]]
-      for (const nc of neighbours) {
-        const nItem = tryPlace('via', 1, 0, nc, occupied, board)
-        if (nItem) items.push(nItem)
-      }
+  // ── 7. Test points ──────────────────────────────────────────────────────────
+  {
+    const tpTarget = 8 + Math.floor(rng() * 13)
+    for (let i = 0; i < tpTarget * 4; i++) {
+      if (tpN - 1 >= tpTarget) break
+      const cell: Cell = [Math.floor(rng() * board.cols), Math.floor(rng() * board.rows)]
+      const it = tryPlace('testpoint', 1, 0, cell, occupied, board, `TP${tpN}`)
+      if (!it) { /* ref not consumed — tpN not incremented yet so just skip */ continue }
+      tpN++
+      items.push(it)
     }
   }
 
-  // ── 8. Test points ────────────────────────────────────────────────────────────
-  const tpTarget = 8 + Math.floor(rng() * 13) // 8..20
-  for (let i = 0; i < tpTarget * 4; i++) {
-    if (tpCounter - 1 >= tpTarget) break
-    const cell: Cell = [Math.floor(rng() * board.cols), Math.floor(rng() * board.rows)]
-    const item = tryPlace('testpoint', 1, 0, cell, occupied, board, nextTP())
-    if (!item) { tpCounter--; continue }
-    items.push(item)
-  }
+  return { decor: items, nets }
+}
 
-  // ── 9. Electrolytics near a board edge ───────────────────────────────────────
-  for (let e = 0; e < 2; e++) {
-    // pick a random edge (top/bottom/left/right)
-    const edge = Math.floor(rng() * 4)
-    let x0: number, y0: number, x1: number, y1: number
-    if (edge === 0) { x0 = 2; x1 = board.cols - 4; y0 = 1; y1 = 4 }
-    else if (edge === 1) { x0 = 2; x1 = board.cols - 4; y0 = board.rows - 5; y1 = board.rows - 2 }
-    else if (edge === 2) { x0 = 1; x1 = 4; y0 = 2; y1 = board.rows - 4 }
-    else { x0 = board.cols - 5; x1 = board.cols - 2; y0 = 2; y1 = board.rows - 4 }
-    const item = placeScan('electrolytic', 1, 0, x0, y0, x1, y1, occupied, board, rng, nextC())
-    if (!item) { cCounter--; continue }
-    items.push(item)
-  }
-
-  // ── 10. Optional extras: sot23, diode, led, inductor ─────────────────────────
-  for (const { item: ic } of placedICs.slice(0, 2)) {
-    const icFp = footprintCells(ic.kind, ic.variant, ic.rot)
-    const radius = 4
-    const x0 = Math.max(0, ic.cell[0] - radius)
-    const y0 = Math.max(0, ic.cell[1] - radius)
-    const x1 = Math.min(board.cols, ic.cell[0] + icFp.w + radius)
-    const y1 = Math.min(board.rows, ic.cell[1] + icFp.h + radius)
-
-    if (rng() < 0.6) {
-      const item = placeScan('sot23', 1, 0, x0, y0, x1, y1, occupied, board, rng, nextQ())
-      if (item) items.push(item); else qCounter--
-    }
-    if (rng() < 0.5) {
-      const item = placeScan('diode', 1, 0, x0, y0, x1, y1, occupied, board, rng, nextD())
-      if (item) items.push(item); else dCounter--
-    }
-    if (rng() < 0.4) {
-      const item = placeScan('inductor', 1, 0, x0, y0, x1, y1, occupied, board, rng, nextL())
-      if (item) items.push(item); else lCounter--
-    }
-    if (rng() < 0.3) {
-      const item = placeScan('led', 1, 0, x0, y0, x1, y1, occupied, board, rng)
-      if (item) items.push(item)
-    }
-  }
-
-  return items
+export function growDecor(args: {
+  board: Board; trace: Trace; spots: TowerSpot[]; specialSpots: TowerSpot[]; seed: number
+}): DecorItem[] {
+  return buildDecorWithNets(args).decor
 }
