@@ -59,8 +59,8 @@ async function boot() {
       minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y)
     }
     if (!isFinite(minX)) return
-    const pad = pitch * 1.5
-    camera.frameBounds(minX - pad, minY - pad, maxX + pad, maxY + pad, view().w, view().h)
+    const pad = pitch * 4 // breathing room so the board (decor) shows around the path, like the refs
+    camera.frameBounds(minX - pad, minY - pad, maxX + pad, maxY + pad, view().w, view().h, 0.62)
     camera.apply(renderer.world)
   }
 

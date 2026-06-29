@@ -3,10 +3,10 @@ export const PALETTE = {
   substrateEdge: 0x0d1f17,
   silk: 0x1c3a2b,
   traceHalo: 0x1f8f4d,
-  traceBand: 0x1d9a4f,
+  traceBand: 0x0a2c1b,   // dark channel the lanes sit in
   traceCore: 0x6cf2a0,
-  traceLane: 0x9bffc8,
-  traceGroove: 0x0c3a20,
+  traceLane: 0x49d69a,   // crisp teal conductor lane
+  traceGroove: 0x07241a, // dark gap between lanes
   chevron: 0x8effbe,
   // neon set (enemies/towers/icons — P3/P4)
   neonCyan: 0x36e0e0,
@@ -44,7 +44,7 @@ export const PALETTE = {
 export const RENDER = {
   traceBandWidth: 14,
   traceCoreWidth: 4,
-  traceBandMul: 1.7,   // band width = pitch * this (the path is the hero — a thick corridor)
+  traceBandMul: 0.95,  // corridor width = pitch * this (crisp thin multi-lane, not a fat tube)
   haloBlur: 8,
   chevronSpacing: 44,
   cornerRadiusCells: 0.5,

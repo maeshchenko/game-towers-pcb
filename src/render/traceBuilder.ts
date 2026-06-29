@@ -14,15 +14,16 @@ export function buildTraceStrokes(trace: Trace, pitch: number): StrokeSpec[] {
   const pts = filletPath(trace.waypoints, trace.cornerRadius, pitch)
   const B = pitch * RENDER.traceBandMul
   const lane = (w: number, color: number, alpha = 1): StrokeSpec => ({ points: pts, width: w, color, alpha, blur: 0 })
+  // Dark channel + 3 crisp teal conductor lanes carved by alternating bright/groove concentric
+  // strokes (round joins = rounded corners). Subtle outer glow only — no fat green bloom.
   return [
-    { points: pts, width: B + pitch * 0.9, color: PALETTE.traceHalo, alpha: 0.28, blur: RENDER.haloBlur * 2 },
-    { points: pts, width: B + pitch * 0.35, color: PALETTE.traceHalo, alpha: 0.5, blur: RENDER.haloBlur },
-    lane(B, PALETTE.traceBand),                 // band base
-    lane(B * 0.86, PALETTE.traceLane),          // outer lane
-    lane(B * 0.66, PALETTE.traceGroove),        // groove
-    lane(B * 0.50, PALETTE.traceLane),          // mid lane
-    lane(B * 0.32, PALETTE.traceGroove),        // groove
-    lane(B * 0.16, PALETTE.traceLane),          // center lane
+    { points: pts, width: B + pitch * 0.5, color: PALETTE.traceHalo, alpha: 0.18, blur: RENDER.haloBlur },
+    lane(B, PALETTE.traceBand),               // dark channel base
+    lane(B * 0.82, PALETTE.traceLane),        // outer lane (bright)
+    lane(B * 0.60, PALETTE.traceGroove),      // dark gap
+    lane(B * 0.40, PALETTE.traceLane),        // mid lane
+    lane(B * 0.20, PALETTE.traceGroove),      // dark gap
+    lane(B * 0.10, PALETTE.traceLane),        // center lane
   ]
 }
 

@@ -11,8 +11,8 @@ describe('traceBuilder', () => {
     expect(strokes[0].width).toBeGreaterThan(strokes[strokes.length - 1].width)
     // every stroke follows the SAME filleted polyline
     expect(strokes[0].points.length).toBe(strokes[strokes.length - 1].points.length)
-    // band width scales with pitch (thick corridor — the hero)
-    expect(strokes[2].width).toBeGreaterThan(24)
+    // corridor width scales with pitch
+    expect(strokes[1].width).toBeGreaterThan(10)
   })
   it('emits chevrons spaced along the path', () => {
     const ch = buildChevrons(trace, 24, 36)
