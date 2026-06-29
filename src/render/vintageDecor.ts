@@ -54,6 +54,30 @@ function cylH(s: ShapeSpec[], x: number, y: number, w: number, h: number, color:
   rr(s, x + h * 0.4, y + h * 0.66, w - h * 0.8, h * 0.22, h * 0.1, C.shadow, 0.28) // bottom shadow
 }
 
+/** Solder-joint (lead end) positions, origin-relative px — matches buildVintageShapes lead() calls. */
+export function vintageLeadEnds(kind: VintageKind, pitch: number): { x: number; y: number }[] {
+  const fp = VFOOT[kind]
+  const W = fp.w * pitch, H = fp.h * pitch, cx = W / 2, cy = H / 2
+  switch (kind) {
+    case 'resAxial': case 'inductorAxial': case 'diodeAxial':
+      return [{ x: 2, y: cy }, { x: W - 2, y: cy }]
+    case 'ceramicDisc': return [{ x: cx - W * 0.16, y: H - 2 }, { x: cx + W * 0.16, y: H - 2 }]
+    case 'filmCap': case 'electroRadial': return [{ x: cx - W * 0.18, y: H - 2 }, { x: cx + W * 0.18, y: H - 2 }]
+    case 'tantalum': return [{ x: cx - W * 0.16, y: H - 2 }, { x: cx + W * 0.16, y: H - 2 }]
+    case 'led5mm': return [{ x: cx - W * 0.14, y: H - 2 }, { x: cx + W * 0.14, y: H - 2 }]
+    case 'trimpot': { const bw = W * 0.8, bx = cx - bw / 2; return [{ x: bx + bw * 0.2, y: H - 2 }, { x: bx + bw * 0.8, y: H - 2 }] }
+    case 'to92': { const bw = W * 0.72, bx = cx - bw / 2; return [{ x: bx + bw * 0.18, y: H - 2 }, { x: cx, y: H - 2 }, { x: bx + bw * 0.82, y: H - 2 }] }
+    case 'to220': { const bw = W * 0.8, bx = cx - bw / 2; return [{ x: bx + bw * 0.18, y: H - 2 }, { x: cx, y: H - 2 }, { x: bx + bw * 0.82, y: H - 2 }] }
+    case 'crystalHC49': return [{ x: cx - W * 0.22, y: H - 2 }, { x: cx + W * 0.22, y: H - 2 }]
+    case 'dipIC': {
+      const bw = W * 0.84, bh = H * 0.6, bx = cx - bw / 2, by = cy - bh / 2, pins = 7, out: { x: number; y: number }[] = []
+      for (let i = 0; i < pins; i++) { const px = bx + bw * (0.1 + (i / (pins - 1)) * 0.8); out.push({ x: px, y: by - H * 0.18 }, { x: px, y: by + bh + H * 0.18 }) }
+      return out
+    }
+  }
+  return []
+}
+
 export function buildVintageShapes(kind: VintageKind, pitch: number): ShapeSpec[] {
   const s: ShapeSpec[] = []
   const fp = VFOOT[kind]

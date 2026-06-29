@@ -102,6 +102,38 @@ colors. This documents the parts, looks, colors, sizes, aspect ratios for a new 
   neon path — tune on `/kit2`.
 - Footprints larger than SMD; fewer parts, placed with leads toward nearby pads/routing.
 
+## Functional blocks — what connects to what, and why
+Real boards are clusters of recurring blocks. Draw these as connected groups (copper between
+solder joints), not scattered parts.
+
+1. **Linear power supply** (the classic edge block)
+   - `AC/DC in → bridge (4 diodes) → big electrolytic (smoothing) → regulator TO-220 (e.g. 7805) →
+     small electrolytic + ceramic decap → regulated out`.
+   - Why: diodes rectify, the big electrolytic flattens ripple, the regulator fixes the voltage, the
+     ceramic + small electrolytic kill noise/oscillation at the regulator out.
+
+2. **LED indicator**
+   - `rail → series resistor → LED → ground`. Why: resistor limits current so the LED survives.
+
+3. **Crystal oscillator (clock)**
+   - `crystal between two IC pins, each pin → a small ceramic cap → ground`. Why: crystal sets
+     frequency; the two load caps make it oscillate cleanly.
+
+4. **Transistor stage (switch/amp)**
+   - `base resistor → transistor (TO-92) base; collector resistor → collector; emitter → (resistor) →
+     ground; coupling film/ceramic caps on in/out`. Why: resistors bias the transistor; caps couple
+     signal / block DC.
+
+5. **IC decoupling**
+   - `ceramic cap directly across each IC's power & ground pins`. Why: local charge reservoir, kills
+     switching noise. Always near the IC.
+
+6. **RC filter / timing**
+   - `resistor + capacitor` (series or to ground). Why: smoothing, time constants, debouncing.
+
+Layout rules for the generator: place a block's parts adjacent, route short copper between their
+solder joints, keep decoupling caps hugging their IC, put the power block near a board edge.
+
 ## Sources
 - [Through-hole technology — Wikipedia](https://en.wikipedia.org/wiki/Through-hole_technology)
 - [The Ultimate Guide to Through-Hole Component Identification — ALLPCB](https://www.allpcb.com/blog/pcb-assembly/the-ultimate-guide-to-through-hole-component-identification-a-beginners-handbook.html)
