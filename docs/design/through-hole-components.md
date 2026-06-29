@@ -134,6 +134,35 @@ solder joints), not scattered parts.
 Layout rules for the generator: place a block's parts adjacent, route short copper between their
 solder joints, keep decoupling caps hugging their IC, put the power block near a board edge.
 
+## Pin functions (each lead does a different job — connections MUST respect this)
+`vintagePins(kind)` returns labels in the SAME order as `vintageLeadEnds(kind)`.
+- resistor / inductor: `A`, `B` — non-polar (either way).
+- ceramic / film cap: `t1`, `t2` — non-polar.
+- diode: `anode`, `cathode` — current flows anode→cathode; **band end = cathode**.
+- electrolytic / tantalum: `+`, `-` — **polar** (stripe = −). `+` toward supply, `−` toward GND.
+- LED: `anode`, `cathode` — long lead = anode (to +/through R); cathode → GND.
+- transistor TO-92: `E`(emitter), `B`(base), `C`(collector) — signal into base, C/E carry load.
+- regulator TO-220 (7805): `IN`, `GND`, `OUT` — unregulated in, common gnd, regulated out.
+- battery / clip / jack: `+`, `-` (jack: `tip+`, `sleeve-`). Red wire = +, black = −.
+- DIP IC: per-pin; here top-right = `VCC`, bottom-left = `GND`, two mids = `OSC`, rest `IO`.
+
+Rules enforced in kit2: diode cathode→cap +; cap +→regulator IN; regulator OUT→VCC, GND→GND;
+R→LED anode, LED cathode→GND; battery +→clip +; R→transistor base, collector→VCC via R, emitter→GND.
+
+## Pairwise connection rules (which part wires to which, why) — kit2 §2
+- battery 9V → battery clip (Krona): clip snaps onto the battery = power source.
+- battery clip / DC power jack → board VCC/GND: power input to the board.
+- resistor → LED: series R limits LED current (else LED burns).
+- diode (bridge) → electrolytic: rectified DC is smoothed by the big cap.
+- electrolytic → regulator (7805/TO-220): smoothed DC into the regulator input.
+- regulator → ceramic cap: output decoupling / stability.
+- crystal → IC oscillator pins (+ 2 load caps to GND): clock.
+- IC + ceramic cap across its VCC/GND pins: decoupling (local charge, kills noise).
+- resistor + capacitor: RC filter / timing / debounce.
+- resistor → transistor (TO-92) base: bias; collector R → VCC; coupling caps on signal.
+- trimpot → IC/node: adjustable input (gain/threshold).
+- inductor + electrolytic: LC ripple filter on a supply.
+
 ## Sources
 - [Through-hole technology — Wikipedia](https://en.wikipedia.org/wiki/Through-hole_technology)
 - [The Ultimate Guide to Through-Hole Component Identification — ALLPCB](https://www.allpcb.com/blog/pcb-assembly/the-ultimate-guide-to-through-hole-component-identification-a-beginners-handbook.html)

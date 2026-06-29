@@ -7,6 +7,9 @@ export type VintageKind =
   | 'resAxial' | 'diodeAxial' | 'inductorAxial'
   | 'ceramicDisc' | 'filmCap' | 'electroRadial' | 'tantalum' | 'led5mm' | 'trimpot'
   | 'to92' | 'to220' | 'crystalHC49' | 'dipIC'
+  | 'battery9v' | 'batteryClip' | 'powerJack'
+
+export interface VintageOpts { color?: number; on?: boolean }
 
 // footprint in grid cells (fractional ok)
 export const VFOOT: Record<VintageKind, { w: number; h: number }> = {
@@ -14,6 +17,7 @@ export const VFOOT: Record<VintageKind, { w: number; h: number }> = {
   ceramicDisc: { w: 2, h: 2.6 }, filmCap: { w: 2.6, h: 2.6 }, electroRadial: { w: 3, h: 4.2 },
   tantalum: { w: 2, h: 2.6 }, led5mm: { w: 2, h: 2.6 }, trimpot: { w: 2.6, h: 2.6 },
   to92: { w: 2.6, h: 3 }, to220: { w: 3, h: 4.2 }, crystalHC49: { w: 4, h: 2.2 }, dipIC: { w: 6, h: 3 },
+  battery9v: { w: 4, h: 6 }, batteryClip: { w: 3, h: 3 }, powerJack: { w: 3.4, h: 3 },
 }
 
 const C = {
@@ -22,8 +26,9 @@ const C = {
   disc: 0xcf8a3c, filmRed: 0xb83a2e, boxBlue: 0x2f5fa8,
   elecBlue: 0x223f86, elecTop: 0x0e1116, stripe: 0xd8dee0,
   tantal: 0xd8b13a, to92: 0x171717, to220: 0x161616, tab: 0x9aa3a0,
-  diodeBody: 0x171717, diodeBand: 0xcdd2cf, ledRed: 0xe23a3a, trim: 0x2f5fa8, brass: 0xc8a84c,
+  diodeBody: 0x171717, diodeBand: 0xcdd2cf, ledRed: 0xe23a3a, ledGreen: 0x3ad26a, trim: 0x2f5fa8, brass: 0xc8a84c,
   can: 0x9aa3a0, dip: 0x141414, silk: 0xc9d2cc,
+  battBody: 0x1b1b1f, battLabel: 0x2a4a8a, wireRed: 0xcf3a32, wireBlack: 0x202428, jackBody: 0x26262b, jackRing: 0x8a9290,
 }
 // resistor 4-band example colors (brown,black,red,gold)
 const BANDS = [0x6b3a12, 0x101010, 0xc23b22, 0xc8a84c]
@@ -69,6 +74,9 @@ export function vintageLeadEnds(kind: VintageKind, pitch: number): { x: number; 
     case 'to92': { const bw = W * 0.72, bx = cx - bw / 2; return [{ x: bx + bw * 0.18, y: H - 2 }, { x: cx, y: H - 2 }, { x: bx + bw * 0.82, y: H - 2 }] }
     case 'to220': { const bw = W * 0.8, bx = cx - bw / 2; return [{ x: bx + bw * 0.18, y: H - 2 }, { x: cx, y: H - 2 }, { x: bx + bw * 0.82, y: H - 2 }] }
     case 'crystalHC49': return [{ x: cx - W * 0.22, y: H - 2 }, { x: cx + W * 0.22, y: H - 2 }]
+    case 'battery9v': { const bw = W * 0.78, bx = cx - bw / 2, by = H * 0.1; return [{ x: bx + bw * 0.34, y: by }, { x: bx + bw * 0.67, y: by }] }
+    case 'batteryClip': return [{ x: cx - W * 0.18, y: H - 2 }, { x: cx + W * 0.18, y: H - 2 }]
+    case 'powerJack': { const bw = W * 0.6, bx = cx - bw / 2; return [{ x: bx + bw * 0.5, y: H - 2 }, { x: 2, y: cy }, { x: W - 2, y: cy }] }
     case 'dipIC': {
       const bw = W * 0.84, bh = H * 0.6, bx = cx - bw / 2, by = cy - bh / 2, pins = 7, out: { x: number; y: number }[] = []
       for (let i = 0; i < pins; i++) { const px = bx + bw * (0.1 + (i / (pins - 1)) * 0.8); out.push({ x: px, y: by - H * 0.18 }, { x: px, y: by + bh + H * 0.18 }) }
@@ -78,7 +86,38 @@ export function vintageLeadEnds(kind: VintageKind, pitch: number): { x: number; 
   return []
 }
 
-export function buildVintageShapes(kind: VintageKind, pitch: number): ShapeSpec[] {
+// Pin/lead FUNCTION per index — SAME order as vintageLeadEnds. Connections must respect these
+// (anode↔cathode, +↔−, base/emitter/collector, IN/GND/OUT, VCC/GND). See doc for the table.
+export function vintagePins(kind: VintageKind): string[] {
+  switch (kind) {
+    case 'resAxial': case 'inductorAxial': return ['A', 'B']           // non-polar
+    case 'diodeAxial': return ['anode', 'cathode']                     // band end = cathode
+    case 'ceramicDisc': case 'filmCap': return ['t1', 't2']            // non-polar
+    case 'electroRadial': return ['+', '-']                            // stripe side = −
+    case 'tantalum': return ['+', '-']
+    case 'led5mm': return ['anode', 'cathode']                         // long lead = anode
+    case 'trimpot': return ['end1', 'end2']
+    case 'to92': return ['E', 'B', 'C']                                // emitter, base, collector
+    case 'to220': return ['IN', 'GND', 'OUT']                          // 7805 regulator
+    case 'crystalHC49': return ['x1', 'x2']
+    case 'battery9v': return ['+', '-']
+    case 'batteryClip': return ['+', '-']                              // red = +, black = −
+    case 'powerJack': return ['tip+', 'sleeve-', 'sw']
+    case 'dipIC': {                                                    // top row then bottom per i
+      const pins = 7, out: string[] = []
+      for (let i = 0; i < pins; i++) {
+        out.push(i === pins - 1 ? 'VCC' : i === 3 || i === 4 ? 'OSC' : 'IO') // top-right = VCC; mid = OSC
+        out.push(i === 0 ? 'GND' : 'IO')                                      // bottom-left = GND
+      }
+      return out
+    }
+  }
+  return []
+}
+/** Index of a named pin (first match), or -1. */
+export function pin(kind: VintageKind, name: string): number { return vintagePins(kind).indexOf(name) }
+
+export function buildVintageShapes(kind: VintageKind, pitch: number, opts: VintageOpts = {}): ShapeSpec[] {
   const s: ShapeSpec[] = []
   const fp = VFOOT[kind]
   const W = fp.w * pitch, H = fp.h * pitch
@@ -149,13 +188,58 @@ export function buildVintageShapes(kind: VintageKind, pitch: number): ShapeSpec[
     }
 
     case 'led5mm': {
+      const col = opts.color ?? C.ledRed
+      const on = opts.on ?? true
       lead(s, cx - W * 0.14, cy + H * 0.15, cx - W * 0.14, H - 2, pitch)
       lead(s, cx + W * 0.14, cy + H * 0.15, cx + W * 0.14, H - 2, pitch)
       const rad = W * 0.4
-      r(s, cx - rad, cy + rad * 0.5, rad * 2, rad * 0.5, C.ledRed, 0.5) // flange
-      ci(s, cx, cy, rad, C.ledRed, 0.85)
-      ci(s, cx, cy, rad * 0.45, 0xffd0d0, 0.95)                          // emissive core
-      ci(s, cx - rad * 0.3, cy - rad * 0.35, rad * 0.25, C.white, 0.5)   // dome highlight
+      if (on) ci(s, cx, cy, rad * 1.7, col, 0.18)                         // glow when lit
+      r(s, cx - rad, cy + rad * 0.5, rad * 2, rad * 0.5, col, on ? 0.5 : 0.35) // flange
+      ci(s, cx, cy, rad, col, on ? 0.9 : 0.5)                             // dome (dim when off)
+      if (on) ci(s, cx, cy, rad * 0.45, 0xffffff, 0.92)                   // emissive core
+      else ci(s, cx, cy, rad * 0.55, C.shadow, 0.3)                       // dark unlit center
+      ci(s, cx - rad * 0.3, cy - rad * 0.35, rad * 0.25, C.white, on ? 0.6 : 0.3) // dome highlight
+      return s
+    }
+
+    case 'battery9v': {
+      // 9V "Krona" battery: tall block + two snap terminals on top (round + , hex −)
+      const bw = W * 0.78, bh = H * 0.86, bx = cx - bw / 2, by = H * 0.1
+      rr(s, bx + 3, by + 3, bw, bh, 4, C.shadow, 0.5)
+      rr(s, bx, by, bw, bh, 4, C.battBody, 1)
+      rr(s, bx + bw * 0.1, by + bh * 0.18, bw * 0.8, bh * 0.4, 2, C.battLabel, 1)       // label
+      rr(s, bx + bw * 0.1, by + bh * 0.18, bw * 0.8, bh * 0.1, 2, C.white, 0.12)
+      ci(s, bx + bw * 0.34, by - 1, bw * 0.13, C.jackRing, 1)                            // + snap
+      ci(s, bx + bw * 0.34, by - 1, bw * 0.06, C.shadow, 0.8)
+      r(s, bx + bw * 0.56, by - bw * 0.13, bw * 0.22, bw * 0.22, C.jackRing, 1)          // − snap
+      return s
+    }
+
+    case 'batteryClip': {
+      // Krona snap connector: cap + two snap fasteners + red/black wire leads
+      const bw = W * 0.7, bh = H * 0.34, bx = cx - bw / 2, by = H * 0.16
+      ln(s, cx - bw * 0.22, by + bh, cx - W * 0.18, H - 2, pitch * 0.14, C.wireRed, 1)   // red wire
+      ci(s, cx - W * 0.18, H - 2, pitch * 0.16, C.solder, 1); ci(s, cx - W * 0.18, H - 2, pitch * 0.07, C.solderMid, 1)
+      ln(s, cx + bw * 0.22, by + bh, cx + W * 0.18, H - 2, pitch * 0.14, C.wireBlack, 1) // black wire
+      ci(s, cx + W * 0.18, H - 2, pitch * 0.16, C.solder, 1); ci(s, cx + W * 0.18, H - 2, pitch * 0.07, C.solderMid, 1)
+      rr(s, bx + 2, by + 2, bw, bh, 3, C.shadow, 0.5)
+      rr(s, bx, by, bw, bh, 3, C.battBody, 1)
+      ci(s, cx - bw * 0.22, by + bh * 0.5, bw * 0.12, C.jackRing, 1)                     // snaps
+      r(s, cx + bw * 0.12, by + bh * 0.2, bw * 0.2, bh * 0.6, C.jackRing, 1)
+      return s
+    }
+
+    case 'powerJack': {
+      // DC barrel jack: cylindrical socket front + body + 3 pins
+      const bw = W * 0.6, bh = H * 0.6, bx = cx - bw / 2, by = cy - bh / 2
+      lead(s, bx + bw * 0.5, by + bh, bx + bw * 0.5, H - 2, pitch)
+      lead(s, bx, cy, 2, cy, pitch)
+      lead(s, bx + bw, cy, W - 2, cy, pitch)
+      rr(s, bx + 2, by + 3, bw, bh, 3, C.shadow, 0.5)
+      rr(s, bx, by, bw, bh, 3, C.jackBody, 1)
+      ci(s, cx, cy, bh * 0.42, C.jackRing, 1)        // barrel ring
+      ci(s, cx, cy, bh * 0.22, C.shadow, 1)          // socket hole
+      ci(s, cx, cy, bh * 0.08, C.jackRing, 1)        // center pin
       return s
     }
 
