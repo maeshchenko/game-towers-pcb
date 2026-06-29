@@ -11,12 +11,12 @@ export class Renderer {
   readonly world = new Container()
   readonly layers = {
     board: new Container(), copper: new Container(), decor: new Container(),
-    trace: new Container(), spot: new Container(), overlay: new Container(),
+    trace: new Container(), spot: new Container(), game: new Container(), overlay: new Container(),
   }
   constructor(private app: Application) {
     this.world.addChild(
       this.layers.board, this.layers.copper, this.layers.decor,
-      this.layers.trace, this.layers.spot, this.layers.overlay,
+      this.layers.trace, this.layers.spot, this.layers.game, this.layers.overlay,
     )
     this.app.stage.addChild(this.world)
   }
