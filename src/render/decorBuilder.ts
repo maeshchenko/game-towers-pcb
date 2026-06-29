@@ -251,9 +251,10 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
 
     // ── via ──────────────────────────────────────────────────────────────────
     case 'via': {
+      // Small, subtle layer-transition via — must NOT read like a mounting hole.
       const cx = x + w / 2, cy = y + h / 2
-      circle(shapes, cx, cy, w * 0.42, GOLD, 1)
-      circle(shapes, cx, cy, w * 0.20, PALETTE.substrate, 1)
+      circle(shapes, cx, cy, w * 0.26, GOLD, 0.85)
+      circle(shapes, cx, cy, w * 0.11, PALETTE.substrate, 1)
       return shapes
     }
 

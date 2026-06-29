@@ -286,7 +286,7 @@ export function buildDecorWithNets(args: {
 
   // ── 6. Vias (singles + small clusters) ─────────────────────────────────────
   {
-    const viaTarget = Math.floor((board.cols * board.rows) / 18)
+    const viaTarget = Math.floor((board.cols * board.rows) / 60)
     for (let i = 0; i < viaTarget * 4; i++) {
       if (items.filter(it => it.kind === 'via').length >= viaTarget) break
       const cell: Cell = [Math.floor(rng() * board.cols), Math.floor(rng() * board.rows)]
