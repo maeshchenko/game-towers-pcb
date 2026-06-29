@@ -274,28 +274,40 @@ export function buildDecorWithNets(args: {
     }
   }
 
-  // ── 5. Passive banks — fill open space ─────────────────────────────────────
+  // ── 5. Functional circuit blocks — fill the open space, then wire blocks together ──
   {
-    // big real circuits first — they should occupy large areas
-    const bigFactories = [
-      () => amplifierStage([0, 0], alloc),
-      () => timer555([0, 0], alloc),
-      () => ledBar([0, 0], alloc, 4 + Math.floor(rng() * 4)),
-      () => amplifierStage([0, 0], alloc),
-      () => opAmp([0, 0], alloc),
-    ]
-    const bigTarget = Math.max(3, Math.floor((board.cols * board.rows) / 700))
-    for (let b = 0; b < bigTarget; b++) {
-      const blk = bigFactories[Math.floor(rng() * bigFactories.length)]()
+    const blockReps: number[] = [] // global index of one item per placed block (for inter-block links)
+    const placeBlk = (blk: { items: DecorItem[]; nets: number[][] }): void => {
       const off = scanBlock(blk.items, 2, 2, board.cols - 2, board.rows - 2, occupied, board, rng)
-      if (off) mergeBlock(blk.items, blk.nets, off, items, nets)
+      if (off) { blockReps.push(items.length); mergeBlock(blk.items, blk.nets, off, items, nets) }
     }
-    // a few small clusters only to fill leftover gaps
-    const bankTarget = Math.floor((board.cols * board.rows) / 700)
-    for (let b = 0; b < bankTarget; b++) {
-      const blk = passiveBank([0, 0], Math.floor(rng() * 9), alloc)
-      const off = scanBlock(blk.items, 2, 2, board.cols - 10, board.rows - 2, occupied, board, rng)
-      if (off) mergeBlock(blk.items, blk.nets, off, items, nets)
+    const bigFactories = [
+      () => amplifierStage([0, 0], alloc), () => timer555([0, 0], alloc),
+      () => ledBar([0, 0], alloc, 4 + Math.floor(rng() * 4)), () => opAmp([0, 0], alloc),
+      () => transistorSwitch([0, 0], alloc), () => mcuCore([0, 0], alloc),
+    ]
+    // big blocks — denser fill
+    const bigTarget = Math.max(6, Math.floor((board.cols * board.rows) / 320))
+    for (let b = 0; b < bigTarget; b++) placeBlk(bigFactories[Math.floor(rng() * bigFactories.length)]())
+    // small clusters fill the remaining gaps
+    const bankTarget = Math.floor((board.cols * board.rows) / 380)
+    for (let b = 0; b < bankTarget; b++) placeBlk(passiveBank([0, 0], Math.floor(rng() * 9), alloc))
+
+    // wire ALL blocks into ONE connected network (minimum spanning tree over block reps)
+    const cellOf = (i: number): Cell => items[blockReps[i]].cell
+    const dist = (a: number, b: number) => { const ca = cellOf(a), cb = cellOf(b); return Math.abs(ca[0] - cb[0]) + Math.abs(ca[1] - cb[1]) }
+    if (blockReps.length > 1) {
+      const inTree = new Set<number>([0])
+      while (inTree.size < blockReps.length) {
+        let bestA = -1, bestB = -1, bestD = Infinity
+        for (const a of inTree) for (let b = 0; b < blockReps.length; b++) {
+          if (inTree.has(b)) continue
+          const d = dist(a, b)
+          if (d < bestD) { bestD = d; bestA = a; bestB = b }
+        }
+        if (bestB < 0) break
+        inTree.add(bestB); nets.push([blockReps[bestA], blockReps[bestB]])
+      }
     }
   }
 
