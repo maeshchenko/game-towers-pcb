@@ -58,13 +58,17 @@ function buildPathSet(waypoints: [number, number][]): Set<string> {
 // ---------- public API ----------
 
 export function routeCopper(
-  level: Pick<Level, 'decor' | 'nets' | 'board' | 'trace'>,
+  level: Pick<Level, 'decor' | 'nets' | 'board' | 'trace' | 'paths'>,
 ): Copper[] {
   const { decor, nets, trace } = level
   if (!nets || nets.length === 0) return []
 
   const bodyCells = buildBodySet(decor)
-  const pathCells = buildPathSet(trace.waypoints)
+  // Use ALL enemy paths as no-go corridor (not just trace)
+  const allPaths = level.paths && level.paths.length > 0 ? level.paths : [trace]
+  const pathCells = new Set<string>()
+  for (const p of allPaths)
+    for (const k of buildPathSet(p.waypoints)) pathCells.add(k)
 
   // Combined obstacle set used to prefer "clear" bend cells
   const blocked = new Set<string>()
