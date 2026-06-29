@@ -244,7 +244,13 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       const bw = W * 0.86, bh = H * 0.6, bx = cx - bw / 2, by = py - bh - pitch * 0.1
       px.forEach((x) => stub(s, x, by + bh, x, py, pitch))
       topBox(s, bx, by, bw, bh, C.term, 3)
-      ;[0.3, 0.7].forEach((f) => { ci(s, bx + bw * f, by + bh * 0.45, bw * 0.12, C.jackRing, 1); ln(s, bx + bw * f - 4, by + bh * 0.45, bx + bw * f + 4, by + bh * 0.45, 1.5, C.shadow, 0.8) })
+      // left terminal = + (cross), right terminal = − (dash) + silk marks
+      const tcy = by + bh * 0.45, lx = bx + bw * 0.3, rx = bx + bw * 0.7
+      ci(s, lx, tcy, bw * 0.12, C.jackRing, 1); ci(s, rx, tcy, bw * 0.12, C.jackRing, 1)
+      ln(s, lx - 4, tcy, lx + 4, tcy, 1.5, C.shadow, 0.85); ln(s, lx, tcy - 4, lx, tcy + 4, 1.5, C.shadow, 0.85) // + screw
+      ln(s, rx - 4, tcy, rx + 4, tcy, 1.5, C.shadow, 0.85)                                                     // − screw
+      ln(s, lx - 3, by - 4, lx + 3, by - 4, 1.6, C.silk, 0.9); ln(s, lx, by - 7, lx, by - 1, 1.6, C.silk, 0.9) // silk +
+      ln(s, rx - 3, by - 4, rx + 3, by - 4, 1.6, C.silk, 0.9)                                                  // silk −
       return s
     }
 
