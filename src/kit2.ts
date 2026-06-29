@@ -79,10 +79,14 @@ async function boot() {
   // ── SECTION 2 — pairwise connections ──────────────────────────────────────
   section('2 · CONNECTIONS — which part wires to which, and why')
   const PW = 290, PH = 150, PCOLS = 4
-  function copperSeg(g: Graphics, a: Pt, b: Pt): void {
-    const my = (a.y + b.y) / 2
-    g.moveTo(a.x, a.y).lineTo(a.x, my).lineTo(b.x, my).lineTo(b.x, b.y).stroke({ color: PALETTE.copperTrace, width: 3, cap: 'round', join: 'round' })
-    g.circle(a.x, a.y, 3).fill({ color: PALETTE.copperTrace }); g.circle(b.x, b.y, 3).fill({ color: PALETTE.copperTrace })
+  // escape a pad straight out of the NEAREST courtyard edge (top pins↑, bottom↓, axial ends ←→)
+  const escEdge = (pad: Pt, bx: number, by: number, w: number, h: number, e = 22): Pt => {
+    const dT = pad.y - by, dB = by + h - pad.y, dL = pad.x - bx, dR = bx + w - pad.x
+    const m = Math.min(dT, dB, dL, dR)
+    if (m === dT) return { x: pad.x, y: by - e }
+    if (m === dB) return { x: pad.x, y: by + h + e }
+    if (m === dL) return { x: bx - e, y: pad.y }
+    return { x: bx + w + e, y: pad.y }
   }
   // pair: two parts placed left/right, connected by FUNCTION pins (anode↔cathode, +↔−, …)
   type Spec = { kind: VintageKind; opts?: VintageOpts; dx: number; dy: number; pin: string }
@@ -108,7 +112,14 @@ async function boot() {
     const bx = x + pr.b.dx * PW, by = y + 24 + pr.b.dy * (PH - 40)
     const ia = Math.max(0, pin(pr.a.kind, pr.a.pin)), ib = Math.max(0, pin(pr.b.kind, pr.b.pin))
     const la = leadsAt(pr.a.kind, ax, ay)[ia], lb = leadsAt(pr.b.kind, bx, by)[ib]
-    const cg = new Graphics(); copperSeg(cg, la, lb); world.addChild(cg)            // copper under
+    // escape each pad out of its nearest body edge, then connect escapes (never under a body / its other pad)
+    const ea = escEdge(la, ax, ay, VFOOT[pr.a.kind].w * P, VFOOT[pr.a.kind].h * P)
+    const eb = escEdge(lb, bx, by, VFOOT[pr.b.kind].w * P, VFOOT[pr.b.kind].h * P)
+    const cg = new Graphics()
+    cg.moveTo(la.x, la.y).lineTo(ea.x, ea.y).lineTo(ea.x, (ea.y + eb.y) / 2).lineTo(eb.x, (ea.y + eb.y) / 2).lineTo(eb.x, eb.y).lineTo(lb.x, lb.y)
+      .stroke({ color: PALETTE.copperTrace, width: 3, cap: 'round', join: 'round' })
+    cg.circle(la.x, la.y, 3).fill({ color: PALETTE.copperTrace }); cg.circle(lb.x, lb.y, 3).fill({ color: PALETTE.copperTrace })
+    world.addChild(cg)
     world.addChild(drawShapes(buildVintageShapes(pr.a.kind, P, pr.a.opts), ax, ay)) // parts on top
     world.addChild(drawShapes(buildVintageShapes(pr.b.kind, P, pr.b.opts), bx, by))
     text(pr.a.pin, la.x - 6, la.y + 6, 0xd8c060, 9); text(pr.b.pin, lb.x - 6, lb.y + 6, 0xd8c060, 9) // pin labels
@@ -135,23 +146,26 @@ async function boot() {
   const toC = (p: Pt): Cell => [Math.round((p.x - BX) / CELL), Math.round((p.y - BY) / CELL)]
   const toP = (c: Cell): Pt => ({ x: BX + c[0] * CELL, y: BY + c[1] * CELL })
   const blockCell = (c: Cell) => blocked.add(cellKey(c))
-  const unblockRing = (c: Cell) => { for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) blocked.delete(cellKey([c[0] + dx, c[1] + dy])) }
   function blockBox(px: number, py: number, w: number, h: number, pad = 1): void {
     const a = toC({ x: px, y: py }), b = toC({ x: px + w, y: py + h })
     for (let cx = a[0] - pad; cx <= b[0] + pad; cx++) for (let cy = a[1] - pad; cy <= b[1] + pad; cy++) blockCell([cx, cy])
   }
 
-  // place parts, collect leads; block bodies + all pins
+  // place parts; the WHOLE courtyard (body+pins+margin) is blocked → traces stay in channels
+  const MARGIN = 3, ESC = CELL * 5 // escape clears the blocked margin so the point is in open channel
   const partsList: { kind: VintageKind; x: number; y: number; opts?: VintageOpts }[] = []
-  const allLeads: Pt[] = []
+  const padOwner = new Map<Pt, { x: number; y: number; w: number; h: number }>()
   function part(kind: VintageKind, gx: number, gy: number, opts?: VintageOpts): Pt[] {
     partsList.push({ kind, x: gx, y: gy, opts })
-    const fp = VFOOT[kind]; blockBox(gx, gy, fp.w * P, fp.h * P, 1)
+    const fp = VFOOT[kind], w = fp.w * P, h = fp.h * P
+    blockBox(gx, gy, w, h, MARGIN)
     const leads = leadsAt(kind, gx, gy)
-    for (const l of leads) { allLeads.push(l); const c = toC(l); blockCell(c) }
+    for (const l of leads) padOwner.set(l, { x: gx, y: gy, w, h })
     return leads
   }
   const L = (kind: VintageKind, leads: Pt[], name: string): Pt => leads[Math.max(0, pin(kind, name))]
+  // escape point: out of the NEAREST courtyard edge, beyond the blocked margin (open channel)
+  const escapeOf = (pad: Pt): Pt => { const b = padOwner.get(pad)!; return escEdge(pad, b.x, b.y, b.w, b.h, ESC) }
 
   const via = (p: Pt) => { topG.circle(p.x, p.y, 4.5).fill({ color: COP }); topG.circle(p.x, p.y, 2).fill({ color: 0x0c2418 }) }
   const thermal = (p: Pt) => { // GND pad into the pour: ring + 4 spokes
@@ -169,29 +183,28 @@ async function boot() {
     }
     out.push(pts[pts.length - 1]); return out
   }
-  // route a signal net A→B around obstacles; mark the path blocked so later nets can't overlap
-  function net(a: Pt, b: Pt): void {
+  const drawPoly = (pts: Pt[], w = 2.5) => { copperG.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) copperG.lineTo(pts[i].x, pts[i].y); copperG.stroke({ color: COP, width: w, cap: 'round', join: 'round' }) }
+  const stub = (pad: Pt, e: Pt) => { drawPoly([pad, e]); teardrop(pad) }
+  // route between two OPEN points (escape points / rail) through channels; mark path blocked
+  function connect(a: Pt, b: Pt): void {
     const ca = toC(a), cb = toC(b)
-    unblockRing(ca); unblockRing(cb)
+    blocked.delete(cellKey(ca)); blocked.delete(cellKey(cb))
     const path = routeOctilinear({ cols: gcols, rows: grows, start: ca, goal: cb, blocked, turnPenalty: 2 })
-    if (!path) { // last resort: direct + via marking a layer cross
-      copperG.moveTo(a.x, a.y).lineTo(b.x, b.y).stroke({ color: COP, width: 2.5, cap: 'round' }); via({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 })
-      ;[ca, cb].forEach(blockCell); teardrop(a); teardrop(b); return
-    }
+    if (!path) { drawPoly([a, b]); via({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }); blockCell(ca); blockCell(cb); return }
     for (const c of path) blockCell(c)
-    const px = simplify([a, ...path.map(toP), b])
-    copperG.moveTo(px[0].x, px[0].y); for (let i = 1; i < px.length; i++) copperG.lineTo(px[i].x, px[i].y)
-    copperG.stroke({ color: COP, width: 2.5, cap: 'round', join: 'round' })
-    teardrop(a); teardrop(b)
+    drawPoly(simplify([a, ...path.map(toP), b]))
   }
+  // signal net: escape both pads out of their courtyards, then route escape→escape
+  function net(a: Pt, b: Pt): void { const ea = escapeOf(a), eb = escapeOf(b); stub(a, ea); stub(b, eb); connect(ea, eb) }
   const cap = (t: string, x: number, yy: number) => text(t, x, yy, PALETTE.textDim, 11)
 
-  // VCC rail (top) — drawn, and its row blocked so signals don't run along it; taps reach up to it
+  // VCC rail (top); signals can't run along it (row blocked), taps escape up + route to it
   copperG.rect(BX + 16, VCC - 2.5, BW - 32, 5).fill({ color: COP })
-  for (let cx = 0; cx < gcols; cx++) blockCell([cx, Math.round((VCC - BY) / CELL)])
-  cap('VCC rail (top) · GND = ground pour (thermal vias)', BX + 20, VCC + 8)
-  const tapVcc = (p: Pt) => { net(p, { x: p.x, y: VCC }); via({ x: p.x, y: VCC }) }
-  const tapGnd = (p: Pt) => thermal(p) // straight into the pour — no crossing wire
+  const railRow = Math.round((VCC - BY) / CELL)
+  for (let cx = 0; cx < gcols; cx++) blockCell([cx, railRow])
+  cap('VCC rail (top) · GND = ground pour (thermal pads)', BX + 20, VCC + 8)
+  const tapVcc = (pad: Pt) => { const e = escapeOf(pad); stub(pad, e); const railPt = { x: e.x, y: VCC }; blocked.delete(cellKey(toC(railPt))); connect(e, railPt); via(railPt) }
+  const tapGnd = (pad: Pt) => thermal(pad) // straight into the pour — no crossing wire
 
   // place all parts first (so every pin is a known obstacle before routing)
   const jack = part('powerJack', BX + 60, VCC + 70), d = part('diodeAxial', BX + 170, VCC + 110)

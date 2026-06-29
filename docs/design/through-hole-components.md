@@ -179,8 +179,31 @@ Implementation: kit2 §3 routes each net with the octilinear A* (`geom/router.ts
 component bodies + every foreign pin + already-routed traces are **blocked**, so routed copper never
 overlaps; GND uses a pour + thermal vias; VCC is a rail with stub taps; unavoidable crossings get a via.
 
+## Correct placement + escape-routing method (fixes the "trace through pins / shorted leads" bug)
+Researched across multiple sources (placement grid, courtyards, escape/fanout, one-net-per-trace).
+What was wrong in the first attempt and the correct model:
+
+**Bugs found:** a horizontal trace ran UNDER a 2-lead part touching BOTH its pads (shorts + to −);
+traces wove BETWEEN an IC's pins (blocking only pin cells left the gaps open); vias landed ON pins;
+routes entered the pin field instead of staying in channels.
+
+**Correct method (now implemented in kit2 §3):**
+1. **Courtyard:** each part reserves its whole body + pin band + a margin; the ENTIRE courtyard is
+   blocked. Traces can never enter it — they run only in the **channels between parts**.
+2. **Escape stub:** every USED pad gets a short stub straight OUT of the courtyard (the escape point);
+   the router connects escape points, not raw pads. So a trace leaves a pad away from the body and
+   never crosses the part's other pads.
+3. **One net per trace:** a trace touches only its two escape points; A* keeps every other pad +
+   already-routed trace blocked, so no trace overlaps another or a foreign pad.
+4. **GND = pour:** ground pads connect with a thermal pad straight into the plane — no ground wires.
+5. **Vias** only in open copper at a layer change, never on a pad.
+6. **Placement** on a grid with spacing (channels) + consistent orientation + decaps hugging IC pins.
+
 ## Sources
 - [PCB Routing Guide — Design Rules & Best Practices (PCBRunner)](https://www.pcbrunner.com/a-complete-guide-to-pcb-routing-design-rules-and-best-practices-for-success/)
+- [Best Practices for PCB Component Placement (EMA)](https://www.ema-eda.com/ema-resources/blog/best-practices-for-pcb-component-placement-emd)
+- [The Ultimate Guide to PCB Trace Routing Layout (ALLPCB)](https://www.allpcb.com/allelectrohub/the-ultimate-guide-to-pcb-trace-routing-layout-component-placement-and-via-optimization)
+- [PCB Routing — Getting Started (Altium)](https://resources.altium.com/p/pcb-routing)
 - [Routing Traces in PCBs: Best Practices (Cadence)](https://resources.pcb.cadence.com/blog/2024-routing-traces-in-pcbs-best-practices)
 - [Is it acceptable for PCB traces to cross on different layers? (Sierra)](https://sierraconnect.protoexpress.com/t/is-it-acceptable-for-pcb-traces-to-cross-on-different-layers/1634)
 - [PCB Teardrops Roles and Rules (JHDPCB)](https://jhdpcb.com/blog/pcb-teardrops/)
