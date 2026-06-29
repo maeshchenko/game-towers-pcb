@@ -47,11 +47,13 @@ async function boot() {
   // (definite assignment: all calls happen after ui is fully initialised below)
   let ui!: GameUI
 
+  const infoPanel = () => document.querySelector('.pcb-info') as HTMLElement | null
   function resetPlay() {
     game = null
     selectedTower = null
     gameLayers.clear()
     editor.enabled = true
+    const ip = infoPanel(); if (ip) ip.style.display = '' // show static panel back in edit mode
   }
 
   mountToolbar({
@@ -92,6 +94,7 @@ async function boot() {
       game = new Game(editor.state.level, ++seedCounter)
       selectedTower = null
       editor.enabled = false
+      const ip = infoPanel(); if (ip) ip.style.display = 'none' // live game-bar HUD replaces the static panel
     }
   }
 
