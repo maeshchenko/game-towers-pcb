@@ -61,10 +61,15 @@ async function boot() {
       minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y)
     }
     if (!isFinite(minX)) return
-    // FIXED zoom (no fit-to-fill) → a bigger board shows as a bigger track; pan to explore the rest
-    camera.zoom = 1
-    camera.x = view().w / 2 - (minX + maxX) / 2
-    camera.y = view().h / 2 - (minY + maxY) / 2
+    // fit the path into the free area (avoiding legend/top-bar/HUD) → tidy at ANY board size
+    const padc = pitch * 1.2
+    minX -= padc; minY -= padc; maxX += padc; maxY += padc
+    const mL = 180, mR = 24, mT = 56, mB = 88 // UI margins: legend, mode-bar, HUD
+    const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
+    const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY)
+    camera.zoom = Math.max(0.2, Math.min(4, Math.min(aw / bw, ah / bh) * 0.97))
+    camera.x = mL + aw / 2 - ((minX + maxX) / 2) * camera.zoom
+    camera.y = mT + ah / 2 - ((minY + maxY) / 2) * camera.zoom
     camera.apply(renderer.world)
   }
 

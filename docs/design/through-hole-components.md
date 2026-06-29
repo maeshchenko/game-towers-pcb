@@ -199,8 +199,55 @@ routes entered the pin field instead of staying in channels.
 5. **Vias** only in open copper at a layer change, never on a pad.
 6. **Placement** on a grid with spacing (channels) + consistent orientation + decaps hugging IC pins.
 
+## Tidy routing & soldering — deep analysis v2 (why current §2/§3 still look wrong)
+Studied IPC-A-610 solder rules + Cadence/Altium routing rules + the ref-A board as the visual
+ground truth (its faint background traces are the model: neat parallel runs, equal gaps, 45° only,
+fanning from pads, never crossing, parts in clusters with channels).
+
+### The visual rules that make it look right
+1. **Enter a pad head-on, perpendicular, from its center; ONE trace per pad.** Never approach a pad
+   at an oblique angle or off to the side.
+2. **Never run a trace along/under a row of pins it does not connect to.** To reach the middle pin
+   of a 3-pin part (e.g. TO-92 base), come at THAT pin straight from its own open side — not sliding
+   across the two neighbours. Same for an IC: drop onto the one OSC pin from the channel directly
+   above it, don't traverse the top row.
+3. **Placement drives routing.** Put the two connected parts adjacent with their connected pads
+   FACING each other on a common axis → the trace becomes one short straight segment (or a single
+   45° bend). Tidy layout = short, direct, minimal copper, no Z-jogs, no stubs/antennas.
+4. **Parallel + 45°.** Where traces run together they keep equal spacing; corners are 45° chamfers,
+   never 90° or acute.
+5. **Connectors connect to PADS, not flying wires.** "Wire-to-wire" (soldering a trace onto the
+   clip's pigtail) is wrong — use a board-mount 2-pad connector; the battery clip's wires are the
+   battery side only.
+6. **Solder joint (IPC-A-610):** a through-hole joint is an annular **pad ring** + a small
+   **concave, shiny fillet** around the lead (wetting angle < 90°). Light tin, slightly darker
+   center, smooth — not a flat blob and not a fat dot.
+
+### Diagnosis of the current bugs (from the zoom shots)
+- **R → TO-92 base:** trace runs under all three legs to reach the middle → shorts E/B/C. Fix:
+  orient/position so base faces the resistor; trace enters base head-on from its own side only.
+- **crystal → IC OSC:** trace crosses the whole top pin row → short. Fix: approach the single OSC
+  pin straight from the channel above it; other top pins stay clear.
+- **battery + → clip +:** trace soldered to the clip's wire end (wire-to-wire). Fix: board-mount
+  pad connector, or connect to a defined pad, single straight trace.
+- **Crooked Z pieces:** escape + reroute when pads don't face → fix by facing-pad placement so no
+  jog is needed.
+
+### Corrected model to implement (next, after this analysis)
+- Place each pair/block so connected pads face on a shared axis (rotate multi-pin parts so the used
+  pin faces the partner). Then route is mostly a straight head-on segment.
+- Destination pin gets a head-on approach lane reserved (block the rest of the pin row as keep-out so
+  the router can't slide along it).
+- Replace the wire battery-clip in schematics with a board-mount connector pad.
+- Solder joints redrawn as annular ring + thin concave fillet; junction dots only at real T-joins.
+
 ## Sources
 - [PCB Routing Guide — Design Rules & Best Practices (PCBRunner)](https://www.pcbrunner.com/a-complete-guide-to-pcb-routing-design-rules-and-best-practices-for-success/)
+- [Routing Traces in PCBs: Best Practices (Cadence)](https://resources.pcb.cadence.com/blog/2024-routing-traces-in-pcbs-best-practices)
+- [Mastering Solder Joint Quality — IPC-A-610 fillets (ALLPCB)](https://www.allpcb.com/allelectrohub/mastering-solder-joint-quality-an-ipc-a-610-guide-to-acceptable-fillets)
+- [Why IPC-A-610 requires wetting angle < 90° (Bittele)](https://www.7pcb.com/blog/why-ipc-a-610-requires-solder-joint)
+- [PCB Routing Angle: 45° vs 90° (Altium)](https://resources.altium.com/p/pcb-routing-angle-myths-45-degree-angle-versus-90-degree-angle)
+- [Trace Spacing Guide (JHDPCB)](https://jhdpcb.com/blog/trace-spacing-design/)
 - [Best Practices for PCB Component Placement (EMA)](https://www.ema-eda.com/ema-resources/blog/best-practices-for-pcb-component-placement-emd)
 - [The Ultimate Guide to PCB Trace Routing Layout (ALLPCB)](https://www.allpcb.com/allelectrohub/the-ultimate-guide-to-pcb-trace-routing-layout-component-placement-and-via-optimization)
 - [PCB Routing — Getting Started (Altium)](https://resources.altium.com/p/pcb-routing)
