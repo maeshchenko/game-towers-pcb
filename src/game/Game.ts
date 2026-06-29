@@ -35,7 +35,7 @@ export class Game {
 
   enemies(): Enemy[] { return this.wm.active }
   spotCells(): Cell[] { return this.spots.map((s) => s.cell) }
-  canBuild(i: number): boolean { return this.state.phase !== 'lose' && !!this.spots[i] && !this.spots[i].tower }
+  canBuild(i: number): boolean { return (this.state.phase === 'build' || this.state.phase === 'wave') && !!this.spots[i] && !this.spots[i].tower }
 
   build(kind: TowerKind, i: number): boolean {
     if (!this.canBuild(i)) return false
@@ -86,7 +86,7 @@ export class Game {
       const shot = t.update(step, active)
       if (!shot) continue
       if (shot.aura) {
-        for (const e of active) if (Math.hypot(e.pos.x - t.pos.x, e.pos.y - t.pos.y) <= shot.aura.range) e.applySlow(shot.aura.slow, 0.25)
+        for (const e of active) if (e.alive && Math.hypot(e.pos.x - t.pos.x, e.pos.y - t.pos.y) <= shot.aura.range) e.applySlow(shot.aura.slow, 0.25)
       } else {
         applyShot(shot, active, this.pitch)
       }
