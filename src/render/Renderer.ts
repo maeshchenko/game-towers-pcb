@@ -22,7 +22,10 @@ export class Renderer {
   }
 
   render(level: Level): void {
-    for (const c of Object.values(this.layers)) {
+    // The `game` layer holds live gameplay (enemies/towers) owned by GameLayers — never
+    // clear it here, or a level re-render would destroy the running game's graphics.
+    for (const [name, c] of Object.entries(this.layers)) {
+      if (name === 'game') continue
       for (const child of c.removeChildren()) child.destroy()
     }
     this.drawBoard(level)

@@ -9,6 +9,8 @@ import { generateLevel } from './pipeline/generator'
 import { fitPitch } from './app/viewport'
 import { mountToolbar, levelToBlobUrl, readLevelFile } from './ui/Toolbar'
 import { mountPanels, updateLevelName } from './ui/Panels'
+import { Game } from './game/Game'
+import { GameLayers } from './render/GameLayers'
 import type { Board } from './model/level'
 
 async function boot() {
@@ -55,6 +57,23 @@ async function boot() {
       }
     },
     onResize: applyBoard,
+  })
+
+  // --- TEMP mini-demo (replaced by full play-mode wiring in G1 Task 12) ---
+  // Press "p" to play the current level: spawns a wave; enemies flow along the path.
+  const gameLayers = new GameLayers(renderer.layers.game)
+  let demo: Game | null = null
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'p' && editor.state.level) {
+      demo = new Game(editor.state.level, ++seedCounter)
+      demo.startWave()
+    }
+  })
+  app.ticker.add((t) => {
+    if (!demo) return
+    demo.tick(t.deltaMS / 1000)
+    gameLayers.draw(demo, null)
+    camera.apply(renderer.world)
   })
 }
 boot()
