@@ -7,6 +7,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         kit: resolve(__dirname, 'kit/index.html'),
+        kit2: resolve(__dirname, 'kit2/index.html'),
       },
     },
   },
