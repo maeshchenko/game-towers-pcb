@@ -122,11 +122,29 @@ function multiSpawn(g: TileGrid, n: number): void {
 }
 
 // cross: two routes crossing through a central bridge (independent, not merging).
+// Each arm takes one jog before the bridge so it isn't a dead-straight "+" (more interesting),
+// falling back to a clean crossing on tiny grids.
 function cross(g: TileGrid): void {
   const cx = Math.floor(g.tcols / 2), cy = Math.floor(g.trows / 2)
   setTile(g, cx, cy, { type: 'bridge', rot: 0 })
-  layPath(g, row(cy, range(1, g.tcols - 2)))
-  layPath(g, col(cx, range(1, g.trows - 2)))
+  if (g.tcols < 7 || g.trows < 5) {
+    layPath(g, row(cy, range(1, g.tcols - 2)))
+    layPath(g, col(cx, range(1, g.trows - 2)))
+    return
+  }
+  const ax = Math.max(2, Math.floor(cx / 2)) // jog column for the horizontal arm (ax < cx)
+  // horizontal route: START (1, cy-1) → E → drop to row cy → E through bridge → FINISH (right, cy)
+  layPath(g, dedup([
+    ...row(cy - 1, range(1, ax)),
+    ...col(ax, range(cy - 1, cy)),
+    ...row(cy, range(ax, g.tcols - 2)),
+  ]))
+  // vertical route: START (cx+1, 1) → S → shift to col cx → S through bridge → FINISH (bottom, cx)
+  layPath(g, dedup([
+    ...col(cx + 1, range(1, cy - 1)),
+    ...row(cy - 1, range(cx + 1, cx)),
+    ...col(cx, range(cy - 1, g.trows - 2)),
+  ]))
 }
 
 function range(a: number, b: number): number[] {
