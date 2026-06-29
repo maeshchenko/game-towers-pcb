@@ -4,9 +4,20 @@ import type { Level } from '../model/level'
 import { levelPaths } from '../model/level'
 import { PALETTE, RENDER } from '../style/palette'
 import { buildTraceStrokes, buildChevrons } from './traceBuilder'
-import { buildDecorShapes } from './decorBuilder'
+import { buildDecorShapes, footprintCells } from './decorBuilder'
+import { buildVintageShapes, VFOOT, type VintageKind } from './vintageDecor'
 import { cellToPx } from '../geom/grid'
 import { makeRng } from '../pipeline/rng'
+
+// map the generator's (SMD) decor kinds → vintage through-hole parts (top-down) for the game board
+const VINTAGE_MAP: Record<string, VintageKind> = {
+  soic: 'dipIC', qfp: 'dipIC', qfn: 'dipIC', dip: 'dipIC',
+  res: 'resAxial', smdRes: 'resAxial', inductor: 'inductorAxial',
+  smdCap: 'ceramicDisc', mlcc: 'ceramicDisc',
+  electrolytic: 'electroRadial', elec: 'electroRadial', tant: 'tantalum', tantalum: 'tantalum',
+  diode: 'diodeAxial', led: 'led5mm', sot23: 'to92', crystal: 'crystalHC49', xtal: 'crystalHC49',
+  pwrind: 'to220', header: 'batteryClip',
+}
 
 export class Renderer {
   readonly world = new Container()
@@ -101,7 +112,10 @@ export class Renderer {
   }
 
   private drawDecor(level: Level): void {
+    const pitch = level.board.pitch
     for (const item of level.decor) {
+      const v = VINTAGE_MAP[item.kind]
+      if (v) { this.drawVintageItem(item, v, pitch); continue }
       const g = new Graphics()
       const pendingText: Array<{ x: number; y: number; text: string; size: number; color: number; align?: 'left' | 'center' }> = []
       for (const s of buildDecorShapes(item, level.board.pitch)) {
@@ -126,6 +140,24 @@ export class Renderer {
         this.layers.decor.addChild(t)
       }
     }
+  }
+
+  // render a vintage through-hole part fit (uniform scale, centered) into the item's footprint box
+  private drawVintageItem(item: import('../model/level').DecorItem, v: VintageKind, pitch: number): void {
+    const fp = footprintCells(item.kind, item.variant, item.rot)
+    const boxW = fp.w * pitch, boxH = fp.h * pitch
+    const vf = VFOOT[v]
+    const vp = Math.min(boxW / vf.w, boxH / vf.h)               // pitch that fits the part in the box
+    const ox = item.cell[0] * pitch + (boxW - vf.w * vp) / 2
+    const oy = item.cell[1] * pitch + (boxH - vf.h * vp) / 2
+    const g = new Graphics()
+    for (const s of buildVintageShapes(v, vp)) {
+      if (s.type === 'rect') g.rect(s.x + ox, s.y + oy, s.w, s.h).fill({ color: s.color, alpha: s.alpha })
+      else if (s.type === 'roundRect') g.roundRect(s.x + ox, s.y + oy, s.w, s.h, s.r).fill({ color: s.color, alpha: s.alpha })
+      else if (s.type === 'circle') g.circle(s.x + ox, s.y + oy, s.r).fill({ color: s.color, alpha: s.alpha })
+      else if (s.type === 'line') g.moveTo(s.x1 + ox, s.y1 + oy).lineTo(s.x2 + ox, s.y2 + oy).stroke({ color: s.color, width: s.width, alpha: s.alpha })
+    }
+    this.layers.decor.addChild(g)
   }
 
   private drawTrace(level: Level): void {
