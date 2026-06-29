@@ -35,8 +35,10 @@ serpentineH/V, spiral, branching (split→merge→one finish), multiSpawn (N spa
 1. **Map editor + generator + 1:1 PCB decor** — DONE (functional circuit blocks + copper traces between pads, subtle vias, 4 mounting holes).
 2. **T0 tile-track foundation** — IN PROGRESS. Done: model→ports→layout→compile→spots→generator (all archetypes, one-finish invariant). Remaining: bridge over/under render, tile editor palette, save/load tiles.
 3. **G1 gameplay** — enemies/waves/towers/combat/economy/UI on the `paths`+`spots` contract. Spec+plan: `docs/superpowers/{specs,plans}/2026-06-29-pcb-td-gameplay-g1*`.
-4. **G2 smart tower placement** — Monte-Carlo optimizer: guaranteed-winnable + balanced (not too many/few). Needs combat sim.
-5. **Production polish** — balance, audio, save-progress, art.
+4. **G2 smart tower placement / balance** — DONE (core). `src/game/sim.ts` = headless combat auto-playtester (`basicPlacement` builds+upgrades, `simulate` runs all waves → `{won, pressure}`). `src/game/balance.ts` `generateBalancedLevel` re-rolls seeds until a level is winnable + pressure in [0.15,0.65] (target 0.4); tags `meta.balance`. Auto-Generate uses it. Measured: difficulty 5 ≈ 0.49 pressure, basic defense wins ~8/8.
+5. **Production polish** — balance tuning, audio, save-progress, real art (towers/enemies are simple shapes now), finish T0 (tile editor/save-load).
+
+**Generator robustness (fixed):** `generateLevel` must NEVER throw. Spiral is a connected turtle (not concentric rings); branching/multiSpawn/cross fall back to serpentineH on too-small grids. Regression test covers 4 boards × 6 archetypes × difficulties (`tests/tiles/generator.test.ts`).
 
 ## Docs
 Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-realism research under `docs/research/` and `.superpowers/sdd/` (gitignored scratch: briefs, reports, progress ledger).
