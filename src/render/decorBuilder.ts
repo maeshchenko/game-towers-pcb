@@ -61,14 +61,20 @@ function silkRect(shapes: ShapeSpec[], x: number, y: number, w: number, h: numbe
 
 /** Fake-3D body: drop-shadow → body fill → top bevel → bottom bevel. */
 function chipBody(shapes: ShapeSpec[], x: number, y: number, w: number, h: number, color: number): void {
-  rect(shapes, x + 2, y + 3, w, h, SHD, 0.45)                                      // drop-shadow
+  rect(shapes, x + 2, y + 3, w, h, SHD, 0.5)                                        // drop-shadow
   rect(shapes, x, y, w, h, color, 1)                                                 // body
-  rect(shapes, x, y, w, Math.max(1, h * 0.15), 0xffffff, 0.08)                      // top bevel light
-  rect(shapes, x, y + h - Math.max(1, h * 0.15), w, Math.max(1, h * 0.15), SHD, 0.25) // bottom bevel dark
+  rect(shapes, x, y, w, Math.max(1, h * 0.18), 0xffffff, 0.16)                      // top bevel light
+  rect(shapes, x, y + h - Math.max(1, h * 0.18), w, Math.max(1, h * 0.18), SHD, 0.4) // bottom bevel dark
 }
 
 function specular(shapes: ShapeSpec[], x: number, y: number, w: number, h: number): void {
-  rect(shapes, x + w * 0.1, y + h * 0.1, w * 0.3, h * 0.1, 0xffffff, 0.12)
+  rect(shapes, x + w * 0.1, y + h * 0.08, w * 0.34, Math.max(1, h * 0.12), 0xffffff, 0.22)
+}
+
+/** Faint inner die rectangle for ICs — extra rendered detail. */
+function die(shapes: ShapeSpec[], x: number, y: number, w: number, h: number): void {
+  rect(shapes, x + w * 0.22, y + h * 0.22, w * 0.56, h * 0.56, PALETTE.icDie, 1)
+  rect(shapes, x + w * 0.22, y + h * 0.22, w * 0.56, Math.max(1, h * 0.1), 0xffffff, 0.06)
 }
 
 /** Small white dot marking pin 1. */
@@ -421,6 +427,7 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
     // ── soic ──────────────────────────────────────────────────────────────────
     case 'soic': {
       chipBody(shapes, x, y, w, h, PALETTE.icBody)
+      die(shapes, x, y, w, h)
       const pinCount = Math.max(2, Math.floor((item.variant || 8) / 2))
       const padW = pitch * 0.30, padH = pitch * 0.15
       for (let i = 0; i < pinCount; i++) {
@@ -438,6 +445,7 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
     // ── qfp ───────────────────────────────────────────────────────────────────
     case 'qfp': {
       chipBody(shapes, x, y, w, h, PALETTE.icBody)
+      die(shapes, x, y, w, h)
       const pinsPerSide = Math.max(4, Math.floor((item.variant || 32) / 4))
       const padW = pitch * 0.11, padH = pitch * 0.28
       for (let i = 0; i < pinsPerSide; i++) {
@@ -458,6 +466,7 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
     // ── qfn ───────────────────────────────────────────────────────────────────
     case 'qfn': {
       chipBody(shapes, x, y, w, h, PALETTE.icBody)
+      die(shapes, x, y, w, h)
       const pinsPerSide = Math.max(3, Math.floor((item.variant || 16) / 4))
       // flush edge tabs (inside body boundary)
       const tabL = pitch * 0.30, tabT = pitch * 0.10

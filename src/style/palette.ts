@@ -20,20 +20,21 @@ export const PALETTE = {
   finishRed: 0xe8503a,
   buildGold: 0xe8c84a,
   specialCyan: 0x3fb6d8,
-  icBody: 0x10130f,
-  pinSilver: 0x55605a,
+  icBody: 0x171f22,        // dark teal-navy IC body (ref chips), not pure black so bevel reads
+  icDie: 0x232f33,         // faint inner die rectangle on ICs
+  pinSilver: 0x8a948c,
   textDim: 0x3c5446,
-  // PCB realism – Stage 2. Decor is intentionally DARK/recessed so the neon path is the hero.
+  // PCB realism. Bodies stay DARK/recessed; DETAIL (gold pins, metal caps, bevel) is kept crisp.
   pour: 0x0f2c1b,
   hatch: 0x143f24,
-  padGold: 0x6e5f2c,
-  padSilver: 0x59655f,
-  silkWhite: 0x47574c,
+  padGold: 0xbf9836,       // crisp gold pins/pads — the detail that reads against dark bodies
+  padSilver: 0x9aa39c,     // metallic passive end-caps
+  silkWhite: 0x5e6f63,
   capTan: 0x2d3a26,
-  resBlack: 0x121512,
-  tantalum: 0x46341a,
-  elecCan: 0x323f39,
-  crystal: 0x323f39,
+  resBlack: 0x141a18,
+  tantalum: 0x6a4a1e,
+  elecCan: 0x3a4742,
+  crystal: 0x3a4742,
   inductor: 0x2a2f2c,
   ledRed: 0xc04040,
   ledGreen: 0x46b866,

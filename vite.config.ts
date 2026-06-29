@@ -1,2 +1,13 @@
 import { defineConfig } from 'vite'
-export default defineConfig({ server: { port: 5173 } })
+import { resolve } from 'path'
+export default defineConfig({
+  server: { port: 5173 },
+  build: {
+    rollupOptions: {
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        kit: resolve(__dirname, 'kit/index.html'),
+      },
+    },
+  },
+})
