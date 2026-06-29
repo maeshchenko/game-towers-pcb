@@ -13,7 +13,11 @@ import { generateBalancedLevel } from './game/balance'
 import { GameLayers } from './render/GameLayers'
 import { GameUI } from './ui/GameUI'
 import type { Board } from './model/level'
+import { levelPaths } from './model/level'
 import type { Tower } from './game/Tower'
+
+// Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
+const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
 
 async function boot() {
   const app = await createPixiApp({ width: window.innerWidth, height: window.innerHeight, background: PALETTE.substrate })
@@ -39,9 +43,26 @@ async function boot() {
   }
 
   let seedCounter = 1
+  let campaign = 0 // index into DIFFICULTY_RAMP; advances each Auto-Generate
   let game: Game | null = null
   let selectedTower: Tower | null = null
   const gameLayers = new GameLayers(renderer.layers.game)
+
+  // Frame the camera on the PATH bounding box so the trace is the centered hero (~78% of viewport).
+  function frameLevel(): void {
+    const lvl = editor.state.level
+    if (!lvl) return
+    const pitch = lvl.board.pitch
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
+    for (const t of levelPaths(lvl)) for (const [cx, cy] of t.waypoints) {
+      const x = cx * pitch + pitch / 2, y = cy * pitch + pitch / 2
+      minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y)
+    }
+    if (!isFinite(minX)) return
+    const pad = pitch * 1.5
+    camera.frameBounds(minX - pad, minY - pad, maxX + pad, maxY + pad, view().w, view().h)
+    camera.apply(renderer.world)
+  }
 
   // ui declared early so callbacks in mountToolbar can reference it via closure
   // (definite assignment: all calls happen after ui is fully initialised below)
@@ -63,8 +84,9 @@ async function boot() {
     },
     onGenerate: () => {
       resetPlay(); ui.showTower(null, 0)
-      editor.state.loadLevel(generateBalancedLevel({ board, difficulty: 5, seed: ++seedCounter }))
-      editor.redraw(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
+      const difficulty = DIFFICULTY_RAMP[Math.min(campaign++, DIFFICULTY_RAMP.length - 1)]
+      editor.state.loadLevel(generateBalancedLevel({ board, difficulty, seed: ++seedCounter }))
+      editor.redraw(); frameLevel(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
     },
     onReseed: () => { editor.state.reseed(++seedCounter); editor.redraw() },
     onSave: () => {
@@ -80,13 +102,13 @@ async function boot() {
         board = { cols: b.cols, rows: b.rows, pitch: fitPitch(b.cols, b.rows, view().w, view().h) }
         editor.state.board = board
         if (editor.state.level) editor.state.level.board = board
-        editor.redraw()
+        editor.redraw(); frameLevel()
         updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
       } catch (err) {
         console.error(err); alert('Не удалось загрузить уровень: неверный файл')
       }
     },
-    onResize: (cols, rows) => { resetPlay(); ui.showTower(null, 0); applyBoard(cols, rows) },
+    onResize: (cols, rows) => { resetPlay(); ui.showTower(null, 0); applyBoard(cols, rows); frameLevel() },
   })
 
   function ensureGame() {

@@ -6,12 +6,23 @@ import { PALETTE, RENDER } from '../style/palette'
 export interface StrokeSpec { points: Pt[]; width: number; color: number; alpha: number; blur: number }
 export interface ChevronSpec { x: number; y: number; angle: number }
 
+// The path is the visual hero: a thick multi-lane glowing ribbon. Rendered as nested concentric
+// strokes of the SAME filleted polyline (round joins keep rounded corners for free): a soft outer
+// glow, a mid-green band, then alternating bright "conductor" lanes and dark grooves carved inward —
+// reads as several parallel traces running along the path.
 export function buildTraceStrokes(trace: Trace, pitch: number): StrokeSpec[] {
   const pts = filletPath(trace.waypoints, trace.cornerRadius, pitch)
+  const B = pitch * RENDER.traceBandMul
+  const lane = (w: number, color: number, alpha = 1): StrokeSpec => ({ points: pts, width: w, color, alpha, blur: 0 })
   return [
-    { points: pts, width: RENDER.traceBandWidth + 8, color: PALETTE.traceHalo, alpha: 0.5, blur: RENDER.haloBlur },
-    { points: pts, width: RENDER.traceBandWidth, color: PALETTE.traceBand, alpha: 1, blur: 0 },
-    { points: pts, width: RENDER.traceCoreWidth, color: PALETTE.traceCore, alpha: 1, blur: 0 },
+    { points: pts, width: B + pitch * 0.9, color: PALETTE.traceHalo, alpha: 0.28, blur: RENDER.haloBlur * 2 },
+    { points: pts, width: B + pitch * 0.35, color: PALETTE.traceHalo, alpha: 0.5, blur: RENDER.haloBlur },
+    lane(B, PALETTE.traceBand),                 // band base
+    lane(B * 0.86, PALETTE.traceLane),          // outer lane
+    lane(B * 0.66, PALETTE.traceGroove),        // groove
+    lane(B * 0.50, PALETTE.traceLane),          // mid lane
+    lane(B * 0.32, PALETTE.traceGroove),        // groove
+    lane(B * 0.16, PALETTE.traceLane),          // center lane
   ]
 }
 

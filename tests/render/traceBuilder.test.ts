@@ -4,12 +4,15 @@ import { buildTraceStrokes, buildChevrons } from '../../src/render/traceBuilder'
 const trace = { waypoints: [[1, 1], [1, 10], [12, 10]] as [number, number][], cornerRadius: 0.5 }
 
 describe('traceBuilder', () => {
-  it('builds halo, band, and core strokes (3 layers) over the same polyline', () => {
+  it('builds a layered multi-lane ribbon (glow + band + lanes) over the same polyline', () => {
     const strokes = buildTraceStrokes(trace, 24)
-    expect(strokes.length).toBe(3)
-    // widest first (halo), narrowest last (core)
-    expect(strokes[0].width).toBeGreaterThan(strokes[2].width)
-    expect(strokes[0].points.length).toBe(strokes[2].points.length)
+    expect(strokes.length).toBeGreaterThanOrEqual(5) // glow layers + band + bright lanes/grooves
+    // widest first (outer glow), narrowest last (center lane)
+    expect(strokes[0].width).toBeGreaterThan(strokes[strokes.length - 1].width)
+    // every stroke follows the SAME filleted polyline
+    expect(strokes[0].points.length).toBe(strokes[strokes.length - 1].points.length)
+    // band width scales with pitch (thick corridor — the hero)
+    expect(strokes[2].width).toBeGreaterThan(24)
   })
   it('emits chevrons spaced along the path', () => {
     const ch = buildChevrons(trace, 24, 36)

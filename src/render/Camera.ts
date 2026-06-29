@@ -11,6 +11,13 @@ export class Camera {
     this.x = px - worldX * this.zoom
     this.y = py - worldY * this.zoom
   }
+  /** Frame a world-space bounding box centered in the viewport, filling `fill` of it. */
+  frameBounds(minX: number, minY: number, maxX: number, maxY: number, viewW: number, viewH: number, fill = 0.78): void {
+    const w = Math.max(1, maxX - minX), h = Math.max(1, maxY - minY)
+    this.zoom = Math.max(0.25, Math.min(4, Math.min((viewW * fill) / w, (viewH * fill) / h)))
+    this.x = viewW / 2 - ((minX + maxX) / 2) * this.zoom
+    this.y = viewH / 2 - ((minY + maxY) / 2) * this.zoom
+  }
   apply(stage: Container): void {
     stage.position.set(this.x, this.y)
     stage.scale.set(this.zoom)
