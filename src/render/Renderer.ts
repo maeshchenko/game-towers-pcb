@@ -48,7 +48,7 @@ export class Renderer {
   private drawDecor(level: Level): void {
     for (const item of level.decor) {
       const g = new Graphics()
-      const pendingText: { x: number; y: number; text: string; size: number; color: number }[] = []
+      const pendingText: Array<{ x: number; y: number; text: string; size: number; color: number; align?: 'left' | 'center' }> = []
       for (const s of buildDecorShapes(item, level.board.pitch)) {
         if (s.type === 'rect') {
           g.rect(s.x, s.y, s.w, s.h).fill({ color: s.color, alpha: s.alpha })
@@ -64,6 +64,7 @@ export class Renderer {
       // Text objects rendered after graphics so they appear on top
       for (const s of pendingText) {
         const t = new Text({ text: s.text, style: { fontFamily: 'monospace', fontSize: s.size, fill: s.color } })
+        if (s.align === 'center') t.anchor.x = 0.5
         t.position.set(s.x, s.y)
         this.layers.decor.addChild(t)
       }

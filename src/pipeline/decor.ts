@@ -115,15 +115,21 @@ export function growDecor(args: {
   const nextL = () => `L${lCounter++}`
 
   // ── 1. Mounting holes at 4 corners ──────────────────────────────────────────
-  const cornerOffsets: Cell[] = [
-    [2, 2],
-    [board.cols - 4, 2],
-    [2, board.rows - 4],
-    [board.cols - 4, board.rows - 4],
-  ]
-  for (let i = 0; i < 4; i++) {
-    const item = tryPlace('mount', 1, 0, cornerOffsets[i], occupied, board, `MH${i + 1}`)
-    if (item) items.push(item)
+  // Structural elements: always exactly 4, one per corner.  Bypasses the
+  // occupied-check so trace / spots never prevent a corner hole from appearing.
+  {
+    const cornerOffsets: Cell[] = [
+      [2, 2],
+      [board.cols - 4, 2],
+      [2, board.rows - 4],
+      [board.cols - 4, board.rows - 4],
+    ]
+    const fp = footprintCells('mount', 1, 0)
+    for (let i = 0; i < 4; i++) {
+      const cell = cornerOffsets[i]
+      mark(cell, fp.w, fp.h, occupied)   // reserve space so other items stay clear
+      items.push({ kind: 'mount', variant: 1, cell, rot: 0, scale: 1, ref: `MH${i + 1}` })
+    }
   }
 
   // ── 2. Major ICs ─────────────────────────────────────────────────────────────

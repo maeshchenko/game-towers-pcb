@@ -6,7 +6,7 @@ export type ShapeSpec =
   | { type: 'rect';   x: number; y: number; w: number; h: number; color: number; alpha: number }
   | { type: 'circle'; x: number; y: number; r: number; color: number; alpha: number }
   | { type: 'line';   x1: number; y1: number; x2: number; y2: number; width: number; color: number; alpha: number }
-  | { type: 'text';   x: number; y: number; text: string; size: number; color: number }
+  | { type: 'text';   x: number; y: number; text: string; size: number; color: number; align?: 'left' | 'center' }
 
 // ---------- Footprint table (grid cells W × H) ----------
 const FOOTPRINT: Record<string, { w: number; h: number }> = {
@@ -76,10 +76,12 @@ function pin1Dot(shapes: ShapeSpec[], x: number, y: number, r = 2): void {
   circle(shapes, x, y, r, SILK, 0.9)
 }
 
-/** Designator text placed just above the body top-left (only if item.ref is set). */
+/** Designator text placed just above the body top-left (only if item.ref is set).
+ *  Small silkscreen size — stays in the margin above the part, left-aligned. */
 function designator(shapes: ShapeSpec[], item: DecorItem, bx: number, by: number, pitch: number): void {
   if (!item.ref) return
-  shapes.push({ type: 'text', x: bx, y: by - pitch * 0.55, text: item.ref, size: pitch * 0.45, color: SILK })
+  const size = Math.max(6, pitch * 0.32)
+  shapes.push({ type: 'text', x: bx, y: by - size - 1, text: item.ref, size, color: SILK, align: 'left' })
 }
 
 /** Two SMD end pads (silver) on left/right sides of body. */
@@ -138,10 +140,12 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
 
     // ── mount ─────────────────────────────────────────────────────────────────
     case 'mount': {
-      const cx = x + w / 2, cy = y + h / 2, r = Math.min(w, h) * 0.46
+      const cx = x + w / 2, cy = y + h / 2
+      // Modest ring: ~1.5-cell visual diameter (r ≈ 0.375 × footprint side)
+      const r = Math.min(w, h) * 0.375
       circle(shapes, cx + 2, cy + 2, r, SHD, 0.4)
       circle(shapes, cx, cy, r, SPAD, 0.9)
-      circle(shapes, cx, cy, r * 0.58, PALETTE.substrate, 1)
+      circle(shapes, cx, cy, r * 0.55, PALETTE.substrate, 1)
       designator(shapes, item, x, y, pitch)
       return shapes
     }
@@ -213,8 +217,23 @@ export function buildDecorShapes(item: DecorItem, pitch: number): ShapeSpec[] {
     case 'smdRes':
     case 'res': {
       passive2T(shapes, item, x, y, w, h, PALETTE.resBlack, pitch)
-      // tiny resistance code
-      shapes.push({ type: 'text', x: x + w * 0.22, y: y + h * 0.05, text: '100', size: Math.max(4, h * 0.55), color: 0x888888 })
+      // Value code centered on body; width-constrained so it never overflows.
+      // Body inner width excludes end pads (~20 % each side) → use 56 % of w.
+      const code = '100'
+      const innerW = w * 0.56
+      const codeSize = Math.min(pitch * 0.4, innerW / (code.length * 0.62))
+      // Drop the label when the result would be unreadably tiny (< 5 px)
+      if (codeSize >= 5) {
+        shapes.push({
+          type: 'text',
+          x: x + w / 2,
+          y: y + (h - codeSize) / 2,
+          text: code,
+          size: codeSize,
+          color: 0x888888,
+          align: 'center',
+        })
+      }
       return shapes
     }
 

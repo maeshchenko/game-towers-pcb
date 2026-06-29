@@ -53,6 +53,22 @@ describe('decorBuilder', () => {
     expect(shapes.some(s => s.type === 'line')).toBe(true)
   })
 
+  it('res value code fits inside body and is center-aligned', () => {
+    const pitch = 24
+    const shapes = buildDecorShapes({ kind: 'res', variant: 1, cell: [1, 1], rot: 0, scale: 1 }, pitch)
+    const code = shapes.find(s => s.type === 'text' && (s as { type: 'text'; text: string }).text === '100')
+    expect(code).toBeDefined()
+    if (code && code.type === 'text') {
+      // code.size * chars * char-width-factor must not exceed inner body width
+      const w = 2 * pitch  // res footprint is 2×1 cells
+      const innerW = w * 0.56
+      expect(code.size * 3 * 0.62).toBeLessThanOrEqual(innerW + 0.5)
+      expect(code.align).toBe('center')
+      // size must stay below the pitch-based cap
+      expect(code.size).toBeLessThanOrEqual(pitch * 0.4 + 0.01)
+    }
+  })
+
   it('unknown kind falls back to a generic rect without throwing', () => {
     expect(() => {
       const shapes = buildDecorShapes({ kind: 'bogus_xyz', variant: 0, cell: [0, 0], rot: 0, scale: 1 }, 24)

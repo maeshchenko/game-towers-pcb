@@ -59,7 +59,7 @@ describe('growDecor', () => {
     expect(items.length).toBeGreaterThan(0)
   })
 
-  it('(3) no item footprint overlaps a path cell or a spot cell', () => {
+  it('(3) no item footprint (except structural mounts) overlaps a path cell or a spot cell', () => {
     const items = growDecor({ board, trace, spots, specialSpots, seed: 7 })
     const noGo = pathCells(trace.waypoints as [number, number][])
     // add spot 3×3 neighbourhood
@@ -67,7 +67,9 @@ describe('growDecor', () => {
       for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++)
         noGo.add(cellKey([s.cell[0] + dx, s.cell[1] + dy]))
 
-    const occupied = itemCells(items)
+    // Mounting holes are structural (always at corners) — they may share space with path/spots
+    const nonMount = items.filter(it => it.kind !== 'mount')
+    const occupied = itemCells(nonMount)
     for (const [key, kind] of occupied) {
       expect(noGo.has(key), `kind=${kind} footprint cell ${key} is in no-go zone`).toBe(false)
     }
@@ -97,6 +99,14 @@ describe('growDecor', () => {
       if (foundCluster) break
     }
     expect(foundCluster, 'expected at least one IC with an adjacent mlcc decoupling cap within 2 cells').toBe(true)
+  })
+
+  it('(6) exactly 4 mounting holes with refs MH1–MH4', () => {
+    const items = growDecor({ board, trace, spots, specialSpots, seed: 7 })
+    const mounts = items.filter(it => it.kind === 'mount')
+    expect(mounts).toHaveLength(4)
+    const refs = new Set(mounts.map(m => m.ref))
+    expect(refs).toEqual(new Set(['MH1', 'MH2', 'MH3', 'MH4']))
   })
 
   it('(5) every IC has a ref starting with "U"', () => {
