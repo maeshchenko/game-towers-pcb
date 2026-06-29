@@ -14,6 +14,10 @@ import { hpScale, SPEED_SCALE } from './difficulty'
 
 interface Spot { cell: Cell; pos: Pt; tower: Tower | null }
 
+/** A transient fire effect for one shot, drawn as a fading beam. */
+export interface Fx { from: Pt; to: Pt; kind: TowerKind; ttl: number }
+const FX_TTL = 0.14
+
 export class Game {
   readonly state: GameState
   readonly towers: Tower[] = []
@@ -22,6 +26,8 @@ export class Game {
   private spots: Spot[]
   readonly pitch: number
   private spent = new Map<Tower, number>()
+  private _fx: Fx[] = []
+  get fx(): Fx[] { return this._fx }
 
   constructor(level: Level, seed = 1) {
     this.pitch = level.board.pitch
@@ -88,6 +94,7 @@ export class Game {
       if (shot.aura) {
         for (const e of active) if (e.alive && Math.hypot(e.pos.x - t.pos.x, e.pos.y - t.pos.y) <= shot.aura.range) e.applySlow(shot.aura.slow, 0.25)
       } else {
+        if (shot.target) this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
         applyShot(shot, active, this.pitch)
       }
     }
@@ -96,6 +103,9 @@ export class Game {
     for (const e of [...this.wm.active]) {
       if (e.hp <= 0) { this.state.add(e.bounty); this.wm.remove(e) }
     }
+
+    // decay fire effects
+    this._fx = this._fx.filter((f) => (f.ttl -= step) > 0)
 
     if (this.wm.cleared()) this.state.endWave()
   }

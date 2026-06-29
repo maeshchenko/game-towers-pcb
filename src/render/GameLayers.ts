@@ -1,6 +1,6 @@
 // src/render/GameLayers.ts
 import { Container, Graphics } from 'pixi.js'
-import type { Game } from '../game/Game'
+import type { Game, Fx } from '../game/Game'
 import type { Tower } from '../game/Tower'
 import type { Enemy } from '../game/Enemy'
 import type { TowerKind } from '../game/towerTypes'
@@ -12,7 +12,7 @@ const ENEMY_COLORS: Record<string, number> = {
 }
 export function enemyColor(kind: string): number { return ENEMY_COLORS[kind] ?? 0xffffff }
 
-const ENEMY_RADIUS: Record<string, number> = { normal: 6, fast: 5, tank: 9, rogue: 4, brute: 11, healer: 7, boss: 16 }
+const ENEMY_RADIUS: Record<string, number> = { normal: 8, fast: 6, tank: 12, rogue: 5, brute: 14, healer: 9, boss: 20 }
 
 // PCB-styled accent colour per tower kind (body is a dark IC; this is the function marker).
 const TOWER_ACCENT: Record<TowerKind, number> = {
@@ -30,7 +30,8 @@ function poly(g: Graphics, cx: number, cy: number, r: number, sides: number, rot
 function drawTower(g: Graphics, t: Tower): void {
   const { x, y } = t.pos
   const accent = TOWER_ACCENT[t.kind]
-  const s = 9 // half-size
+  const s = 12 // half-size
+  g.circle(x, y, s + 4).fill({ color: accent, alpha: 0.12 }) // soft glow by kind
   // drop shadow + dark IC body (chip) with corner pads
   g.rect(x - s + 1, y - s + 2, s * 2, s * 2).fill({ color: 0x000000, alpha: 0.45 })
   g.roundRect(x - s, y - s, s * 2, s * 2, 2).fill({ color: PALETTE.icBody })
@@ -76,6 +77,28 @@ function drawEnemy(g: Graphics, e: Enemy): void {
   g.rect(x - r, y - r - 5, w * hpFrac, 2).fill({ color: hpFrac > 0.4 ? 0x6cf2a0 : 0xe8503a })
 }
 
+function drawFx(g: Graphics, f: Fx): void {
+  const a = Math.min(1, f.ttl / 0.14)
+  const col = TOWER_ACCENT[f.kind]
+  const { from, to } = f
+  if (f.kind === 'tesla') {
+    // jagged lightning between from and to
+    const dx = to.x - from.x, dy = to.y - from.y, len = Math.hypot(dx, dy) || 1
+    const px = -dy / len, py = dx / len, segs = 5
+    g.moveTo(from.x, from.y)
+    for (let i = 1; i < segs; i++) {
+      const t = i / segs, off = (i % 2 ? 1 : -1) * 4
+      g.lineTo(from.x + dx * t + px * off, from.y + dy * t + py * off)
+    }
+    g.lineTo(to.x, to.y).stroke({ color: col, width: 1.5, alpha: a })
+  } else {
+    g.moveTo(from.x, from.y).lineTo(to.x, to.y).stroke({ color: col, width: f.kind === 'sniper' ? 1.5 : 2.5, alpha: a })
+  }
+  g.circle(from.x, from.y, 3).fill({ color: 0xffffff, alpha: a * 0.8 }) // muzzle flash
+  if (f.kind === 'mortar') g.circle(to.x, to.y, 7 * a).stroke({ color: col, width: 2, alpha: a }) // splash ring
+  else g.circle(to.x, to.y, 2.5).fill({ color: col, alpha: a })          // impact
+}
+
 export class GameLayers {
   private root = new Container()
   constructor(parent: Container) { parent.addChild(this.root) }
@@ -89,6 +112,7 @@ export class GameLayers {
       drawTower(g, t)
     }
     if (selected) g.circle(selected.pos.x, selected.pos.y, selected.stats.range * game.pitch).stroke({ color: PALETTE.traceCore, width: 1.5, alpha: 0.5 })
+    for (const f of game.fx) drawFx(g, f)
     for (const e of game.enemies()) { if (e.alive) drawEnemy(g, e) }
     this.root.addChild(g)
   }
