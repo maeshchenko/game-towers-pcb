@@ -121,29 +121,26 @@ function multiSpawn(g: TileGrid, n: number): void {
   }
 }
 
-// cross: two routes crossing through a central bridge (independent, not merging).
-// Each arm takes one jog before the bridge so it isn't a dead-straight "+" (more interesting),
-// falling back to a clean crossing on tiny grids.
+// cross: two routes CROSS through a central bridge, then MERGE (fork) to ONE shared finish.
+// Two spawns, one base — satisfies the global "one finish for all routes" invariant.
 function cross(g: TileGrid): void {
   const cx = Math.floor(g.tcols / 2), cy = Math.floor(g.trows / 2)
+  const mx = Math.min(g.tcols - 3, cx + 2)   // merge-fork column (between bridge and finish)
+  const by = g.trows - 2                      // bottom row the vertical arm loops along
+  // Too cramped to route a merge → fall back to a single connected path (still one finish).
+  if (mx <= cx || by <= cy) { serpentineH(g); return }
+
   setTile(g, cx, cy, { type: 'bridge', rot: 0 })
-  if (g.tcols < 7 || g.trows < 5) {
-    layPath(g, row(cy, range(1, g.tcols - 2)))
-    layPath(g, col(cx, range(1, g.trows - 2)))
-    return
-  }
-  const ax = Math.max(2, Math.floor(cx / 2)) // jog column for the horizontal arm (ax < cx)
-  // horizontal route: START (1, cy-1) → E → drop to row cy → E through bridge → FINISH (right, cy)
+  setTile(g, mx, cy, { type: 'fork', rot: rotForPorts('fork', ['W', 'S', 'E']) }) // merge: A from W, B from S, out E
+
+  // Route A (horizontal): START (1,cy) → E through bridge → fork → FINISH (tcols-2, cy)
+  layPath(g, row(cy, range(1, g.tcols - 2)))
+  // Route B (vertical): START (cx,1) → S through bridge → down → E → up into fork from S → FINISH (shared)
   layPath(g, dedup([
-    ...row(cy - 1, range(1, ax)),
-    ...col(ax, range(cy - 1, cy)),
-    ...row(cy, range(ax, g.tcols - 2)),
-  ]))
-  // vertical route: START (cx+1, 1) → S → shift to col cx → S through bridge → FINISH (bottom, cx)
-  layPath(g, dedup([
-    ...col(cx + 1, range(1, cy - 1)),
-    ...row(cy - 1, range(cx + 1, cx)),
-    ...col(cx, range(cy - 1, g.trows - 2)),
+    ...col(cx, range(1, by)),            // top → down through bridge → bottom
+    ...row(by, range(cx, mx)),           // across to the merge column
+    ...col(mx, range(by, cy)),           // up into the merge fork
+    ...row(cy, range(mx, g.tcols - 2)),  // fork → shared FINISH
   ]))
 }
 

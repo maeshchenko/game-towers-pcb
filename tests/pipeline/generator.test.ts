@@ -7,6 +7,16 @@ const MULTI_PATH_ARCHETYPES = new Set(['branching', 'multiSpawn', 'cross'])
 describe('generateLevel', () => {
   const board = { cols: 48, rows: 36, pitch: 24 }
 
+  it('INVARIANT: every archetype routes ALL paths to ONE shared finish', () => {
+    for (const a of ARCHETYPES) {
+      for (let seed = 0; seed < 8; seed++) {
+        const lvl = generateLevel({ board, difficulty: 4, seed, archetype: a })
+        const finishes = new Set(lvl.paths!.map((p) => p.waypoints[p.waypoints.length - 1].join(',')))
+        expect(finishes.size, `${a} seed ${seed} must have exactly one finish`).toBe(1)
+      }
+    }
+  })
+
   it('produces a valid octilinear connected trace', () => {
     const lvl = generateLevel({ board, difficulty: 3, seed: 1 })
     const wp = lvl.trace.waypoints
