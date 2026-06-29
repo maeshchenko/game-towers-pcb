@@ -2,14 +2,12 @@ import type { Board, Level, Trace, TowerSpot } from '../model/level'
 import type { Cell } from '../geom/types'
 import { octilinearize } from '../geom/octilinear'
 import { routeOctilinear } from '../geom/router'
-import { computeTowerSpots } from './spots'
+import { computeTowerSpots, minSpots } from './spots'
 import { buildDecorWithNets } from './decor'
 import { routeCopper } from './copper'
 import { makeRng } from './rng'
 
-export function minSpots(difficulty: number): number {
-  return Math.max(4, 6 + difficulty)
-}
+export { minSpots } from './spots'
 
 // ── Single-path builders (each returns Cell[][] with one element) ────────────
 

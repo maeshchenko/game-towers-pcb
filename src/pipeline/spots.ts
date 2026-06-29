@@ -62,3 +62,8 @@ export function computeTowerSpots(args: {
   })
   return { spots, specialSpots }
 }
+
+// Minimum number of tower spots a level must offer, by difficulty.
+export function minSpots(difficulty: number): number {
+  return Math.max(4, 6 + difficulty)
+}
