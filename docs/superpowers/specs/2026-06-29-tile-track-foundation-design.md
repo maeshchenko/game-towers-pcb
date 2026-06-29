@@ -61,6 +61,12 @@ the format for the future game to interpret; T0 only emits the route geometry an
 - Validation: `compileRoutes` ignores unmatched/dangling ports (no route through them) so a malformed
   hand-edited grid degrades gracefully rather than throwing.
 
+## INVARIANT: exactly one finish (one base) for the whole level
+Every archetype — including multi-route ones (branching, multiSpawn, cross) — must route **all**
+enemy paths to a **single shared FINISH cell** (one base to defend). Multi-route archetypes
+converge via `fork` tiles used as merges before the finish. Enforced by a generator test that, for
+every archetype and seed, asserts all `paths` share the same last waypoint.
+
 ## Generator: archetype → tile layout (`src/tiles/generator.ts`)
 Replaces the polyline archetype builders as the source of truth. Each archetype becomes a
 **tile-placement strategy** that writes a `TileGrid` (then compiled to routes+spots+decor):
