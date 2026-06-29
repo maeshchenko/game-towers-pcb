@@ -12,6 +12,8 @@ export interface Level {
   board: Board
   seed: number
   trace: Trace
+  /** All enemy paths. Authoritative when present and non-empty; trace stays as paths[0] for backward compat. */
+  paths?: Trace[]
   spots: TowerSpot[]
   specialSpots: TowerSpot[]
   decor: DecorItem[]
@@ -20,6 +22,11 @@ export interface Level {
   /** Copper polylines connecting pad anchors of electrically connected components. */
   copper?: Copper[]
   meta: { name: string; difficulty: number; archetype?: string }
+}
+
+/** Returns the authoritative set of enemy paths for a level. */
+export function levelPaths(level: Level): Trace[] {
+  return level.paths && level.paths.length > 0 ? level.paths : [level.trace]
 }
 
 export function serializeLevel(l: Level): string {

@@ -12,6 +12,13 @@ describe('generateLevel', () => {
     for (let i = 1; i < wp.length; i++) expect(isOctilinear(wp[i - 1], wp[i])).toBe(true)
   })
 
+  it('sets paths with trace as paths[0]', () => {
+    const lvl = generateLevel({ board, difficulty: 3, seed: 1 })
+    expect(lvl.paths).toBeDefined()
+    expect(lvl.paths!.length).toBeGreaterThan(0)
+    expect(lvl.paths![0]).toEqual(lvl.trace)
+  })
+
   it('is deterministic per seed', () => {
     expect(generateLevel({ board, difficulty: 3, seed: 99 }))
       .toEqual(generateLevel({ board, difficulty: 3, seed: 99 }))

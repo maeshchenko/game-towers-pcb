@@ -15,17 +15,23 @@ import {
 
 // ---------- Occupancy helpers ----------
 
-function blockedCells(trace: Trace, spots: TowerSpot[], specials: TowerSpot[]): Set<string> {
+function normalizeTraces(trace: Trace | Trace[]): Trace[] {
+  return Array.isArray(trace) ? trace : [trace]
+}
+
+function blockedCells(trace: Trace | Trace[], spots: TowerSpot[], specials: TowerSpot[]): Set<string> {
   const set = new Set<string>()
-  const wp = trace.waypoints
-  for (let i = 1; i < wp.length; i++) {
-    const a = wp[i - 1], b = wp[i]
-    const steps = Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))
-    for (let k = 0; k <= steps; k++) {
-      const t = steps === 0 ? 0 : k / steps
-      const cx = Math.round(a[0] + (b[0] - a[0]) * t)
-      const cy = Math.round(a[1] + (b[1] - a[1]) * t)
-      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) set.add(cellKey([cx + dx, cy + dy]))
+  for (const tr of normalizeTraces(trace)) {
+    const wp = tr.waypoints
+    for (let i = 1; i < wp.length; i++) {
+      const a = wp[i - 1], b = wp[i]
+      const steps = Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))
+      for (let k = 0; k <= steps; k++) {
+        const t = steps === 0 ? 0 : k / steps
+        const cx = Math.round(a[0] + (b[0] - a[0]) * t)
+        const cy = Math.round(a[1] + (b[1] - a[1]) * t)
+        for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) set.add(cellKey([cx + dx, cy + dy]))
+      }
     }
   }
   for (const s of [...spots, ...specials])
@@ -176,7 +182,7 @@ export interface DecorWithNets {
 }
 
 export function buildDecorWithNets(args: {
-  board: Board; trace: Trace; spots: TowerSpot[]; specialSpots: TowerSpot[]; seed: number
+  board: Board; trace: Trace | Trace[]; spots: TowerSpot[]; specialSpots: TowerSpot[]; seed: number
 }): DecorWithNets {
   const { board } = args
   const rng = makeRng(args.seed)
@@ -314,7 +320,7 @@ export function buildDecorWithNets(args: {
 }
 
 export function growDecor(args: {
-  board: Board; trace: Trace; spots: TowerSpot[]; specialSpots: TowerSpot[]; seed: number
+  board: Board; trace: Trace | Trace[]; spots: TowerSpot[]; specialSpots: TowerSpot[]; seed: number
 }): DecorItem[] {
   return buildDecorWithNets(args).decor
 }

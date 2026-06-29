@@ -17,15 +17,24 @@ function pathCellSet(trace: Trace): Set<string> {
   return set
 }
 
+function normalizeTraces(trace: Trace | Trace[]): Trace[] {
+  return Array.isArray(trace) ? trace : [trace]
+}
+
 export function computeTowerSpots(args: {
-  board: Board; trace: Trace; budget: number
+  board: Board; trace: Trace | Trace[]; budget: number
   rangeCells?: number; minSeparation?: number; specialEvery?: number
 }): { spots: TowerSpot[]; specialSpots: TowerSpot[] } {
   const rangeCells = args.rangeCells ?? 4
   const minSeparation = args.minSeparation ?? 3
   const specialEvery = args.specialEvery ?? 5
-  const samples = pathSamples(args.trace.waypoints, args.board.pitch)
-  const onPath = pathCellSet(args.trace)
+  const traces = normalizeTraces(args.trace)
+  // Union of all path samples (for coverage scoring across all paths)
+  const allSamples = traces.flatMap(t => pathSamples(t.waypoints, args.board.pitch))
+  // Union of all path cells (for exclusion)
+  const onPath = new Set<string>()
+  for (const t of traces) for (const k of pathCellSet(t)) onPath.add(k)
+  const samples = allSamples
 
   const candidates: { cell: Cell; score: number }[] = []
   for (let x = 0; x < args.board.cols; x++)

@@ -150,6 +150,7 @@ export function generateLevel(params: {
 
   const waypoints = octilinearize(rawWaypoints)
   const trace = { waypoints, cornerRadius: 0.5 }
+  const paths = [trace]
 
   const target = minSpots(difficulty)
   const attempts = [
@@ -161,7 +162,7 @@ export function generateLevel(params: {
   let specialSpots: TowerSpot[] = []
   for (const a of attempts) {
     const res = computeTowerSpots({
-      board, trace, budget: a.budget,
+      board, trace: paths, budget: a.budget,
       minSeparation: a.minSeparation, rangeCells: a.rangeCells,
     })
     spots = res.spots
@@ -169,7 +170,7 @@ export function generateLevel(params: {
     if (spots.length + specialSpots.length >= target) break
   }
 
-  const { decor, nets } = buildDecorWithNets({ board, trace, spots, specialSpots, seed })
+  const { decor, nets } = buildDecorWithNets({ board, trace: paths, spots, specialSpots, seed })
   const copper = routeCopper({ decor, nets, board, trace })
 
   return {
@@ -177,6 +178,7 @@ export function generateLevel(params: {
     board,
     seed,
     trace,
+    paths,
     spots,
     specialSpots,
     decor,

@@ -1,6 +1,7 @@
 // src/render/Renderer.ts
 import { Application, Container, Graphics, Text } from 'pixi.js'
 import type { Level } from '../model/level'
+import { levelPaths } from '../model/level'
 import { PALETTE, RENDER } from '../style/palette'
 import { buildTraceStrokes, buildChevrons } from './traceBuilder'
 import { buildDecorShapes } from './decorBuilder'
@@ -97,21 +98,24 @@ export class Renderer {
   }
 
   private drawTrace(level: Level): void {
-    if (level.trace.waypoints.length < 2) return  // nothing to draw (e.g. after "New")
-    for (const stroke of buildTraceStrokes(level.trace, level.board.pitch)) {
-      const g = new Graphics()
-      stroke.points.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)))
-      g.stroke({ color: stroke.color, width: stroke.width, alpha: stroke.alpha, cap: 'round', join: 'round' })
-      this.layers.trace.addChild(g)
+    const paths = levelPaths(level)
+    for (const trace of paths) {
+      if (trace.waypoints.length < 2) continue
+      for (const stroke of buildTraceStrokes(trace, level.board.pitch)) {
+        const g = new Graphics()
+        stroke.points.forEach((p, i) => (i === 0 ? g.moveTo(p.x, p.y) : g.lineTo(p.x, p.y)))
+        g.stroke({ color: stroke.color, width: stroke.width, alpha: stroke.alpha, cap: 'round', join: 'round' })
+        this.layers.trace.addChild(g)
+      }
+      for (const ch of buildChevrons(trace, level.board.pitch, RENDER.chevronSpacing)) {
+        const g = new Graphics()
+        g.moveTo(-4, -4).lineTo(2, 0).lineTo(-4, 4).stroke({ color: PALETTE.chevron, width: 2, alpha: 0.8 })
+        g.position.set(ch.x, ch.y); g.rotation = ch.angle
+        this.layers.trace.addChild(g)
+      }
+      this.drawPad(trace.waypoints[0], PALETTE.startGreen, level.board.pitch)
+      this.drawPad(trace.waypoints[trace.waypoints.length - 1], PALETTE.finishRed, level.board.pitch)
     }
-    for (const ch of buildChevrons(level.trace, level.board.pitch, RENDER.chevronSpacing)) {
-      const g = new Graphics()
-      g.moveTo(-4, -4).lineTo(2, 0).lineTo(-4, 4).stroke({ color: PALETTE.chevron, width: 2, alpha: 0.8 })
-      g.position.set(ch.x, ch.y); g.rotation = ch.angle
-      this.layers.trace.addChild(g)
-    }
-    this.drawPad(level.trace.waypoints[0], PALETTE.startGreen, level.board.pitch)
-    this.drawPad(level.trace.waypoints[level.trace.waypoints.length - 1], PALETTE.finishRed, level.board.pitch)
   }
 
   private drawPad(cell: [number, number], color: number, pitch: number): void {
