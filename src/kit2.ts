@@ -76,68 +76,62 @@ async function boot() {
   // ── SECTION 2 — pairwise connections ──────────────────────────────────────
   section('2 · CONNECTIONS — which part wires to which, and why')
   const PW = 290, PH = 150, PCOLS = 4
-  // pair: two parts wired by FUNCTION pins; placed so the two pads sit on ONE axis → straight trace
   type Spec = { kind: VintageKind; opts?: VintageOpts; pin: string }
-  const pairs: { why: string; a: Spec; b: Spec; mode?: 'mate' | 'power' }[] = [
-    { why: 'clip snaps onto battery (+→+, −→−)', a: { kind: 'battery9v', pin: '+' }, b: { kind: 'batteryClip', pin: '+' }, mode: 'mate' },
-    { why: 'DC jack: tip+ → VCC, sleeve− → GND', a: { kind: 'powerJack', pin: 'tip+' }, b: { kind: 'powerJack', pin: 'sleeve-' }, mode: 'power' },
-    { why: 'R → LED anode : limits current', a: { kind: 'resAxial', pin: 'B' }, b: { kind: 'led5mm', opts: { on: true }, pin: 'anode' } },
-    { why: 'diode cathode → cap + : rectify→smooth', a: { kind: 'diodeAxial', pin: 'cathode' }, b: { kind: 'electroRadial', pin: '+' } },
+  // every pair: A (left) → B (right) by FUNCTION pins. Trace leaves each pad perpendicular, runs in a
+  // clear channel above the parts, enters the target pad HEAD-ON — never along a pin row, never crossing.
+  const pairs: { why: string; a: Spec; b: Spec }[] = [
+    { why: 'jack tip+ → diode anode : DC power in', a: { kind: 'powerJack', pin: 'tip+' }, b: { kind: 'diodeAxial', pin: 'anode' } },
+    { why: 'diode cathode → cap + : rectify → smooth', a: { kind: 'diodeAxial', pin: 'cathode' }, b: { kind: 'electroRadial', pin: '+' } },
     { why: 'cap + → 7805 IN : smoothed DC in', a: { kind: 'electroRadial', pin: '+' }, b: { kind: 'to220', pin: 'IN' } },
-    { why: '7805 OUT → ceramic : decoupling', a: { kind: 'to220', pin: 'OUT' }, b: { kind: 'ceramicDisc', pin: 't1' } },
-    { why: 'crystal → IC OSC : clock', a: { kind: 'crystalHC49', pin: 'x1' }, b: { kind: 'dipIC', pin: 'OSC' } },
-    { why: 'IC VCC → ceramic : decap on power', a: { kind: 'dipIC', pin: 'VCC' }, b: { kind: 'ceramicDisc', pin: 't1' } },
-    { why: 'R + film cap : RC filter / timing', a: { kind: 'resAxial', pin: 'B' }, b: { kind: 'filmCap', pin: 't1' } },
-    { why: 'R → TO-92 base : biases transistor', a: { kind: 'resAxial', pin: 'B' }, b: { kind: 'to92', pin: 'B' } },
-    { why: 'trimpot → IC IO : adjustable input', a: { kind: 'trimpot', pin: 'end2' }, b: { kind: 'dipIC', pin: 'IO' } },
+    { why: '7805 OUT → tantalum + : output bulk cap', a: { kind: 'to220', pin: 'OUT' }, b: { kind: 'tantalum', pin: '+' } },
+    { why: '7805 OUT → R A : supply to a load', a: { kind: 'to220', pin: 'OUT' }, b: { kind: 'resAxial', pin: 'A' } },
+    { why: 'R B → LED anode : limits LED current', a: { kind: 'resAxial', pin: 'B' }, b: { kind: 'led5mm', opts: { on: true }, pin: 'anode' } },
+    { why: 'IC VCC → ceramic : decoupling cap', a: { kind: 'dipIC', pin: 'VCC' }, b: { kind: 'ceramicDisc', pin: 't1' } },
+    { why: 'crystal x1 → IC OSC : clock', a: { kind: 'crystalHC49', pin: 'x1' }, b: { kind: 'dipIC', pin: 'OSC' } },
+    { why: 'R B → film cap : RC filter / timing', a: { kind: 'resAxial', pin: 'B' }, b: { kind: 'filmCap', pin: 't1' } },
+    { why: 'R B → TO-92 base : biases transistor', a: { kind: 'resAxial', pin: 'B' }, b: { kind: 'to92', pin: 'B' } },
+    { why: 'TO-92 collector → R A : collector load', a: { kind: 'to92', pin: 'C' }, b: { kind: 'resAxial', pin: 'A' } },
+    { why: 'trimpot end → IC IO : adjustable input', a: { kind: 'trimpot', pin: 'end2' }, b: { kind: 'dipIC', pin: 'IO' } },
     { why: 'inductor → cap + : LC ripple filter', a: { kind: 'inductorAxial', pin: 'B' }, b: { kind: 'electroRadial', pin: '+' } },
+    { why: 'R B → R A : resistors in series', a: { kind: 'resAxial', pin: 'B' }, b: { kind: 'resAxial', pin: 'A' } },
+    { why: 'diode cathode → LED anode : steering', a: { kind: 'diodeAxial', pin: 'cathode' }, b: { kind: 'led5mm', opts: { on: false }, pin: 'anode' } },
+    { why: 'tantalum + → IC VCC : local bulk cap', a: { kind: 'tantalum', pin: '+' }, b: { kind: 'dipIC', pin: 'VCC' } },
   ]
-  // place a part so its named pad lands at (px,py); return its world leads
+  // place a part so its named pad lands at (px,py); return world leads + footprint
   const placePad = (sp: Spec, px: number, py: number): { leads: Pt[]; gx: number; gy: number } => {
     const off = vintageLeadEnds(sp.kind, P)[Math.max(0, pin(sp.kind, sp.pin))]
     const gx = px - off.x, gy = py - off.y
     return { leads: leadsAt(sp.kind, gx, gy), gx, gy }
   }
+  // escape a pad perpendicular to its nearest body edge
+  const esc = (pad: Pt, gx: number, gy: number, kind: VintageKind, e = 14): Pt => {
+    const w = VFOOT[kind].w * P, h = VFOOT[kind].h * P
+    const dT = pad.y - gy, dB = gy + h - pad.y, dL = pad.x - gx, dR = gx + w - pad.x
+    const m = Math.min(dT, dB, dL, dR)
+    if (m === dT) return { x: pad.x, y: gy - e }
+    if (m === dB) return { x: pad.x, y: gy + h + e }
+    if (m === dL) return { x: gx - e, y: pad.y }
+    return { x: gx + w + e, y: pad.y }
+  }
+  const simp = (pts: Pt[]): Pt[] => pts.filter((p, i) => i === 0 || i === pts.length - 1 || Math.sign(p.x - pts[i - 1].x) !== Math.sign(pts[i + 1].x - p.x) || Math.sign(p.y - pts[i - 1].y) !== Math.sign(pts[i + 1].y - p.y))
   pairs.forEach((pr, i) => {
     const col = i % PCOLS, x = 16 + col * (PW + 10)
     if (col === 0 && i > 0) y += PH + 10
     const g = new Graphics(); g.rect(x, y, PW, PH).fill({ color: 0x0a1712, alpha: 1 }).stroke({ color: 0x1c3a2b, width: 1 }); world.addChild(g)
-    const midY = y + PH * 0.56, cop = PALETTE.copperTrace
-    if (pr.mode === 'mate') {
-      // battery clip snaps onto the battery — mechanical, no PCB trace; clip drawn over the terminals
-      const bat = placePad(pr.a, x + PW * 0.5, midY + 14) // anchor battery + near centre
-      const bw = VFOOT.batteryClip.w * P, ch = VFOOT.batteryClip.h * P
-      const bo = vintageLeadEnds('battery9v', P)[0] // battery + offset → align clip + over it
-      const clipGx = (x + PW * 0.5) - (VFOOT.batteryClip.w * P / 2), clipGy = bat.gy - ch * 0.5
-      world.addChild(drawShapes(buildVintageShapes('battery9v', P), bat.gx, bat.gy))
-      world.addChild(drawShapes(buildVintageShapes('batteryClip', P), clipGx, clipGy))
-      void bw; void bo
-      text(pr.why, x + 8, y + 8, 0x8fb8a0, 10)
-      return
-    }
-    if (pr.mode === 'power') {
-      // connector feeding the board: tip+ → VCC (right), sleeve− → GND (down)
-      const J = placePad(pr.a, x + PW * 0.4, midY)
-      const tip = J.leads[Math.max(0, pin('powerJack', 'tip+'))], slv = J.leads[Math.max(0, pin('powerJack', 'sleeve-'))]
-      const cg2 = new Graphics()
-      cg2.moveTo(tip.x, tip.y).lineTo(x + PW - 30, tip.y).stroke({ color: cop, width: 3, cap: 'round' })       // → VCC
-      cg2.moveTo(slv.x, slv.y).lineTo(slv.x, y + PH - 16).stroke({ color: cop, width: 3, cap: 'round' })        // → GND
-      cg2.circle(tip.x, tip.y, 3).fill({ color: cop }); cg2.circle(slv.x, slv.y, 3).fill({ color: cop })
-      world.addChild(cg2)
-      world.addChild(drawShapes(buildVintageShapes('powerJack', P), J.gx, J.gy))
-      text('VCC', x + PW - 26, tip.y - 6, 0xd8c060, 9); text('GND', slv.x + 6, y + PH - 22, 0xd8c060, 9)
-      text(pr.why, x + 8, y + 8, 0x8fb8a0, 10)
-      return
-    }
-    const A = placePad(pr.a, x + PW * 0.3, midY), B = placePad(pr.b, x + PW * 0.72, midY)
+    const cop = PALETTE.copperTrace, PADY = y + PH * 0.72, channelY = y + 34
+    const A = placePad(pr.a, x + PW * 0.28, PADY), B = placePad(pr.b, x + PW * 0.72, PADY)
     const la = A.leads[Math.max(0, pin(pr.a.kind, pr.a.pin))], lb = B.leads[Math.max(0, pin(pr.b.kind, pr.b.pin))]
+    const ea = esc(la, A.gx, A.gy, pr.a.kind), eb = esc(lb, B.gx, B.gy, pr.b.kind)
+    // perpendicular stubs → up into the clear channel → across → down into the target (head-on)
+    const route = simp([la, ea, { x: ea.x, y: channelY }, { x: eb.x, y: channelY }, eb, lb])
     const cg = new Graphics()
-    cg.moveTo(la.x, la.y).lineTo(lb.x, lb.y).stroke({ color: cop, width: 3, cap: 'round', join: 'round' }) // straight, pads aligned
+    cg.moveTo(route[0].x, route[0].y); for (let k = 1; k < route.length; k++) cg.lineTo(route[k].x, route[k].y)
+    cg.stroke({ color: cop, width: 2.5, cap: 'round', join: 'round' })
     cg.circle(la.x, la.y, 3).fill({ color: cop }); cg.circle(lb.x, lb.y, 3).fill({ color: cop })
     world.addChild(cg)
     world.addChild(drawShapes(buildVintageShapes(pr.a.kind, P, pr.a.opts), A.gx, A.gy))
     world.addChild(drawShapes(buildVintageShapes(pr.b.kind, P, pr.b.opts), B.gx, B.gy))
-    text(pr.a.pin, la.x - 6, la.y + 14, 0xd8c060, 9); text(pr.b.pin, lb.x - 6, lb.y + 14, 0xd8c060, 9)
+    text(pr.a.pin, la.x - 6, la.y + 16, 0xd8c060, 9); text(pr.b.pin, lb.x - 6, lb.y + 16, 0xd8c060, 9)
     text(pr.why, x + 8, y + 8, 0x8fb8a0, 10)
   })
   y += PH + 24
