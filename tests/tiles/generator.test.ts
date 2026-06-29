@@ -36,3 +36,31 @@ describe('tile generator', () => {
     expect(generateLevel({ board, difficulty: 4, seed: 7 })).toEqual(lvl)
   })
 })
+
+describe('generator robustness across boards/archetypes/difficulty', () => {
+  const BOARDS = [
+    { cols: 32, rows: 24, pitch: 24 }, // S
+    { cols: 48, rows: 36, pitch: 24 }, // M
+    { cols: 64, rows: 48, pitch: 24 }, // L
+    { cols: 96, rows: 72, pitch: 24 }, // XL
+  ]
+  const ARCHES = ['serpentineH', 'serpentineV', 'spiral', 'branching', 'multiSpawn', 'cross']
+  it('never throws and always yields connected octilinear routes to one finish', () => {
+    for (const board of BOARDS)
+      for (const a of ARCHES)
+        for (const d of [0, 3, 6, 9])
+          for (let s = 0; s < 4; s++) {
+            const { grid } = buildTileGrid(board, d, s, a)
+            const routes = compileRoutes(grid)
+            expect(routes.length, `${board.cols}x${board.rows} ${a} d${d} s${s}`).toBeGreaterThanOrEqual(1)
+            const finishes = new Set<string>()
+            for (const r of routes) {
+              const wp = octilinearize(r.waypoints)
+              expect(wp.length).toBeGreaterThanOrEqual(2)
+              for (let i = 1; i < wp.length; i++) expect(isOctilinear(wp[i - 1], wp[i])).toBe(true)
+              finishes.add(wp[wp.length - 1].join(','))
+            }
+            expect(finishes.size, `${a} one finish`).toBe(1)
+          }
+  })
+})

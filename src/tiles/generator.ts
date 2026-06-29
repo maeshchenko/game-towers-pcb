@@ -48,18 +48,26 @@ function serpentineV(g: TileGrid): void {
   layPath(g, clean)
 }
 
+// Connected inward spiral via a turtle: it only ever steps to an adjacent cell, so the chain is
+// always contiguous + octilinear (no disconnected concentric rings, no 180° reversals). Arm
+// spacing is 2 cells (bounds shrink by 2 per side), leaving room for towers between arms.
 function spiral(g: TileGrid): void {
-  let l = 1, r = g.tcols - 2, t = 1, b = g.trows - 2
+  let left = 1, right = g.tcols - 2, top = 1, bottom = g.trows - 2
   const coords: [number, number][] = []
-  while (l <= r && t <= b) {
-    for (let x = l; x <= r; x++) coords.push([x, t])
-    for (let y = t + 1; y <= b; y++) coords.push([r, y])
-    if (t < b) for (let x = r - 1; x >= l; x--) coords.push([x, b])
-    if (l < r) for (let y = b - 1; y >= t + 1; y--) coords.push([l, y])
-    l += 2; r -= 2; t += 2; b -= 2
+  let x = left, y = top
+  coords.push([x, y])
+  while (left < right && top < bottom) {
+    while (x < right) { x++; coords.push([x, y]) }   // → along top
+    top += 2; if (top > bottom) break
+    while (y < bottom) { y++; coords.push([x, y]) }   // ↓ right side
+    right -= 2; if (left > right) break
+    while (x > left) { x--; coords.push([x, y]) }      // ← along bottom
+    bottom -= 2; if (top >= bottom) break              // collapsed: stop before an empty up-run would reverse
+    while (y > top) { y--; coords.push([x, y]) }        // ↑ left side (stops at the inset top)
+    left += 2; if (left >= right) break
+    while (x < left) { x++; coords.push([x, y]) }       // inward connector to next arm
   }
-  const clean = coords.filter((c, i) => i === 0 || c[0] !== coords[i - 1][0] || c[1] !== coords[i - 1][1])
-  layPath(g, clean)
+  layPath(g, coords.filter((c, i) => i === 0 || c[0] !== coords[i - 1][0] || c[1] !== coords[i - 1][1]))
 }
 
 function dedup(coords: [number, number][]): [number, number][] {
@@ -75,6 +83,7 @@ function branching(g: TileGrid): void {
   const top = 1, bot = g.trows - 2
   const fxA = Math.max(2, Math.floor(g.tcols / 3))
   const fxB = Math.min(g.tcols - 3, Math.max(fxA + 2, Math.floor((2 * g.tcols) / 3)))
+  if (fxB < fxA + 2 || g.trows < 5) { serpentineH(g); return } // too small for split/merge → fallback
   setTile(g, fxA, midY, { type: 'fork', rot: rotForPorts('fork', ['W', 'N', 'S']) }) // split
   setTile(g, fxB, midY, { type: 'fork', rot: rotForPorts('fork', ['N', 'S', 'E']) }) // merge
   const up = dedup([
@@ -98,6 +107,7 @@ function branching(g: TileGrid): void {
 // multiSpawn: N START tiles (left, different rows) → a vertical collector spine with merge
 // forks → one shared FINISH (right). Every compiled route ends at the same finish cell.
 function multiSpawn(g: TileGrid, n: number): void {
+  if (g.trows < 5 || g.tcols < 6) { serpentineH(g); return } // too small for a collector spine → fallback
   const count = Math.min(3, Math.max(2, n))
   const sx = Math.max(3, g.tcols - 3)
   const rows: number[] = []
