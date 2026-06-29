@@ -56,7 +56,7 @@ async function boot() {
     const ip = infoPanel(); if (ip) ip.style.display = '' // show static panel back in edit mode
   }
 
-  mountToolbar({
+  const editorBar = mountToolbar({
     onNew: () => {
       resetPlay(); ui.showTower(null, 0)
       editor.state.clear(); renderer.render(emptyLevel()); updateLevelName('Untitled')
@@ -107,11 +107,36 @@ async function boot() {
     onSell: () => { if (game && selectedTower) { game.sell(selectedTower); selectedTower = null; ui.showTower(null, 0) } },
     onTargetMode: () => { if (selectedTower) { selectedTower.cycleTargetMode(); ui.showTower(selectedTower, game!.sellValue(selectedTower)) } },
   })
-  ui.mountHud()
+  const gameBar = ui.mountHud()
 
-  // build/select on canvas click during play
+  // --- explicit mode switch: Editor (author/generate/save levels) vs Play (towers + waves) ---
+  function setMode(m: 'edit' | 'play'): void {
+    if (m === 'play') {
+      const lvl = editor.state.level
+      if (!lvl || (lvl.paths?.[0]?.waypoints.length ?? lvl.trace.waypoints.length) < 2) {
+        alert('Сначала создай или сгенерируй уровень'); return
+      }
+      ensureGame()
+      editorBar.style.display = 'none'
+      gameBar.style.display = ''
+    } else {
+      resetPlay(); ui.showTower(null, 0)
+      gameBar.style.display = 'none'
+      editorBar.style.display = ''
+    }
+  }
+  const modeBar = document.createElement('div')
+  modeBar.className = 'pcb-modebar'
+  const modeBtn = (label: string, fn: () => void) => {
+    const b = document.createElement('button'); b.textContent = label; b.onclick = fn; modeBar.appendChild(b)
+  }
+  modeBtn('✎ Редактор', () => setMode('edit'))
+  modeBtn('▶ Играть', () => setMode('play'))
+  document.body.appendChild(modeBar)
+  setMode('edit') // start in the level editor
+
+  // build/select on canvas click — only in Play mode (game exists)
   app.canvas.addEventListener('pointerdown', (e) => {
-    ensureGame() // first board interaction on a level enters play (build phase) so towers can be placed pre-wave
     if (!game) return
     const r = app.canvas.getBoundingClientRect()
     const wx = (e.clientX - r.left - camera.x) / camera.zoom
