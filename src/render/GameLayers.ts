@@ -5,12 +5,9 @@ import type { Tower } from '../game/Tower'
 import type { Enemy } from '../game/Enemy'
 import type { TowerKind } from '../game/towerTypes'
 import { PALETTE } from '../style/palette'
+import { enemyTheme } from './theme'
 
-const ENEMY_COLORS: Record<string, number> = {
-  normal: 0xe0e0e0, fast: 0x6cf2a0, tank: 0xe8c84a, rogue: 0x3fb6d8,
-  brute: 0xe8503a, healer: 0xff8ad0, boss: 0xffd24a,
-}
-export function enemyColor(kind: string): number { return ENEMY_COLORS[kind] ?? 0xffffff }
+export function enemyColor(kind: string): number { return enemyTheme(kind).color }
 
 const ENEMY_RADIUS: Record<string, number> = { normal: 8, fast: 6, tank: 12, rogue: 5, brute: 14, healer: 9, boss: 20 }
 
@@ -56,25 +53,33 @@ function drawTower(g: Graphics, t: Tower): void {
   g.rect(x - s + 1, y - s + 1, s * 0.9, 2).fill({ color: 0xffffff, alpha: 0.12 })
 }
 
+// Enemies ride ON the path as bright neon tokens (concept Ref-B): soft glow halo + bright glyph
+// by themed type + a white-hot core + thin HP bar.
 function drawEnemy(g: Graphics, e: Enemy): void {
   const { x, y } = e.pos
   const r = ENEMY_RADIUS[e.kind] ?? 6
-  const c = enemyColor(e.kind)
-  g.circle(x, y, r + 2).fill({ color: c, alpha: 0.22 }) // glow halo
-  switch (e.kind) {
-    case 'normal': g.roundRect(x - r, y - r, r * 2, r * 2, 1).fill({ color: c }); break
-    case 'fast': poly(g, x, y, r + 1, 3, -Math.PI / 2); g.fill({ color: c }); break // triangle
-    case 'rogue': poly(g, x, y, r + 1, 4, 0); g.fill({ color: c }); break // diamond
-    case 'tank': poly(g, x, y, r, 6, 0); g.fill({ color: c }); g.stroke({ color: 0x000000, width: 1, alpha: 0.4 }); break // hex
-    case 'brute': g.roundRect(x - r, y - r, r * 2, r * 2, 2).fill({ color: c }); g.stroke({ color: 0x000000, width: 1, alpha: 0.4 }); break
-    case 'healer': g.circle(x, y, r).fill({ color: c }); g.rect(x - 1, y - r + 2, 2, r * 2 - 4).fill({ color: 0xffffff }); g.rect(x - r + 2, y - 1, r * 2 - 4, 2).fill({ color: 0xffffff }); break // + cross
-    case 'boss': poly(g, x, y, r, 8, Math.PI / 8); g.fill({ color: c }); g.circle(x, y, r * 0.5).stroke({ color: 0x000000, width: 1.5, alpha: 0.5 }); break // octagon
-    default: g.circle(x, y, r).fill({ color: c })
+  const { color: c, glyph } = enemyTheme(e.kind)
+  // two-layer neon glow
+  g.circle(x, y, r + 5).fill({ color: c, alpha: 0.16 })
+  g.circle(x, y, r + 2).fill({ color: c, alpha: 0.30 })
+  switch (glyph) {
+    case 'circle': g.circle(x, y, r).fill({ color: c }); break
+    case 'square': g.roundRect(x - r, y - r, r * 2, r * 2, 1).fill({ color: c }); break
+    case 'triangle': poly(g, x, y, r + 1, 3, -Math.PI / 2); g.fill({ color: c }); break
+    case 'diamond': poly(g, x, y, r + 1, 4, 0); g.fill({ color: c }); break
+    case 'hex': poly(g, x, y, r, 6, 0); g.fill({ color: c }); break
+    case 'capsule': // twin-dot burst
+      g.circle(x - r * 0.5, y, r * 0.7).fill({ color: c }); g.circle(x + r * 0.5, y, r * 0.7).fill({ color: c }); break
+    case 'bossDiamond':
+      poly(g, x, y, r, 4, 0); g.fill({ color: c })
+      poly(g, x, y, r + 4, 4, 0); g.stroke({ color: c, width: 2, alpha: 0.7 }); break
   }
+  // white-hot core highlight
+  g.circle(x, y, Math.max(1.5, r * 0.32)).fill({ color: 0xffffff, alpha: 0.85 })
   // HP bar
   const w = r * 2, hpFrac = e.hp / e.maxHp
-  g.rect(x - r, y - r - 5, w, 2).fill({ color: 0x000000, alpha: 0.6 })
-  g.rect(x - r, y - r - 5, w * hpFrac, 2).fill({ color: hpFrac > 0.4 ? 0x6cf2a0 : 0xe8503a })
+  g.rect(x - r, y - r - 6, w, 2).fill({ color: 0x000000, alpha: 0.6 })
+  g.rect(x - r, y - r - 6, w * hpFrac, 2).fill({ color: hpFrac > 0.4 ? PALETTE.neonGreen : PALETTE.neonRed })
 }
 
 function drawFx(g: Graphics, f: Fx): void {
