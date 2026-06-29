@@ -1,5 +1,5 @@
 import type { Port, Rot, Tile, TileGrid, TileType } from './types'
-import { tilePorts } from './ports'
+import { tilePorts, opposite } from './ports'
 
 const ROTS: Rot[] = [0, 90, 180, 270]
 function sameSet(a: Port[], b: Port[]): boolean {
@@ -26,9 +26,9 @@ function dirPort(from: [number, number], to: [number, number]): Port {
   const dx = to[0] - from[0], dy = to[1] - from[1]
   if (dx === 1) return 'E'; if (dx === -1) return 'W'; if (dy === 1) return 'S'; return 'N'
 }
-function opp(p: Port): Port { return p === 'N' ? 'S' : p === 'S' ? 'N' : p === 'E' ? 'W' : 'E' }
 
 export function layPath(grid: TileGrid, coords: [number, number][]): void {
+  if (coords.length < 2) throw new Error('layPath needs at least 2 coords')
   for (let i = 0; i < coords.length; i++) {
     const [tc, tr] = coords[i]
     const existing = getTile(grid, tc, tr)
@@ -37,10 +37,10 @@ export function layPath(grid: TileGrid, coords: [number, number][]): void {
     if (i === 0) { type = 'start'; desired = [dirPort(coords[0], coords[1])] }
     else if (i === coords.length - 1) { type = 'finish'; desired = [dirPort(coords[i], coords[i - 1])] }
     else {
-      const pIn = opp(dirPort(coords[i - 1], coords[i]))
+      const pIn = opposite(dirPort(coords[i - 1], coords[i]))
       const pOut = dirPort(coords[i], coords[i + 1])
       desired = [pIn, pOut]
-      type = opp(pIn) === pOut ? 'straight' : 'corner'
+      type = opposite(pIn) === pOut ? 'straight' : 'corner'
     }
     setTile(grid, tc, tr, { type, rot: rotForPorts(type, desired) })
   }
