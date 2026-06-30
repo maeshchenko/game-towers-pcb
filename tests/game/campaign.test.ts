@@ -27,10 +27,11 @@ describe('campaign', () => {
     expect(p.unlockedLevelIndex).toBe(0)
     expect(p.stars).toEqual({})
     expect(p.highscores).toEqual({})
+    expect(p.seenIntroductions).toEqual({})
   })
 
   it('saves and loads progress', () => {
-    const custom = { unlockedLevelIndex: 3, stars: { 0: 3, 1: 2 }, highscores: { 0: 20, 1: 12 }, tutorialCompleted: true }
+    const custom = { unlockedLevelIndex: 3, stars: { 0: 3, 1: 2 }, highscores: { 0: 20, 1: 12 }, tutorialCompleted: true, seenIntroductions: {} }
     saveProgress(custom)
     const loaded = loadProgress()
     expect(loaded).toEqual(custom)

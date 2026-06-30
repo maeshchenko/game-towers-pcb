@@ -20,7 +20,8 @@ Commits in **Russian**, short, clear. **Never** mention AI/Claude/Opus/neural ne
 - `src/pipeline/` spots (coverage-greedy; **`minSpots` lives here**, re-exported from generator), decor (functional PCB blocks + nets), copper (routes traces between pads), generator (`generateLevel` — now tile-based), rng.
 - `src/tiles/` (T0): types/ports/layout/compile/spots/generator. Tiles compile to `paths`+`spots`.
 - `src/render/` Pixi layers (board+hatch, copper, decor, trace, spot, game, overlay), Camera, builders.
-- `src/editor/`, `src/ui/`.
+- `src/editor/`, `src/ui/`. `src/ui/i18n.ts` обеспечивает перевод (RU/EN) интерфейса, настроек, описаний и подсказок обучения.
+
 
 ## Tile model (T0)
 Coarse tile grid over fine cells, **tileSize=6**. Tiles: `straight/corner/fork/bridge/start/finish/empty`, orthogonal ports (N/E/S/W), 45° is a render style of `corner`. Ports matched between neighbors → **connectivity by construction**. `compileRoutes` walks start→finish emitting tile-center waypoints; fork branches; bridge = independent crossing (opposite-port exit). Compiler uses a per-walk visited-set (cycle-safe for hand-edited grids).
@@ -57,5 +58,6 @@ Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-reali
 ## Gotchas
 - Background `Agent` (subagent) calls have HUNG (one stalled ~28 min, empty output). If a subagent's output file doesn't grow for minutes, `TaskStop` it and do the work inline.
 - `.superpowers/` is gitignored (ledger/briefs/reports live there).
-- **Board Grid bounds mismatch**: Генератор тайловой сетки требует минимум 5х5 тайлов (при размере тайла 6 клеток это минимум 30х30). Если запросить меньший размер платы (например, 24х18 в кампании), путь и декор сгенерируются до координат 30х30, выходя за рамки отрисованной платы. Решение: `generateLevel` перерассчитывает `actualBoard` размеры в соответствии с `grid.tcols * grid.tileSize` и `grid.trows * grid.tileSize`, синхронизируя все дочерние системы (медные дорожки, декор, рендер) с истинными границами.
+- **Laser freeze at wave end**: В игровом цикле `Game.tick(dt)` проверка `phase !== 'wave'` выходила из метода до уменьшения времени жизни графических эффектов выстрелов `_fx`. Из-за этого последние лазерные выстрелы башен в волне зависали в воздухе при переходе в фазу `build`. Решение: уменьшение TTL выстрелов вынесено на самый верх метода `tick` до проверки фазы.
+
 

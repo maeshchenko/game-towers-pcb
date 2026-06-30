@@ -1,4 +1,6 @@
 // src/ui/TutorialOverlay.ts
+import { i18n } from './i18n'
+
 export class TutorialOverlay {
   private bubble: HTMLElement | null = null
   private spotlight: HTMLElement | null = null
@@ -33,7 +35,7 @@ export class TutorialOverlay {
 
     this.bubble!.innerHTML = `
       <p style="margin: 0 0 10px 0; line-height: 1.4;">${text}</p>
-      ${onNext ? '<div style="display: flex; justify-content: flex-end;"><button class="pcb-hud-btn active">ДАЛЕЕ</button></div>' : ''}
+      ${onNext ? `<div style="display: flex; justify-content: flex-end;"><button class="pcb-hud-btn active">${i18n.t('tutorial.next')}</button></div>` : ''}
     `
     if (onNext) {
       (this.bubble!.querySelector('button') as HTMLButtonElement).onclick = onNext

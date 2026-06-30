@@ -1,6 +1,9 @@
 // src/ui/AudioEngine.ts
 import type { TowerKind } from '../game/towerTypes'
 
+const MUSIC_VOL_KEY = 'pcb_td_music_vol_v1'
+const SFX_VOL_KEY = 'pcb_td_sfx_vol_v1'
+
 export class AudioEngine {
   private ctx: AudioContext | null = null
   private enabled = false
@@ -8,12 +11,17 @@ export class AudioEngine {
   private nextNoteTime = 0
   private step = 0
 
+  private musicVol = 0.5
+  private sfxVol = 0.5
+
   // Cyberpunk bassline notes: C2, Eb2, G2, F2
   private bassline = [65.41, 65.41, 77.78, 77.78, 98.00, 98.00, 87.31, 87.31]
   // Synth melody arpeggios
   private melody = [130.81, 155.56, 196.00, 233.08, 261.63, 233.08, 196.00, 155.56]
 
-  constructor() {}
+  constructor() {
+    this.loadVolumeSettings()
+  }
 
   init(): void {
     if (this.ctx) return
@@ -25,6 +33,32 @@ export class AudioEngine {
       } catch (e) {
         console.warn('Web Audio Context initialization failed:', e)
       }
+    }
+  }
+
+  loadVolumeSettings(): void {
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
+      const mv = window.localStorage.getItem(MUSIC_VOL_KEY)
+      const sv = window.localStorage.getItem(SFX_VOL_KEY)
+      if (mv !== null) this.musicVol = parseFloat(mv)
+      if (sv !== null) this.sfxVol = parseFloat(sv)
+    }
+  }
+
+  getMusicVolume(): number { return this.musicVol }
+  getSfxVolume(): number { return this.sfxVol }
+
+  setMusicVolume(vol: number): void {
+    this.musicVol = Math.max(0, Math.min(1, vol))
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
+      window.localStorage.setItem(MUSIC_VOL_KEY, String(this.musicVol))
+    }
+  }
+
+  setSfxVolume(vol: number): void {
+    this.sfxVol = Math.max(0, Math.min(1, vol))
+    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
+      window.localStorage.setItem(SFX_VOL_KEY, String(this.sfxVol))
     }
   }
 
@@ -103,7 +137,7 @@ export class AudioEngine {
       osc.type = type
       osc.frequency.setValueAtTime(freq, time)
       
-      gain.gain.setValueAtTime(volume, time)
+      gain.gain.setValueAtTime(volume * this.musicVol, time)
       gain.gain.exponentialRampToValueAtTime(0.0001, time + duration)
       
       osc.start(time)
@@ -128,7 +162,7 @@ export class AudioEngine {
       osc.frequency.setValueAtTime(800, t)
       osc.frequency.exponentialRampToValueAtTime(1200, t + 0.04)
 
-      gain.gain.setValueAtTime(0.08, t)
+      gain.gain.setValueAtTime(0.08 * this.sfxVol, t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04)
 
       osc.start(t)
@@ -150,7 +184,7 @@ export class AudioEngine {
         osc.type = 'square'
         osc.frequency.setValueAtTime(freq, t + delay)
 
-        gain.gain.setValueAtTime(0.05, t + delay)
+        gain.gain.setValueAtTime(0.05 * this.sfxVol, t + delay)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.06)
 
         osc.start(t + delay)
@@ -175,7 +209,7 @@ export class AudioEngine {
         osc.type = 'sine'
         osc.frequency.setValueAtTime(freq, t + delay)
 
-        gain.gain.setValueAtTime(0.08, t + delay)
+        gain.gain.setValueAtTime(0.08 * this.sfxVol, t + delay)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.08)
 
         osc.start(t + delay)
@@ -201,7 +235,7 @@ export class AudioEngine {
       osc.frequency.setValueAtTime(400, t)
       osc.frequency.exponentialRampToValueAtTime(100, t + 0.18)
 
-      gain.gain.setValueAtTime(0.06, t)
+      gain.gain.setValueAtTime(0.06 * this.sfxVol, t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18)
 
       osc.start(t)
@@ -224,7 +258,7 @@ export class AudioEngine {
         osc.frequency.setValueAtTime(450, t)
         osc.frequency.exponentialRampToValueAtTime(120, t + 0.09)
 
-        gain.gain.setValueAtTime(0.12, t)
+        gain.gain.setValueAtTime(0.12 * this.sfxVol, t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.09)
 
         osc.start(t)
@@ -234,7 +268,7 @@ export class AudioEngine {
         osc.frequency.setValueAtTime(800, t)
         osc.frequency.exponentialRampToValueAtTime(250, t + 0.15)
 
-        gain.gain.setValueAtTime(0.06, t)
+        gain.gain.setValueAtTime(0.06 * this.sfxVol, t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15)
 
         osc.start(t)
@@ -244,7 +278,7 @@ export class AudioEngine {
         osc.frequency.setValueAtTime(110, t)
         osc.frequency.exponentialRampToValueAtTime(30, t + 0.22)
 
-        gain.gain.setValueAtTime(0.18, t)
+        gain.gain.setValueAtTime(0.18 * this.sfxVol, t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
 
         osc.start(t)
@@ -255,7 +289,7 @@ export class AudioEngine {
         osc.frequency.setValueAtTime(250, t + 0.04)
         osc.frequency.setValueAtTime(600, t + 0.08)
 
-        gain.gain.setValueAtTime(0.08, t)
+        gain.gain.setValueAtTime(0.08 * this.sfxVol, t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
 
         osc.start(t)
@@ -278,7 +312,7 @@ export class AudioEngine {
       osc.frequency.setValueAtTime(650, t)
       osc.frequency.setValueAtTime(500, t + 0.1)
 
-      gain.gain.setValueAtTime(0.15, t)
+      gain.gain.setValueAtTime(0.15 * this.sfxVol, t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
 
       osc.start(t)
@@ -300,7 +334,7 @@ export class AudioEngine {
       osc.frequency.setValueAtTime(160, t)
       osc.frequency.exponentialRampToValueAtTime(70, t + 0.05)
 
-      gain.gain.setValueAtTime(0.07, t)
+      gain.gain.setValueAtTime(0.07 * this.sfxVol, t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05)
 
       osc.start(t)
@@ -323,7 +357,7 @@ export class AudioEngine {
         osc.type = 'triangle'
         osc.frequency.setValueAtTime(freq, t + idx * 0.1)
 
-        gain.gain.setValueAtTime(0.1, t + idx * 0.1)
+        gain.gain.setValueAtTime(0.1 * this.sfxVol, t + idx * 0.1)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + idx * 0.1 + 0.3)
 
         osc.start(t + idx * 0.1)
@@ -347,7 +381,7 @@ export class AudioEngine {
         osc.type = 'triangle'
         osc.frequency.setValueAtTime(freq, t + idx * 0.1)
 
-        gain.gain.setValueAtTime(0.12, t + idx * 0.1)
+        gain.gain.setValueAtTime(0.12 * this.sfxVol, t + idx * 0.1)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + idx * 0.1 + 0.4)
 
         osc.start(t + idx * 0.1)

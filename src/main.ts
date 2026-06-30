@@ -8,8 +8,8 @@ import { Editor } from './editor/Editor'
 import { MAP_PRESETS } from './app/viewport'
 
 const PITCH_PX = 30 // fixed cell size → bigger board = bigger track on screen (pan to navigate)
-import { mountToolbar, levelToBlobUrl, readLevelFile } from './ui/Toolbar'
-import { mountPanels, updateLevelName } from './ui/Panels'
+import { mountToolbar, levelToBlobUrl, readLevelFile, retranslateToolbar } from './ui/Toolbar'
+import { mountPanels, updateLevelName, retranslatePanels } from './ui/Panels'
 import { Game } from './game/Game'
 import { generateBalancedLevel } from './game/balance'
 import { GameLayers } from './render/GameLayers'
@@ -18,9 +18,10 @@ import type { Board } from './model/level'
 import { levelPaths } from './model/level'
 import type { Tower } from './game/Tower'
 import { CampaignMenu } from './ui/CampaignMenu'
-import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial } from './game/campaign'
+import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial, saveProgress } from './game/campaign'
 import { TutorialOverlay } from './ui/TutorialOverlay'
 import { audioEngine } from './ui/AudioEngine'
+import { i18n } from './ui/i18n'
 
 // Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
@@ -82,10 +83,13 @@ async function boot() {
     resetPlay(); ui.showTower(null, 0)
     board = { cols, rows, pitch: PITCH_PX }; editor.state.board = board
     editor.state.loadLevel(generateBalancedLevel({ board, difficulty, seed }))
-    editor.redraw(); frameLevel(); updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
+    editor.redraw(); frameLevel()
+    const lvlName = editor.state.level?.meta.name
+    updateLevelName(lvlName ? (i18n.t(lvlName as any) || lvlName) : 'LEVEL --')
     const code = `${cols}x${rows}.${difficulty}.${seed}`
     history.replaceState(null, '', `${location.pathname}?t=${code}`)
-    if (seedLabel) seedLabel.textContent = `track ${code}`
+    const trackStr = i18n.lang === 'ru' ? 'трасса' : 'track'
+    if (seedLabel) seedLabel.textContent = `${trackStr} ${code}`
   }
   function newRandomLevel(): void {
     const difficulty = DIFFICULTY_RAMP[Math.min(campaign++, DIFFICULTY_RAMP.length - 1)]
@@ -104,12 +108,17 @@ async function boot() {
     gameLayers.clear()
     editor.enabled = false // freehand trace off — board is generated; canvas drag pans the camera
     const ip = infoPanel(); if (ip) ip.style.display = '' // show static panel back in edit mode
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+    waveCountdown = 0
   }
 
   const editorBar = mountToolbar({
     onNew: () => {
       resetPlay(); ui.showTower(null, 0)
-      editor.state.clear(); renderer.render(emptyLevel()); updateLevelName('Untitled')
+      editor.state.clear(); renderer.render(emptyLevel()); updateLevelName(i18n.lang === 'ru' ? 'Без названия' : 'Untitled')
     },
     onGenerate: () => {
       newRandomLevel()
@@ -129,9 +138,10 @@ async function boot() {
         editor.state.board = board
         if (editor.state.level) editor.state.level.board = board
         editor.redraw(); frameLevel()
-        updateLevelName(editor.state.level?.meta.name ?? 'LEVEL --')
+        const name = editor.state.level?.meta.name
+        updateLevelName(name ? (i18n.t(name as any) || name) : 'LEVEL --')
       } catch (err) {
-        console.error(err); alert('Не удалось загрузить уровень: неверный файл')
+        console.error(err); alert(i18n.t('editor.load_error'))
       }
     },
     onResize: (cols, rows) => { resetPlay(); ui.showTower(null, 0); applyBoard(cols, rows); frameLevel() },
@@ -159,6 +169,10 @@ async function boot() {
   let activeTutorial: TutorialOverlay | null = null
   let tutorialStep = 0
   let tutorialSpotIndex = -1
+  let autoWaveEnabled = true
+  let waveCountdown = 0
+  let countdownTimer: any = null
+  const introducingEnemies = new Set<string>()
 
   function runTutorialStep(step: number): void {
     if (!activeTutorial) return
@@ -173,7 +187,7 @@ async function boot() {
         const sx = (startC[0] * pitch + pitch / 2) * camera.zoom + camera.x + r.left
         const sy = (startC[1] * pitch + pitch / 2) * camera.zoom + camera.y + r.top
         activeTutorial.showStep(
-          'Энергетические пакеты пойдут от зеленого входа (START) к красному выходу (FINISH) по дорожкам платы. Ваша задача — защитить финиш!',
+          i18n.t('tutorial.step0'),
           sx,
           sy,
           () => runTutorialStep(1)
@@ -190,7 +204,7 @@ async function boot() {
         const sx = (targetCell[0] * pitch + pitch / 2) * camera.zoom + camera.x + r.left
         const sy = (targetCell[1] * pitch + pitch / 2) * camera.zoom + camera.y + r.top
         activeTutorial.showStep(
-          'Кликните по этой золотой монтажной площадке, чтобы открыть круговое меню постройки чипа, и выберите PULSE ($40).',
+          i18n.t('tutorial.step1'),
           sx,
           sy,
           null
@@ -203,7 +217,7 @@ async function boot() {
         const sx = (specCell[0] * pitch + pitch / 2) * camera.zoom + camera.x + r.left
         const sy = (specCell[1] * pitch + pitch / 2) * camera.zoom + camera.y + r.top
         activeTutorial.showStep(
-          'Бирюзовые восьмиугольные контакты дают чипам мощный буст (+35% к дальности атаки и урону). Размещайте чипы с умом!',
+          i18n.t('tutorial.step2'),
           sx,
           sy,
           () => runTutorialStep(3)
@@ -216,7 +230,7 @@ async function boot() {
       if (startBtn) {
         const rect = startBtn.getBoundingClientRect()
         activeTutorial.showStep(
-          'Теперь запустите волну, нажав "START WAVE"! Уничтожение волн приносит кредиты, утечки стоят жизней. Удачи!',
+          i18n.t('tutorial.step3'),
           rect.left + rect.width / 2,
           rect.top + rect.height / 2,
           null
@@ -237,13 +251,7 @@ async function boot() {
       }
     },
     onStartWave: () => {
-      ensureGame()
-      game!.startWave()
-      if (activeTutorial && tutorialStep === 3) {
-        completeTutorial()
-        activeTutorial.destroy()
-        activeTutorial = null
-      }
+      onStartWaveClick()
     },
     onTogglePlay: () => { game && (game.speed = game.speed === 0 ? 1 : 0) },
     onSpeed: (m) => { if (game) game.speed = m },
@@ -259,9 +267,39 @@ async function boot() {
       resetPlay()
       activeCampaignLevelIndex = null
       campaignMenu.show()
+    },
+    onLanguageChanged: () => {
+      ui.retranslateHud(game || undefined, editor.state.level?.meta.difficulty ?? 1)
+      if (game) {
+        ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+      }
+      campaignMenu.render()
+      if (activeTutorial) {
+        runTutorialStep(tutorialStep)
+      }
+      retranslateToolbar()
+      updateStartWaveButtonText()
+      const lvlName = editor.state.level?.meta.name
+      retranslatePanels(lvlName ? (i18n.t(lvlName as any) || lvlName) : 'LEVEL --')
+      retranslateModebar()
+      
+      // Update seed label
+      if (editor.state.level) {
+        const code = `${editor.state.board.cols}x${editor.state.board.rows}.${editor.state.level.meta.difficulty}.${editor.state.level.seed}`
+        const trackStr = i18n.lang === 'ru' ? 'трасса' : 'track'
+        seedLabel.textContent = `${trackStr} ${code}`
+      }
+    },
+    onAutoWaveChanged: (val) => {
+      autoWaveEnabled = val
+    },
+    onOpenBestiary: () => {
+      const progress = loadProgress()
+      campaignMenu.showBestiary(progress.unlockedLevelIndex)
     }
   })
   const gameBar = ui.mountHud()
+  ui.setAutoWave(autoWaveEnabled)
 
   campaignMenu = new CampaignMenu({
     onSelectLevel: (index) => {
@@ -277,8 +315,7 @@ async function boot() {
       makeLevel(lvlDef.cols, lvlDef.rows, lvlDef.difficulty, lvlDef.seed)
       setMode('play')
 
-      const progress = loadProgress()
-      if (index === 0 && !progress.tutorialCompleted) {
+      if (index === 0) {
         activeTutorial = new TutorialOverlay()
         setTimeout(() => {
           runTutorialStep(0)
@@ -297,11 +334,12 @@ async function boot() {
     if (m === 'play') {
       const lvl = editor.state.level
       if (!lvl || (lvl.paths?.[0]?.waypoints.length ?? lvl.trace.waypoints.length) < 2) {
-        alert('Сначала создай или сгенерируй уровень'); return
+        alert(i18n.t('editor.alert')); return
       }
       ensureGame()
       editorBar.style.display = 'none'
       gameBar.style.display = ''
+      startBuildPhaseCountdown()
     } else {
       resetPlay(); ui.showTower(null, 0)
       gameBar.style.display = 'none'
@@ -310,26 +348,40 @@ async function boot() {
   }
   const modeBar = document.createElement('div')
   modeBar.className = 'pcb-modebar'
-  const modeBtn = (label: string, fn: () => void) => {
-    const b = document.createElement('button'); b.textContent = label; b.onclick = fn; modeBar.appendChild(b)
+  const modeBtn = (label: string, className: string, fn: () => void) => {
+    const b = document.createElement('button'); b.className = className; b.textContent = label; b.onclick = fn; modeBar.appendChild(b)
   }
   // copyable track-code label (bottom-right) — same code in the URL reproduces the track
   const seedLabel = document.createElement('div')
-  seedLabel.className = 'pcb-seed'; seedLabel.title = 'код трассы — скопируй или открой этот URL, чтобы повторить'
+  seedLabel.className = 'pcb-seed'; seedLabel.title = i18n.t('seed.tooltip')
   document.body.appendChild(seedLabel)
 
   // start from ?t=COLSxROWS.DIFF.SEED if present (reproducible), else show campaign selector
   const t = new URLSearchParams(location.search).get('t')
   const m = t && /^(\d+)x(\d+)\.(\d+)\.(\d+)$/.exec(t)
   const isEditor = location.pathname.replace(/\/+$/, '').endsWith('/editor')
+  const isNew = location.pathname.replace(/\/+$/, '').endsWith('/new')
 
-  if (isEditor) {
+  function retranslateModebar(): void {
+    const btnPlay = modeBar.querySelector('.pcb-mode-btn-play')
+    if (btnPlay) btnPlay.textContent = i18n.t('mode.play')
+    const btnNew = modeBar.querySelector('.pcb-mode-btn-new')
+    if (btnNew) btnNew.textContent = i18n.t('mode.new_map')
+    const btnEdit = modeBar.querySelector('.pcb-mode-btn-editor')
+    if (btnEdit) btnEdit.textContent = i18n.t('mode.editor')
+    seedLabel.title = i18n.t('seed.tooltip')
+  }
+
+  if (isNew) {
     newRandomLevel()
-    modeBtn('▶ Играть', () => { location.href = '/' })
+    setMode('play')
+  } else if (isEditor) {
+    newRandomLevel()
+    modeBtn(i18n.t('mode.play'), 'pcb-mode-btn-play', () => { location.href = '/' })
     setMode('edit')
   } else {
-    modeBtn('🗺 Новая карта', () => { newRandomLevel(); setMode('play') })
-    modeBtn('✎ Редактор', () => { location.href = '/editor' })
+    // Normal campaign screen or code-based launch:
+    // We hide New Map and Editor buttons by default, so we don't call modeBtn() here.
     if (m) {
       makeLevel(+m[1], +m[2], +m[3], +m[4])
       setMode('play')
@@ -342,17 +394,85 @@ async function boot() {
   }
   document.body.appendChild(modeBar)
 
-  // DRAG to pan the camera; a CLICK (no drag) builds/selects in play mode
+  // DRAG/PINCH to pan/zoom the camera; a CLICK (no drag) builds/selects in play mode
   let drag: { x: number; y: number; cx: number; cy: number } | null = null
   let dragged = false
-  app.canvas.addEventListener('pointerdown', (e) => { drag = { x: e.clientX, y: e.clientY, cx: camera.x, cy: camera.y }; dragged = false })
-  window.addEventListener('pointermove', (e) => {
-    if (!drag) return
-    const dx = e.clientX - drag.x, dy = e.clientY - drag.y
-    if (!dragged && Math.hypot(dx, dy) > 4) dragged = true
-    if (dragged) { camera.x = drag.cx + dx; camera.y = drag.cy + dy; camera.apply(renderer.world) }
+  const activePointers = new Map<number, { clientX: number; clientY: number }>()
+  let lastPinchDist = 0
+  let lastMidX = 0
+  let lastMidY = 0
+
+  app.canvas.addEventListener('pointerdown', (e) => {
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+    if (activePointers.size === 1) {
+      drag = { x: e.clientX, y: e.clientY, cx: camera.x, cy: camera.y }
+      dragged = false
+    } else if (activePointers.size === 2) {
+      drag = null
+      const pts = Array.from(activePointers.values())
+      lastPinchDist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY)
+      lastMidX = (pts[0].clientX + pts[1].clientX) / 2
+      lastMidY = (pts[0].clientY + pts[1].clientY) / 2
+    }
   })
-  window.addEventListener('pointerup', (e) => { if (drag && !dragged) handleClick(e); drag = null })
+
+  window.addEventListener('pointermove', (e) => {
+    if (!activePointers.has(e.pointerId)) return
+    activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+
+    if (activePointers.size === 1 && drag) {
+      const dx = e.clientX - drag.x, dy = e.clientY - drag.y
+      if (!dragged && Math.hypot(dx, dy) > 4) dragged = true
+      if (dragged) {
+        camera.x = drag.cx + dx
+        camera.y = drag.cy + dy
+        camera.apply(renderer.world)
+      }
+    } else if (activePointers.size === 2) {
+      const pts = Array.from(activePointers.values())
+      const dist = Math.hypot(pts[0].clientX - pts[1].clientX, pts[0].clientY - pts[1].clientY)
+      const midX = (pts[0].clientX + pts[1].clientX) / 2
+      const midY = (pts[0].clientY + pts[1].clientY) / 2
+
+      if (lastPinchDist > 0) {
+        const factor = dist / lastPinchDist
+        camera.zoomAt(midX, midY, factor)
+        camera.x += (midX - lastMidX)
+        camera.y += (midY - lastMidY)
+        camera.apply(renderer.world)
+      }
+
+      lastPinchDist = dist
+      lastMidX = midX
+      lastMidY = midY
+    }
+  })
+
+  const handlePointerUp = (e: PointerEvent) => {
+    activePointers.delete(e.pointerId)
+    if (activePointers.size < 2) {
+      lastPinchDist = 0
+    }
+    if (activePointers.size === 0) {
+      if (drag && !dragged) handleClick(e)
+      drag = null
+    } else if (activePointers.size === 1) {
+      const remaining = Array.from(activePointers.values())[0]
+      drag = { x: remaining.clientX, y: remaining.clientY, cx: camera.x, cy: camera.y }
+      dragged = true
+    }
+  }
+
+  window.addEventListener('pointerup', handlePointerUp)
+  window.addEventListener('pointercancel', handlePointerUp)
+
+  app.canvas.addEventListener('wheel', (e) => {
+    e.preventDefault()
+    const factor = e.deltaY < 0 ? 1.15 : 0.85
+    const r = app.canvas.getBoundingClientRect()
+    camera.zoomAt(e.clientX - r.left, e.clientY - r.top, factor)
+    camera.apply(renderer.world)
+  }, { passive: false })
   function handleClick(e: PointerEvent): void {
     if (!game) return
 
@@ -404,13 +524,75 @@ async function boot() {
     }
   }
 
+  let lastPhase: string | null = null
+
   // game loop on the Pixi ticker
   app.ticker.add((ticker) => {
-    if (!game) return
+    if (!game) {
+      lastPhase = null
+      return
+    }
     game.tick(ticker.deltaMS / 1000)
     gameLayers.draw(game, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
     camera.apply(renderer.world)
+
+    if (game.state.phase === 'wave') {
+      const activeEnemies = game.enemies()
+      const progress = loadProgress()
+      if (!progress.seenIntroductions) progress.seenIntroductions = {}
+      
+      const newEnemy = activeEnemies.find(e => {
+        const k = e.kind
+        return ['fast', 'healer', 'brute', 'tank', 'rogue', 'boss'].includes(k) && !progress.seenIntroductions![k] && !introducingEnemies.has(k)
+      })
+
+      if (newEnemy) {
+        const kind = newEnemy.kind
+        introducingEnemies.add(kind)
+
+        // Pause game ticks
+        game.speed = 0
+        
+        // Focus camera on the new enemy
+        const enemyX = newEnemy.pos.x
+        const enemyY = newEnemy.pos.y
+        camera.zoom = 1.2
+        camera.x = app.canvas.width / 2 - enemyX * camera.zoom
+        camera.y = app.canvas.height / 2 - enemyY * camera.zoom
+        camera.apply(renderer.world)
+
+        // Reset countdown timer
+        if (countdownTimer) {
+          clearInterval(countdownTimer)
+          countdownTimer = null
+        }
+        waveCountdown = 0
+        updateStartWaveButtonText()
+
+        showEnemyIntroduction(kind, () => {
+          const prog = loadProgress()
+          if (!prog.seenIntroductions) prog.seenIntroductions = {}
+          prog.seenIntroductions[kind] = true
+          saveProgress(prog)
+          introducingEnemies.delete(kind)
+          
+          if (game) {
+            game.speed = 1
+            const speedBtns = document.querySelectorAll('.pcb-hud-right button')
+            speedBtns.forEach(btn => btn.classList.remove('active'))
+            const btn1x = document.querySelector('.pcb-hud-right button:nth-child(3)')
+            if (btn1x) btn1x.classList.add('active')
+          }
+        })
+      }
+    }
+
+    const currentPhase = game.state.phase
+    if (lastPhase === 'wave' && currentPhase === 'build') {
+      startBuildPhaseCountdown()
+    }
+    lastPhase = currentPhase
 
     // Handle win/lose state transitions
     if (game.state.phase === 'win' || game.state.phase === 'lose') {
@@ -497,5 +679,157 @@ async function boot() {
       game = null
     }
   })
+
+  function onStartWaveClick() {
+    ensureGame()
+    if (!game || game.state.phase !== 'build') return
+
+    // Calculate early start bonus
+    if (waveCountdown > 0) {
+      const bonus = Math.ceil(waveCountdown) * 3
+      game.state.add(bonus)
+      audioEngine.playUpgrade() // nice positive sound for bonus!
+      showFloatingBonusText(bonus)
+    }
+
+    if (countdownTimer) {
+      clearInterval(countdownTimer)
+      countdownTimer = null
+    }
+    waveCountdown = 0
+    
+    game.startWave()
+    if (activeTutorial && tutorialStep === 3) {
+      completeTutorial()
+      activeTutorial.destroy()
+      activeTutorial = null
+    }
+    ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+  }
+
+  function startBuildPhaseCountdown() {
+    if (countdownTimer) clearInterval(countdownTimer)
+    if (!game || game.state.wave >= game.state.waveCount) {
+      waveCountdown = 0
+      updateStartWaveButtonText()
+      return
+    }
+
+    // If it is the very first wave of the level, do NOT auto-start and do NOT run the countdown!
+    if (game.state.wave === 0) {
+      waveCountdown = 0
+      updateStartWaveButtonText()
+      return
+    }
+
+    waveCountdown = 5.0
+    updateStartWaveButtonText()
+
+    countdownTimer = setInterval(() => {
+      if (!game || game.state.phase !== 'build') {
+        clearInterval(countdownTimer)
+        countdownTimer = null
+        waveCountdown = 0
+        updateStartWaveButtonText()
+        return
+      }
+
+      waveCountdown -= 0.1
+      if (waveCountdown <= 0) {
+        waveCountdown = 0
+        clearInterval(countdownTimer)
+        countdownTimer = null
+        updateStartWaveButtonText()
+        
+        if (autoWaveEnabled) {
+          ensureGame()
+          game.startWave()
+          ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+        }
+      } else {
+        updateStartWaveButtonText()
+      }
+    }, 100)
+  }
+
+  function updateStartWaveButtonText() {
+    const startBtn = document.querySelector('.next-wave-btn') as HTMLElement
+    if (!startBtn) return
+    if (waveCountdown > 0) {
+      startBtn.textContent = `${i18n.t('hud.start_wave')} (${Math.ceil(waveCountdown)})`
+    } else {
+      startBtn.textContent = i18n.t('hud.start_wave')
+    }
+  }
+
+  function showFloatingBonusText(bonus: number) {
+    const startBtn = document.querySelector('.next-wave-btn')
+    if (!startBtn) return
+    const rect = startBtn.getBoundingClientRect()
+    
+    const el = document.createElement('div')
+    el.className = 'pcb-floating-bonus'
+    el.style.left = `${rect.left + rect.width / 2}px`
+    el.style.top = `${rect.top - 20}px`
+    el.textContent = `+${bonus} ⚡`
+    document.body.appendChild(el)
+    
+    setTimeout(() => el.remove(), 1000)
+  }
+
+  function showEnemyIntroduction(kind: string, onClose: () => void) {
+    const modal = document.createElement('div')
+    modal.className = 'pcb-settings-modal'
+    modal.style.zIndex = '300'
+    modal.style.display = 'flex'
+
+    const color = getEnemyColor(kind)
+    const name = i18n.t(`enemy.${kind}` as any)
+    const desc = i18n.t(`enemy.${kind}.desc` as any)
+    const strat = i18n.t(`enemy.${kind}.strat` as any)
+
+    modal.innerHTML = `
+      <div class="pcb-settings-card" style="width: 360px; text-align: center; border-color: ${color}; box-shadow: 0 0 20px ${color}33;">
+        <h2 style="color: ${color}; font-size: 14px; margin-bottom: 6px;">${i18n.t('enemy.intro.title')}</h2>
+        
+        <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 16px 0;">
+          <div style="width: 48px; height: 48px; border-radius: 50%; background: ${color}22; border: 2px solid ${color}; box-shadow: 0 0 12px ${color}55; display: flex; align-items: center; justify-content: center; font-size: 20px;">
+            👾
+          </div>
+          <div style="font-weight: bold; color: ${color}; font-size: 15px; letter-spacing: 1px;">${name}</div>
+        </div>
+
+        <div style="color: #fff; margin-bottom: 12px; font-size: 11px; line-height: 1.4; text-align: left; background: rgba(10,22,17,0.5); padding: 10px; border-radius: 4px; border: 1px solid #1a4534;">
+          ${desc}
+        </div>
+        
+        <div style="color: #6f8f7e; font-size: 10px; line-height: 1.3; text-align: left; margin-bottom: 20px; padding: 0 10px;">
+          <span style="color: #f0c43a; font-weight: bold;">${i18n.t('bestiary.strategy')}:</span> ${strat}
+        </div>
+
+        <button class="pcb-hud-btn active close-intro-btn" style="width: 100%;">${i18n.t('enemy.intro.ok')}</button>
+      </div>
+    `
+    document.body.appendChild(modal);
+
+    (modal.querySelector('.close-intro-btn') as HTMLElement).onclick = () => {
+      audioEngine.playClick()
+      modal.parentNode?.removeChild(modal)
+      onClose()
+    }
+  }
+
+  function getEnemyColor(kind: string): string {
+    const map: Record<string, string> = {
+      normal: '#ff4d4d',
+      fast: '#36e0e0',
+      healer: '#f0c43a',
+      brute: '#c23bff',
+      tank: '#ff9b3a',
+      rogue: '#4dff7a',
+      boss: '#c23bff',
+    }
+    return map[kind] || '#fff'
+  }
 }
 boot()

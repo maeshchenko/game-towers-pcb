@@ -84,8 +84,10 @@ export class Game {
   }
 
   tick(dt: number): void {
-    if (this.state.phase !== 'wave') return
     const step = dt * this.speed
+    this._fx = this._fx.filter((f) => (f.ttl -= step) > 0)
+
+    if (this.state.phase !== 'wave') return
     this.wm.update(step)
     const active = this.wm.active
     for (const e of active) e.update(step)
@@ -123,9 +125,6 @@ export class Game {
         if (this.onSfx) this.onSfx('kill')
       }
     }
-
-    // decay fire effects
-    this._fx = this._fx.filter((f) => (f.ttl -= step) > 0)
 
     if (this.wm.cleared()) this.state.endWave()
   }
