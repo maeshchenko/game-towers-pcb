@@ -4,8 +4,8 @@ import type { Level } from '../model/level'
 import { levelPaths } from '../model/level'
 import { PALETTE, RENDER } from '../style/palette'
 import { buildTraceStrokes, buildChevrons } from './traceBuilder'
-import { buildDecorShapes, footprintCells } from './decorBuilder'
-import { buildVintageShapes, VFOOT, type VintageKind } from './vintageDecor'
+import { buildDecorShapes, footprintCells, padAnchors } from './decorBuilder'
+import { buildVintageShapes, VFOOT, type VintageKind, vintageLeadEnds } from './vintageDecor'
 import { cellToPx } from '../geom/grid'
 import { makeRng } from '../pipeline/rng'
 
@@ -93,20 +93,38 @@ export class Renderer {
   private drawCopper(level: Level): void {
     if (!level.copper || level.copper.length === 0) return
     const pitch = level.board.pitch
-    const traceW = Math.max(2, pitch * 0.18)
-    const viaR = Math.max(2, pitch * 0.12)
+    const baseW = 3.5    // Wide raised channel
+    const coreW = 1.2    // Thin core copper reflection
+    const viaR = 2.4     // Small solder joint via
 
     for (const copper of level.copper) {
       if (copper.points.length < 2) continue
       const g = new Graphics()
       const pts = copper.points.map(c => cellToPx(c, pitch))
+      
+      const startCell = copper.points[0]
+      const endCell = copper.points[copper.points.length - 1]
+      const startPad = this.getPadPixel(startCell, level)
+      const endPad = this.getPadPixel(endCell, level)
+      if (startPad) pts[0] = startPad
+      if (endPad) pts[pts.length - 1] = endPad
+
+      // Draw base track (dark raised mask channel)
       g.moveTo(pts[0].x, pts[0].y)
       for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y)
-      g.stroke({ color: PALETTE.copperTrace, width: traceW, alpha: 0.85, cap: 'round', join: 'round' })
-      // Tiny via dot at each endpoint
+      g.stroke({ color: 0x143020, width: baseW, alpha: 0.5, cap: 'round', join: 'round' })
+
+      // Draw core highlight (metallic copper core reflection)
+      g.moveTo(pts[0].x, pts[0].y)
+      for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y)
+      g.stroke({ color: PALETTE.copperTrace, width: coreW, alpha: 0.85, cap: 'round', join: 'round' })
+      
+      // Solder joint via dot at each endpoint
       const first = pts[0], last = pts[pts.length - 1]
-      g.circle(first.x, first.y, viaR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
-      g.circle(last.x, last.y, viaR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+      g.circle(first.x, first.y, viaR).fill({ color: 0x143020, alpha: 0.6 })
+      g.circle(first.x, first.y, viaR * 0.5).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+      g.circle(last.x, last.y, viaR).fill({ color: 0x143020, alpha: 0.6 })
+      g.circle(last.x, last.y, viaR * 0.5).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
       this.layers.copper.addChild(g)
     }
   }
@@ -220,8 +238,33 @@ export class Renderer {
       g.circle(p.x, p.y, b).fill({ color: PALETTE.specialCyan, alpha: 0.12 })
       oct(p.x, p.y, b, g)
       g.stroke({ color: PALETTE.specialCyan, width: lw })
-      g.circle(p.x, p.y, b * 0.4).fill({ color: PALETTE.specialCyan, alpha: 0.85 })
+      g.circle(p.x, p.y, Math.max(2, pitch * 0.12)).fill({ color: PALETTE.specialCyan, alpha: 0.85 })
       this.layers.spot.addChild(g)
     }
+  }
+
+  private getPadPixel(cell: [number, number], level: Level): { x: number; y: number } | null {
+    const pitch = level.board.pitch
+    for (const item of level.decor) {
+      const anchors = padAnchors(item)
+      for (let k = 0; k < anchors.length; k++) {
+        if (anchors[k][0] === cell[0] && anchors[k][1] === cell[1]) {
+          const v = VINTAGE_MAP[item.kind]
+          if (v) {
+            const fp = footprintCells(item.kind, item.variant, item.rot)
+            const boxW = fp.w * pitch, boxH = fp.h * pitch
+            const vf = VFOOT[v]
+            const vp = Math.min(boxW / vf.w, boxH / vf.h)
+            const ox = item.cell[0] * pitch + (boxW - vf.w * vp) / 2
+            const oy = item.cell[1] * pitch + (boxH - vf.h * vp) / 2
+            const leads = vintageLeadEnds(v, vp)
+            if (leads[k]) {
+              return { x: ox + leads[k].x, y: oy + leads[k].y }
+            }
+          }
+        }
+      }
+    }
+    return null
   }
 }

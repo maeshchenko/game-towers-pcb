@@ -8,6 +8,9 @@ import type { ShapeSpec } from './render/decorBuilder'
 import { buildVintageShapes, vintageLeadEnds, vintagePins, pin, VFOOT, type VintageKind, type VintageOpts } from './render/vintageDecor'
 import { footprintCells } from './render/decorBuilder'
 import { amplifierStage, timer555, ledBar, opAmp, transistorSwitch, mcuCore, powerSupply, type RefAlloc, type BlockResult } from './pipeline/circuits'
+import { routeOctilinear } from './geom/router'
+import { cellKey } from './geom/grid'
+import type { Cell } from './geom/types'
 
 // SMD decor kind → vintage part (same mapping the game uses)
 const KMAP: Record<string, VintageKind> = {
@@ -22,6 +25,36 @@ const TILE = 172
 const COLS = 7
 type Pt = { x: number; y: number }
 
+function sub(a: Pt, b: Pt): Pt { return { x: a.x - b.x, y: a.y - b.y } }
+function add(a: Pt, b: Pt): Pt { return { x: a.x + b.x, y: a.y + b.y } }
+function scale(a: Pt, s: number): Pt { return { x: a.x * s, y: a.y * s } }
+function norm(a: Pt): Pt { const l = Math.hypot(a.x, a.y) || 1; return { x: a.x / l, y: a.y / l } }
+function len(a: Pt): number { return Math.hypot(a.x, a.y) }
+
+function filletPathPixels(pts: Pt[], radius: number, arcSteps = 6): Pt[] {
+  if (pts.length < 3) return pts
+  const out: Pt[] = [pts[0]]
+  for (let i = 1; i < pts.length - 1; i++) {
+    const prev = pts[i - 1], cur = pts[i], next = pts[i + 1]
+    const inDir = norm(sub(cur, prev))
+    const outDir = norm(sub(next, cur))
+    const r = Math.min(radius, len(sub(cur, prev)) / 2, len(sub(next, cur)) / 2)
+    const start = sub(cur, scale(inDir, r))
+    const end = add(cur, scale(outDir, r))
+    out.push(start)
+    for (let s = 1; s < arcSteps; s++) {
+      const t = s / arcSteps
+      const a = scale(start, (1 - t) * (1 - t))
+      const b = scale(cur, 2 * (1 - t) * t)
+      const c = scale(end, t * t)
+      out.push(add(add(a, b), c))
+    }
+    out.push(end)
+  }
+  out.push(pts[pts.length - 1])
+  return out
+}
+
 function drawShapes(shapes: ShapeSpec[], ox = 0, oy = 0): Container {
   const c = new Container(), g = new Graphics(), texts: ShapeSpec[] = []
   for (const s of shapes) {
@@ -32,7 +65,16 @@ function drawShapes(shapes: ShapeSpec[], ox = 0, oy = 0): Container {
     else texts.push(s)
   }
   c.addChild(g)
-  for (const s of texts) if (s.type === 'text') { const t = new Text({ text: s.text, style: { fontFamily: 'monospace', fontSize: s.size, fill: s.color } }); t.position.set(s.x + ox, s.y + oy); c.addChild(t) }
+  for (const s of texts) {
+    if (s.type === 'text') {
+      const t = new Text({ text: s.text, style: { fontFamily: 'monospace', fontSize: s.size, fill: s.color } })
+      if (s.align === 'center') {
+        t.anchor.set(0.5)
+      }
+      t.position.set(s.x + ox, s.y + oy)
+      c.addChild(t)
+    }
+  }
   return c
 }
 const leadsAt = (kind: VintageKind, gx: number, gy: number): Pt[] =>
@@ -133,7 +175,7 @@ async function boot() {
     const la = A.leads[Math.max(0, pin(pr.a.kind, pr.a.pin))], lb = B.leads[Math.max(0, pin(pr.b.kind, pr.b.pin))]
     const ea = esc(la, A.gx, A.gy, pr.a.kind), eb = esc(lb, B.gx, B.gy, pr.b.kind)
     // perpendicular stubs → up into the clear channel → across → down into the target (head-on)
-    const route = simp([la, ea, { x: ea.x, y: channelY }, { x: eb.x, y: channelY }, eb, lb])
+    const route = filletPathPixels(simp([la, ea, { x: ea.x, y: channelY }, { x: eb.x, y: channelY }, eb, lb]), 12)
     const cg = new Graphics()
     cg.moveTo(route[0].x, route[0].y); for (let k = 1; k < route.length; k++) cg.lineTo(route[k].x, route[k].y)
     cg.stroke({ color: cop, width: 2.5, cap: 'round', join: 'round' })
@@ -169,7 +211,7 @@ async function boot() {
   const Lp = (kind: VintageKind, leads: Pt[], name: string): Pt => leads[Math.max(0, pin(kind, name))]
   const draw = (pts: Pt[], w = 2.5) => { copperG.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) copperG.lineTo(pts[i].x, pts[i].y); copperG.stroke({ color: COP, width: w, cap: 'round', join: 'round' }) }
   const seg = (a: Pt, b: Pt) => draw([a, b])                                   // straight (aligned pads)
-  const linkVHV = (a: Pt, b: Pt, midY: number) => draw([a, { x: a.x, y: midY }, { x: b.x, y: midY }, b]) // vertical-horizontal-vertical
+  const linkVHV = (a: Pt, b: Pt, midY: number) => draw(filletPathPixels([a, { x: a.x, y: midY }, { x: b.x, y: midY }, b], 12)) // vertical-horizontal-vertical
   const junction = (p: Pt) => topG.circle(p.x, p.y, 3.5).fill({ color: COP })
   const thermal = (p: Pt) => { topG.circle(p.x, p.y, 5.5).stroke({ color: COP, width: 1.5 }); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) topG.moveTo(p.x, p.y).lineTo(p.x + dx * 5.5, p.y + dy * 5.5).stroke({ color: COP, width: 2 }) }
   const cap = (t: string, x: number, yy: number) => text(t, x, yy, PALETTE.textDim, 11)
@@ -209,15 +251,120 @@ async function boot() {
     const g = new Graphics(); g.rect(bx, by, panelW, panelH).fill({ color: 0x0c2418, alpha: 1 }).stroke({ color: 0x1c3a2b, width: 1 }); world.addChild(g)
     text(title, bx + 8, by + 8, 0x8fb8a0, 11)
     const innerX = bx + 16, innerY = by + 30
-    const center = (it: { kind: string; variant: number; rot: 0 | 90 | 180 | 270; cell: [number, number] }) => {
+
+    const P_route = P / 2
+    const cols = Math.ceil(panelW / P_route), rows = Math.ceil(panelH / P_route)
+
+    const getItemPads = (it: typeof blk.items[number], itemIdx: number) => {
+      const v = KMAP[it.kind]
+      if (!v) return []
       const fp = footprintCells(it.kind, it.variant, it.rot)
-      return { x: innerX + it.cell[0] * P + fp.w * P / 2, y: innerY + it.cell[1] * P + fp.h * P / 2 }
+      const boxW = fp.w * P, boxH = fp.h * P, vf = VFOOT[v]
+      const vp = Math.min(boxW / vf.w, boxH / vf.h)
+      const ox = innerX + it.cell[0] * P + (boxW - vf.w * vp) / 2
+      const oy = innerY + it.cell[1] * P + (boxH - vf.h * vp) / 2
+      return vintageLeadEnds(v, vp).map((l, padIdx) => ({
+        x: ox + l.x, y: oy + l.y, itemIdx, padIdx, kind: v, fp
+      }))
     }
-    const cg = new Graphics() // copper under the parts
-    for (const net of blk.nets) for (let k = 1; k < net.length; k++) {
-      const a = center(blk.items[net[0]]), b = center(blk.items[net[k]])
-      cg.moveTo(a.x, a.y).lineTo(b.x, a.y).lineTo(b.x, b.y).stroke({ color: COP4, width: 2.5, cap: 'round', join: 'round' })
+
+    const padToCell = (pad: { x: number; y: number }): Cell => {
+      const cx = Math.max(0, Math.min(cols - 1, Math.round((pad.x - innerX - P_route / 2) / P_route)))
+      const cy = Math.max(0, Math.min(rows - 1, Math.round((pad.y - innerY - P_route / 2) / P_route)))
+      return [cx, cy]
     }
+    const cellToPx = (c: Cell): Pt => ({ x: innerX + c[0] * P_route + P_route / 2, y: innerY + c[1] * P_route + P_route / 2 })
+
+    const getEscapeDir = (kind: VintageKind, padIdx: number, cy_cell: number): { x: number; y: number } => {
+      switch (kind) {
+        case 'resAxial': case 'diodeAxial': case 'inductorAxial': return padIdx === 0 ? { x: -1, y: 0 } : { x: 1, y: 0 }
+        case 'to92': case 'to220': return { x: 0, y: 1 }
+        case 'dipIC': return padIdx % 2 === 0 ? { x: 0, y: -1 } : { x: 0, y: 1 }
+        default: return cy_cell < 4 ? { x: 0, y: 1 } : { x: 0, y: -1 }
+      }
+    }
+    const getEscapeCell = (c: Cell, dir: { x: number; y: number }): Cell => {
+      const ex = c[0] + dir.x * 2, ey = c[1] + dir.y * 2
+      if (ex >= 0 && ex < cols && ey >= 0 && ey < rows) return [ex, ey]
+      return c
+    }
+
+    // Initialize blocked set with specific component body keep-outs
+    const blocked = new Set<string>()
+    for (const it of blk.items) {
+      const v = KMAP[it.kind]
+      if (!v) continue
+      const fp = footprintCells(it.kind, it.variant, it.rot)
+      const scx = it.cell[0] * 2, scy = it.cell[1] * 2, fw = fp.w * 2, fh = fp.h * 2
+      for (let dx = 0; dx < fw; dx++) {
+        for (let dy = 0; dy < fh; dy++) {
+          let block = false
+          if (v === 'dipIC') { if (dy >= 2 && dy <= fh - 3) block = true }
+          else if (v === 'resAxial' || v === 'diodeAxial' || v === 'inductorAxial') { if (dx >= 2 && dx <= fw - 3) block = true }
+          else if (v === 'to92' || v === 'to220') { if (dy <= fh - 3) block = true }
+          else { if (dx >= 2 && dx <= fw - 3) block = true }
+          if (block) blocked.add(cellKey([scx + dx, scy + dy]))
+        }
+      }
+    }
+
+    const padNet = new Map<string, number>()
+    const cg = new Graphics()
+
+    blk.nets.forEach((net, netIdx) => {
+      for (let k = 1; k < net.length; k++) {
+        const itemIdxA = net[k - 1], itemIdxB = net[k]
+        const itA = blk.items[itemIdxA], itB = blk.items[itemIdxB]
+        const padsA = getItemPads(itA, itemIdxA), padsB = getItemPads(itB, itemIdxB)
+        if (padsA.length === 0 || padsB.length === 0) continue
+
+        let bestPair: { padA: typeof padsA[0]; padB: typeof padsB[0]; dist: number } | null = null
+        for (const pA of padsA) {
+          if (padNet.has(`${itemIdxA}_${pA.padIdx}`) && padNet.get(`${itemIdxA}_${pA.padIdx}`) !== netIdx) continue
+          for (const pB of padsB) {
+            if (padNet.has(`${itemIdxB}_${pB.padIdx}`) && padNet.get(`${itemIdxB}_${pB.padIdx}`) !== netIdx) continue
+            const dist = Math.hypot(pA.x - pB.x, pA.y - pB.y)
+            if (!bestPair || dist < bestPair.dist) bestPair = { padA: pA, padB: pB, dist }
+          }
+        }
+        if (!bestPair) continue
+
+        const { padA, padB } = bestPair
+        padNet.set(`${itemIdxA}_${padA.padIdx}`, netIdx)
+        padNet.set(`${itemIdxB}_${padB.padIdx}`, netIdx)
+
+        const cellA = padToCell(padA), cellB = padToCell(padB)
+        const dirA = getEscapeDir(padA.kind, padA.padIdx, itA.cell[1])
+        const dirB = getEscapeDir(padB.kind, padB.padIdx, itB.cell[1])
+        const escA = getEscapeCell(cellA, dirA), escB = getEscapeCell(cellB, dirB)
+        
+        // temporarily unblock local escape paths
+        const unblocks = [cellA, escA, [cellA[0] + dirA.x, cellA[1] + dirA.y], cellB, escB, [cellB[0] + dirB.x, cellB[1] + dirB.y]].map(c => cellKey([c[0], c[1]]))
+        const restoring = unblocks.filter(k => blocked.has(k))
+        unblocks.forEach(k => blocked.delete(k))
+
+        const cellPath = routeOctilinear({ cols, rows, start: escA, goal: escB, blocked, turnPenalty: 1.5 })
+
+        restoring.forEach(k => blocked.add(k))
+
+        let pxPath: Pt[] = []
+        if (cellPath) {
+          const fullPath: Cell[] = [cellA, [cellA[0] + dirA.x, cellA[1] + dirA.y], ...(cellPath as Cell[]), [cellB[0] + dirB.x, cellB[1] + dirB.y], cellB]
+          pxPath = simp(fullPath.map(cellToPx))
+          pxPath[0] = { x: padA.x, y: padA.y }
+          pxPath[pxPath.length - 1] = { x: padB.x, y: padB.y }
+          for (const c of fullPath) blocked.add(cellKey(c))
+        } else {
+          pxPath = [{ x: padA.x, y: padA.y }, { x: padB.x, y: padB.y }]
+        }
+
+        const smoothed = filletPathPixels(pxPath, 4)
+        cg.moveTo(smoothed[0].x, smoothed[0].y)
+        for (let i = 1; i < smoothed.length; i++) cg.lineTo(smoothed[i].x, smoothed[i].y)
+        cg.stroke({ color: COP4, width: 2.2, cap: 'round', join: 'round' })
+      }
+    })
+
     world.addChild(cg)
     for (const it of blk.items) {
       const v = KMAP[it.kind]; if (!v) continue

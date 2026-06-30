@@ -49,6 +49,7 @@ serpentineH/V, spiral, branching (split→merge→one finish), multiSpawn (N spa
 - **Spots & towers (linked sizes):** build spot = gold bracket+crosshair+glow plate, half-size `max(11,pitch*0.62)`. Special spot = cyan octagon, gives boost `k=1.35` to range+damage+aura (`Tower.update`). Tower = navy IC chip + gold pin rows + neon function icon, size `max(11,pitch*0.55)` (fits the bracket); small substrate mask hides bracket under chip without covering the path; special tower wears a cyan octagon badge.
 - **Decor:** vintage through-hole top-down set (`src/render/vintageDecor.ts`), mapped from SMD kinds via `VINTAGE_MAP` in `Renderer.ts`. Functional blocks (`pipeline/circuits.ts`) placed in free space and linked into ONE network via MST output→input (`pipeline/decor.ts` §5). `vintageLeadEnds`/`vintagePins` must stay index-aligned.
 - **kit2** (`src/kit2.ts`): 4 sections — (1) component library, (2) pairwise channel-routed connections (head-on pad entry, no crossings), (3) compact hand-laid board, (4) 20 large circuits.
+- **kit2 routing/styling conventions**: traces are routed pad-to-pad (from exact lead end positions) using `routeOctilinear` and smoothed via `filletPathPixels` to turn at 45° and follow realistic PCB channels without body overlaps. Components include high-fidelity visual features like LED leadframes, cylindrical reflections on axial parts, and printed value/part labels.
 
 **Generator robustness (fixed):** `generateLevel` must NEVER throw. Spiral is a connected turtle (not concentric rings); branching/multiSpawn/cross fall back to serpentineH on too-small grids. Regression test covers 4 boards × 6 archetypes × difficulties (`tests/tiles/generator.test.ts`).
 
@@ -59,5 +60,10 @@ Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-reali
 - Background `Agent` (subagent) calls have HUNG (one stalled ~28 min, empty output). If a subagent's output file doesn't grow for minutes, `TaskStop` it and do the work inline.
 - `.superpowers/` is gitignored (ledger/briefs/reports live there).
 - **Laser freeze at wave end**: В игровом цикле `Game.tick(dt)` проверка `phase !== 'wave'` выходила из метода до уменьшения времени жизни графических эффектов выстрелов `_fx`. Из-за этого последние лазерные выстрелы башен в волне зависали в воздухе при переходе в фазу `build`. Решение: уменьшение TTL выстрелов вынесено на самый верх метода `tick` до проверки фазы.
+- **Semicolon parsing gotcha**: В JS/TS выражение `(something)` на новой строке парсится как вызов функции от предыдущей строки, если там нет точки с запятой. Всегда ставьте `;` перед круглыми скобками на новой строке (например, перед вызовом замыканий кнопок после `appendChild`).
+- **Справочник сигналов (Бестиарий) и Интро врагов**: Кнопка `📖` в HUD и `🔍 БЕСТИАРИЙ` в меню Кампании открывают окно со всеми врагами и их слабостями. При первом появлении на поле боя нового типа врага, игра ставится на паузу (`speed = 0`), камера зумируется на враге и выводится попап-карточка. Для защиты от бесконечного спама окон на тике используется `introducingEnemies` блокирующее множество.
+- **Инварианты запуска волн**: Первая волна любого уровня запускается ТОЛЬКО вручную. Отсчет автоволн (5 секунд) включается начиная со 2-й волны. Досрочный запуск волн дает бонус `оставшиеся_секунды * 3` энергии с летящим текстом `+15 ⚡`.
+- **Язык и Подсказки**: Русский язык является дефолтным (`i18n.lang = 'ru'`). Блок подсказок слева внизу прокручивается автоматически каждые 8 секунд или вручную стрелками. Таймер сбрасывается при ручном переключении.
+
 
 

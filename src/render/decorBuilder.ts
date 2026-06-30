@@ -25,8 +25,8 @@ const FOOTPRINT: Record<string, { w: number; h: number }> = {
   tant:         { w: 2, h: 1 },
   tantalum:     { w: 2, h: 1 },
   diode:        { w: 2, h: 1 },
-  led:          { w: 1, h: 1 },
-  sot23:        { w: 2, h: 2 },
+  led:          { w: 2, h: 1 },
+  sot23:        { w: 3, h: 2 },
   crystal:      { w: 2, h: 2 },
   xtal:         { w: 2, h: 2 },
   inductor:     { w: 2, h: 1 },
@@ -167,22 +167,22 @@ export function padAnchors(item: DecorItem): [number, number][] {
       }
     }
 
-    // Electrolytic: 2×2, two pins at top-center and bottom-center
+    // Electrolytic: 2×2, two pins at left-center and right-center
     case 'electrolytic': case 'elec': {
-      const midx = Math.floor(w / 2)
-      return [[cx + midx, cy], [cx + midx, cy + h - 1]]
+      const midy = Math.floor(h / 2)
+      return [[cx, cy + midy], [cx + w - 1, cy + midy]]
     }
 
     // Power inductor: side pads at mid-height
     case 'pwrind':
       return [[cx, cy + Math.floor(h / 2)], [cx + w - 1, cy + Math.floor(h / 2)]]
 
-    // SOT-23: 3 pads (2 bottom + 1 top)
+    // SOT-23: 3 inline pads at the bottom
     case 'sot23':
       return [
         [cx, cy + h - 1],
+        [cx + Math.floor(w / 2), cy + h - 1],
         [cx + w - 1, cy + h - 1],
-        [cx + Math.floor(w / 2), cy],
       ]
 
     // Crystal: 4 corner pads
