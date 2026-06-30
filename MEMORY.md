@@ -77,6 +77,15 @@ Mine, pcb-specific (NOT the reference repo's). Runs the real pcb sim (`game/sim.
 ## Docs
 Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-realism research under `docs/research/` and `.superpowers/sdd/` (gitignored scratch: briefs, reports, progress ledger).
 
+## Challenge & Balance Overhaul (G2)
+- **Enemy Special Abilities**:
+  - **Regenerator (`healer`)**: Periodic AoE healing in a `2.5`-cell radius at `(15 + target.maxHp * 0.03) * dt` per second. Excludes healing itself. Visually highlighted with a pulsing green ring.
+  - **Glitch (`rogue`)**: Moves erratically by fluctuating between `0.3x` and `2.2x` of base speed every `0.6s`. Direct counter: slowed state (from **SLOW** tower aura) stabilizes speed to a constant `slowFactor`.
+  - **Boss (`boss`)**: Completely immune to slow effects (`slowFactor = 1`).
+- **Tower Stats & Roles**: Sniper buffed (high single-target damage & pierce), Mortar buffed (heavy splash damage & radius), Tesla buffed (lightning chain damage) to create distinct utility profiles.
+- **Reference Defense Strategy**: Upgraded `basicPlacement` in `sim.ts` to build a competent multi-tower setup (Sniper/Mortar on special spots, balanced 20/20/20/20/20 mix of Slow/Tesla/Mortar/Sniper/Cannon on regular spots).
+- **Campaign HP Balancing**: All 12 level `hpMul` multipliers retuned deterministically using `balance-optimize` and saved back into level files.
+
 ## Gotchas
 - Background `Agent` (subagent) calls have HUNG (one stalled ~28 min, empty output). If a subagent's output file doesn't grow for minutes, `TaskStop` it and do the work inline.
 - `.superpowers/` is gitignored (ledger/briefs/reports live there).

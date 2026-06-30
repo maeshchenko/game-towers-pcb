@@ -56,6 +56,13 @@ function drawEnemy(g: Graphics, e: Enemy): void {
   // two-layer neon glow
   g.circle(x, y, r + 5).fill({ color: c, alpha: 0.16 })
   g.circle(x, y, r + 2).fill({ color: c, alpha: 0.30 })
+
+  if (e.kind === 'healer') {
+    const timeCycle = (Date.now() / 1500) % 1.0 // 1.5 second loop
+    const rangePx = 75 // 2.5 * 30 pitch
+    g.circle(x, y, rangePx * (0.3 + 0.7 * timeCycle))
+     .stroke({ color: PALETTE.neonGreen, width: 1.5, alpha: 0.3 * (1 - timeCycle) })
+  }
   switch (glyph) {
     case 'circle': g.circle(x, y, r).fill({ color: c }); break
     case 'square': g.roundRect(x - r, y - r, r * 2, r * 2, 1).fill({ color: c }); break

@@ -6,7 +6,7 @@ import { mcuCore, powerSupply, timer555, passiveBank } from '../../pipeline/circ
 // TWO spawns merge → an inward spiral kill-zone that self-crosses (a bridge) → ONE finish.
 // Decor centrepiece: an MCU "generator" core in the middle, ringed by supporting blocks, all wired.
 export function buildLevel12(board: Board): Level {
-  const b = new LevelBuilder(board, 112, { name: 'campaign.level11.name', difficulty: 9, archetype: 'cross', tune: { hpMul: 0.9 } })
+  const b = new LevelBuilder(board, 112, { name: 'campaign.level11.name', difficulty: 9, archetype: 'cross', tune: { hpMul: 2.50 } })
   const merge: [number, number] = [20, 22]
   const spiral: [number, number][] = [
     merge, [52, 22], [52, 40], [8, 40], [8, 8], [44, 8], [44, 30], [24, 30],

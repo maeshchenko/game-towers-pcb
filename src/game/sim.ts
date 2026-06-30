@@ -10,13 +10,26 @@ import { startLives } from './difficulty'
  * Stops when the current spot's tower is unaffordable or all spots are filled.
  */
 export function basicPlacement(game: Game): void {
-  // Reference defense: fill the highest-value pads (best coverage first — a thinking player) with cannon
-  // DPS and a slow at every 4th, then drain leftover gold into upgrades round-robin.
+  // Competent reference defense: builds a strategic mixture of towers to deal with all enemy types.
+  // Special spots get long-range and heavy damage towers (sniper/mortar).
+  // Regular spots get a distribution of slow (20%), tesla (20%), mortar (20%), sniper (20%), and cannon (20%).
   const order = game.buildOrder()
   for (let r = 0; r < order.length; r++) {
     const i = order[r]
     if (!game.canBuild(i)) continue
-    const kind: TowerKind = r % 4 === 3 ? 'slow' : 'cannon'
+
+    let kind: TowerKind = 'cannon'
+    if (game.isSpecial(i)) {
+      kind = r % 2 === 0 ? 'sniper' : 'mortar'
+    } else {
+      const mod = r % 5
+      if (mod === 0) kind = 'slow'
+      else if (mod === 1) kind = 'tesla'
+      else if (mod === 2) kind = 'mortar'
+      else if (mod === 3) kind = 'sniper'
+      else kind = 'cannon'
+    }
+
     if (game.state.gold < TOWER_DEFS[kind][0].cost) continue
     game.build(kind, i)
   }

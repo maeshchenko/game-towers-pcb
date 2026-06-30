@@ -52,6 +52,7 @@ async function boot() {
   let seedCounter = 1
   let campaign = 0 // index into DIFFICULTY_RAMP; advances each Auto-Generate
   let game: Game | null = null
+  let selectedSpeed = 1
   let selectedTower: Tower | null = null
   const gameLayers = new GameLayers(renderer.layers.game)
 
@@ -135,6 +136,8 @@ async function boot() {
       countdownTimer = null
     }
     waveCountdown = 0
+    selectedSpeed = 1
+    ui.selectSpeed(1)
   }
 
   const editorBar = mountToolbar({
@@ -275,8 +278,25 @@ async function boot() {
     onStartWave: () => {
       onStartWaveClick()
     },
-    onTogglePlay: () => { game && (game.speed = game.speed === 0 ? 1 : 0) },
-    onSpeed: (m) => { if (game) game.speed = m },
+    onTogglePlay: () => {
+      if (game) {
+        if (game.speed === 0) {
+          game.speed = selectedSpeed
+          ui.selectSpeed(selectedSpeed)
+        } else {
+          selectedSpeed = game.speed
+          game.speed = 0
+          ui.selectSpeed(0)
+        }
+      }
+    },
+    onSpeed: (m) => {
+      if (game) {
+        selectedSpeed = m
+        game.speed = m
+        ui.selectSpeed(m)
+      }
+    },
     onUpgrade: () => { if (game && selectedTower) { game.upgrade(selectedTower); ui.showTower(selectedTower, game.sellValue(selectedTower)) } },
     onSell: () => { if (game && selectedTower) { game.sell(selectedTower); selectedTower = null; ui.showTower(null, 0) } },
     onTargetMode: () => { if (selectedTower) { selectedTower.cycleTargetMode(); ui.showTower(selectedTower, game!.sellValue(selectedTower)) } },
@@ -580,11 +600,11 @@ async function boot() {
       const progress = loadProgress()
       if (!progress.seenIntroductions) progress.seenIntroductions = {}
       
-      // Enemy introductions are part of onboarding → only on the FIRST campaign level. Later levels
-      // (incl. random/editor where activeCampaignLevelIndex is null) never interrupt with intros.
-      const newEnemy = activeCampaignLevelIndex === 0 ? activeEnemies.find(e => {
+      // Enemy introductions are part of onboarding → trigger on any campaign level (activeCampaignLevelIndex !== null)
+      // the first time that specific enemy type is encountered.
+      const newEnemy = activeCampaignLevelIndex !== null ? activeEnemies.find(e => {
         const k = e.kind
-        return ['fast', 'healer', 'brute', 'tank', 'rogue', 'boss'].includes(k) && !progress.seenIntroductions![k] && !introducingEnemies.has(k)
+        return ['normal', 'fast', 'healer', 'brute', 'tank', 'rogue', 'boss'].includes(k) && !progress.seenIntroductions![k] && !introducingEnemies.has(k)
       }) : undefined
 
       if (newEnemy) {
@@ -594,12 +614,14 @@ async function boot() {
         // Pause game ticks
         game.speed = 0
         
-        // Focus camera on the new enemy
+        // Focus camera on the new enemy (centered in the visible play area, respecting margins)
         const enemyX = newEnemy.pos.x
         const enemyY = newEnemy.pos.y
+        const mL = 156, mR = 24, mT = 56, mB = 64
+        const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
         camera.zoom = 1.2
-        camera.x = app.canvas.width / 2 - enemyX * camera.zoom
-        camera.y = app.canvas.height / 2 - enemyY * camera.zoom
+        camera.x = mL + aw / 2 - enemyX * camera.zoom
+        camera.y = mT + ah / 2 - enemyY * camera.zoom
         camera.apply(renderer.world)
 
         // Reset countdown timer
@@ -618,11 +640,8 @@ async function boot() {
           introducingEnemies.delete(kind)
           
           if (game) {
-            game.speed = 1
-            const speedBtns = document.querySelectorAll('.pcb-hud-right button')
-            speedBtns.forEach(btn => btn.classList.remove('active'))
-            const btn1x = document.querySelector('.pcb-hud-right button:nth-child(3)')
-            if (btn1x) btn1x.classList.add('active')
+            game.speed = selectedSpeed
+            ui.selectSpeed(selectedSpeed)
           }
         })
       }

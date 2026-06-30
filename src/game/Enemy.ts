@@ -14,6 +14,8 @@ export class Enemy {
   private slowFactor = 1
   private slowTimer = 0
 
+  private rogueTimer = 0
+
   constructor(def: EnemyDef, points: Pt[], hpScale: number, speedPx: number) {
     this.hp = Math.round(def.hp * hpScale)
     this.maxHp = this.hp
@@ -31,8 +33,24 @@ export class Enemy {
 
   update(dt: number): void {
     if (this.hp <= 0) return
-    if (this.slowTimer > 0) { this.slowTimer -= dt; if (this.slowTimer <= 0) this.slowFactor = 1 }
-    this.follower.advance(dt * this.slowFactor)
+    if (this.slowTimer > 0) {
+      this.slowTimer -= dt
+      if (this.slowTimer <= 0) this.slowFactor = 1
+    }
+    
+    let speedFactor = this.slowFactor
+    if (this.kind === 'rogue') {
+      if (this.slowFactor < 1) {
+        // Slow aura stabilizes the rogue's erratic speed to a constant slow speed
+        speedFactor = this.slowFactor
+      } else {
+        this.rogueTimer += dt
+        const phase = Math.floor(this.rogueTimer / 0.6) % 2
+        speedFactor = phase === 0 ? 0.3 : 2.2
+      }
+    }
+    
+    this.follower.advance(dt * speedFactor)
   }
 
   takeDamage(n: number, pierce = 0): void {
@@ -40,6 +58,7 @@ export class Enemy {
   }
 
   applySlow(factor: number, dur: number): void {
+    if (this.kind === 'boss') return // Boss is immune to slows
     this.slowFactor = Math.min(this.slowFactor, factor)
     this.slowTimer = Math.max(this.slowTimer, dur)
   }

@@ -48,6 +48,7 @@ export class Game {
   /** spot indices ordered by strategic value (coverage) desc — a competent player's build priority */
   buildOrder(): number[] { return this.spots.map((_, i) => i).sort((a, b) => this.spots[b].score - this.spots[a].score) }
   canBuild(i: number): boolean { return (this.state.phase === 'build' || this.state.phase === 'wave') && !!this.spots[i] && !this.spots[i].tower }
+  isSpecial(i: number): boolean { return !!this.spots[i]?.special }
 
   build(kind: TowerKind, i: number): boolean {
     if (!this.canBuild(i)) return false
@@ -93,6 +94,19 @@ export class Game {
     this.wm.update(step)
     const active = this.wm.active
     for (const e of active) e.update(step)
+
+    // healer healing logic
+    for (const healer of active) {
+      if (healer.kind === 'healer' && healer.alive) {
+        const healRadius = 2.5 * this.pitch
+        for (const target of active) {
+          if (target === healer || !target.alive) continue
+          if (Math.hypot(target.pos.x - healer.pos.x, target.pos.y - healer.pos.y) <= healRadius) {
+            target.hp = Math.min(target.maxHp, target.hp + (15 + target.maxHp * 0.03) * step)
+          }
+        }
+      }
+    }
 
     // leaks
     for (const e of [...active]) {

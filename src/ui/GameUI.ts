@@ -30,6 +30,7 @@ export class GameUI {
   private radialTooltip!: HTMLElement
   private settingsModal!: HTMLElement
   private speedBtns: Record<number, HTMLButtonElement> = {}
+  private btnPause!: HTMLButtonElement
   private autoWaveActive = true
 
   constructor(private opts: {
@@ -105,6 +106,7 @@ export class GameUI {
     btnPause.className = 'pcb-hud-btn'
     btnPause.textContent = '⏸'
     btnPause.onclick = () => { audioEngine.playClick(); this.opts.onTogglePlay() }
+    this.btnPause = btnPause
 
     const btn1x = document.createElement('button')
     btn1x.className = 'pcb-hud-btn active'
@@ -317,9 +319,16 @@ export class GameUI {
     }
   }
 
-  private selectSpeed(mult: number): void {
+  public selectSpeed(mult: number): void {
+    if (this.btnPause) {
+      if (mult === 0) {
+        this.btnPause.classList.add('active')
+      } else {
+        this.btnPause.classList.remove('active')
+      }
+    }
     Object.values(this.speedBtns).forEach((b) => b.classList.remove('active'))
-    if (this.speedBtns[mult]) this.speedBtns[mult].classList.add('active')
+    if (mult > 0 && this.speedBtns[mult]) this.speedBtns[mult].classList.add('active')
   }
 
   /** set the campaign level number shown top-left (stays fixed for all waves of the level) */

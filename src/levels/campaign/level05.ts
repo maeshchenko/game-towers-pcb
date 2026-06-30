@@ -6,7 +6,7 @@ import { opAmp, ledIndicator, transistorSwitch, timer555, passiveBank } from '..
 // Inward rectangular spiral toward the centre, with ONE self-crossing (a bridge) on the way in. A
 // central S-tier spot covers many passes (spiral double-coverage). Decor: 555 timer + passive bank.
 export function buildLevel05(board: Board): Level {
-  const b = new LevelBuilder(board, 105, { name: 'campaign.level4.name', difficulty: 5, archetype: 'spiral', tune: { hpMul: 2.05 } })
+  const b = new LevelBuilder(board, 105, { name: 'campaign.level4.name', difficulty: 5, archetype: 'spiral', tune: { hpMul: 2.80 } })
   b.path([
     [0, 2], [29, 2], [29, 21], [3, 21], [3, 6], [25, 6], [25, 17], [7, 17], [7, 10],
     [20, 10], [20, 13], [16, 13], [16, 23], [31, 23],
