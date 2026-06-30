@@ -27,12 +27,14 @@ export class TutorialOverlay {
     // Position bubble - auto flip if too low or high
     this.bubble!.style.display = 'block'
     const bubbleHeight = 110
-    const screenH = window.innerHeight
+    const container = document.getElementById('game-container')
+    const screenW = container ? container.clientWidth : window.innerWidth
+    const screenH = container ? container.clientHeight : window.innerHeight
     // clear the radial build ring (~120px radius) so the text never sits on top of the chip menu
     const gap = 150
     const posY = y + bubbleHeight + gap > screenH ? y - bubbleHeight - gap : y + gap
     
-    this.bubble!.style.left = `${Math.max(20, Math.min(window.innerWidth - 270, x - 125))}px`
+    this.bubble!.style.left = `${Math.max(20, Math.min(screenW - 270, x - 125))}px`
     this.bubble!.style.top = `${posY}px`
 
     this.bubble!.innerHTML = `

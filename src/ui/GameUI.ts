@@ -161,6 +161,10 @@ export class GameUI {
     // Dim backdrop behind the radial so the build menu reads as a modal, not merged into the board.
     this.radialBackdrop = document.createElement('div')
     this.radialBackdrop.className = 'pcb-radial-backdrop'
+    this.radialBackdrop.addEventListener('pointerdown', (e) => {
+      e.stopPropagation()
+      this.closeRadialMenu()
+    })
     document.body.appendChild(this.radialBackdrop)
 
     // Robust tutorial zoom/pan freeze: capturing blockers that detect the tutorial via the DOM (no
@@ -436,9 +440,17 @@ export class GameUI {
         this.radialTooltip.style.borderColor = theme.color
         this.radialTooltip.style.boxShadow = `0 0 15px ${theme.glow}`
         
-        // Position tooltip centrally below the radial menu
+        // Position tooltip centrally below or above the radial menu based on height
+        const container = document.getElementById('game-container')
+        const spaceH = container ? container.clientHeight : window.innerHeight
         this.radialTooltip.style.left = `${clientX}px`
-        this.radialTooltip.style.top = `${clientY + 120}px`
+        if (clientY > spaceH * 0.55) {
+          this.radialTooltip.style.transform = 'translate(-50%, -100%)'
+          this.radialTooltip.style.top = `${clientY - 110}px`
+        } else {
+          this.radialTooltip.style.transform = 'translate(-50%, 0)'
+          this.radialTooltip.style.top = `${clientY + 110}px`
+        }
         
         this.radialTooltip.innerHTML = `
           <div style="font-weight: bold; color: ${theme.color}; margin-bottom: 4px;">${theme.name}</div>

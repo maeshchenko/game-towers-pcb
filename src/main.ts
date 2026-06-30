@@ -27,12 +27,99 @@ import { i18n } from './ui/i18n'
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
 
 async function boot() {
+  const gameContainer = document.getElementById('game-container') || document.body
+
+  // Intercept appendChild/removeChild/insertBefore on document.body to direct them to gameContainer
+  const originalAppendChild = document.body.appendChild.bind(document.body)
+  const originalRemoveChild = document.body.removeChild.bind(document.body)
+  const originalInsertBefore = document.body.insertBefore.bind(document.body)
+
+  document.body.appendChild = function<T extends Node>(node: T): T {
+    if ((node as Node) === gameContainer) return originalAppendChild(node)
+    return gameContainer.appendChild(node)
+  }
+  document.body.removeChild = function<T extends Node>(node: T): T {
+    if (gameContainer.contains(node)) return gameContainer.removeChild(node)
+    return originalRemoveChild(node)
+  }
+  document.body.insertBefore = function<T extends Node>(node: T, child: Node | null): T {
+    if (child && gameContainer.contains(child)) return gameContainer.insertBefore(node, child)
+    return originalInsertBefore(node, child)
+  }
+
+  let currentRotation = 0
+
+  function getPointerCoords(e: { clientX: number; clientY: number }) {
+    if (currentRotation === 90) {
+      const rect = gameContainer.getBoundingClientRect()
+      const cx = rect.left + rect.width / 2
+      const cy = rect.top + rect.height / 2
+      const rx = e.clientX - cx
+      const ry = e.clientY - cy
+      const w = gameContainer.clientWidth
+      const h = gameContainer.clientHeight
+      return {
+        clientX: ry + w / 2,
+        clientY: -rx + h / 2
+      }
+    }
+    return { clientX: e.clientX, clientY: e.clientY }
+  }
+
+  function wrapEventCoords(e: UIEvent) {
+    if (currentRotation !== 90) return
+    if ((e as any).__mapped) return
+    ;(e as any).__mapped = true
+
+    const clientX = (e as any).clientX
+    const clientY = (e as any).clientY
+    if (typeof clientX !== 'number' || typeof clientY !== 'number') return
+
+    const mapped = getPointerCoords({ clientX, clientY })
+
+    Object.defineProperty(e, 'clientX', { get: () => mapped.clientX, configurable: true })
+    Object.defineProperty(e, 'clientY', { get: () => mapped.clientY, configurable: true })
+    Object.defineProperty(e, 'pageX', { get: () => mapped.clientX, configurable: true })
+    Object.defineProperty(e, 'pageY', { get: () => mapped.clientY, configurable: true })
+  }
+
+  window.addEventListener('pointerdown', wrapEventCoords, true)
+  window.addEventListener('pointermove', wrapEventCoords, true)
+  window.addEventListener('pointerup', wrapEventCoords, true)
+  window.addEventListener('pointercancel', wrapEventCoords, true)
+  window.addEventListener('wheel', wrapEventCoords, { capture: true, passive: false })
+
   const app = await createPixiApp({ width: window.innerWidth, height: window.innerHeight, background: PALETTE.substrate })
   document.getElementById('app')!.appendChild(app.canvas)
+
+  // Override canvas.getBoundingClientRect
+  app.canvas.getBoundingClientRect = function(): DOMRect {
+    const isPortrait = window.innerWidth < window.innerHeight
+    const w = isPortrait ? window.innerHeight : window.innerWidth
+    const h = isPortrait ? window.innerWidth : window.innerHeight
+    return {
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: w,
+      bottom: h,
+      width: w,
+      height: h,
+      toJSON() { return this }
+    } as DOMRect
+  }
+
   const renderer = new Renderer(app)
   const camera = new Camera()
 
-  const view = () => ({ w: window.innerWidth, h: window.innerHeight })
+  const view = () => {
+    const isPortrait = window.innerWidth < window.innerHeight
+    return {
+      w: isPortrait ? window.innerHeight : window.innerWidth,
+      h: isPortrait ? window.innerWidth : window.innerHeight
+    }
+  }
   let board: Board = { cols: 32, rows: 24, pitch: PITCH_PX }
   const editor = new Editor(app, renderer, camera, board, 1)
   mountPanels(null)
@@ -74,14 +161,49 @@ async function boot() {
     // fit the path into the free area (avoiding legend/top-bar/HUD) → tidy at ANY board size
     const padc = pitch * 0.4   // tight margin around path+spots → larger boards fill more screen
     minX -= padc; minY -= padc; maxX += padc; maxY += padc
-    const mL = 156, mR = 24, mT = 56, mB = 64 // UI margins: legend, mode-bar, HUD
+    const isMobile = view().w < 800
+    const mL = isMobile ? 16 : 156
+    const mR = isMobile ? 16 : 24
+    const mT = isMobile ? 52 : 56
+    const mB = isMobile ? 16 : 64
     const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
     const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY)
-    camera.zoom = Math.max(0.2, Math.min(4, Math.min(aw / bw, ah / bh) * 0.99))
+    camera.zoom = Math.max(0.1, Math.min(4, Math.min(aw / bw, ah / bh) * 0.99))
     camera.x = mL + aw / 2 - ((minX + maxX) / 2) * camera.zoom
     camera.y = mT + ah / 2 - ((minY + maxY) / 2) * camera.zoom
     camera.apply(renderer.world)
   }
+
+  function handleResize() {
+    const w = window.innerWidth
+    const h = window.innerHeight
+    const isPortrait = w < h
+
+    let logicalW = w
+    let logicalH = h
+
+    if (isPortrait) {
+      currentRotation = 90
+      document.body.classList.add('pcb-portrait')
+      logicalW = h
+      logicalH = w
+      gameContainer.style.width = `${logicalW}px`
+      gameContainer.style.height = `${logicalH}px`
+    } else {
+      currentRotation = 0
+      document.body.classList.remove('pcb-portrait')
+      gameContainer.style.width = '100%'
+      gameContainer.style.height = '100%'
+    }
+
+    app.renderer.resize(logicalW, logicalH)
+    frameLevel()
+  }
+
+  window.addEventListener('resize', handleResize)
+  window.addEventListener('orientationchange', handleResize)
+  // Call on next tick to align sizes
+  setTimeout(handleResize, 0)
 
   // generate a specific reproducible level (size + difficulty + seed → always the same track) + show its code
   function makeLevel(cols: number, rows: number, difficulty: number, seed: number): void {
@@ -617,7 +739,11 @@ async function boot() {
         // Focus camera on the new enemy (centered in the visible play area, respecting margins)
         const enemyX = newEnemy.pos.x
         const enemyY = newEnemy.pos.y
-        const mL = 156, mR = 24, mT = 56, mB = 64
+        const isMobile = view().w < 800
+        const mL = isMobile ? 16 : 156
+        const mR = isMobile ? 16 : 24
+        const mT = isMobile ? 52 : 56
+        const mB = isMobile ? 16 : 64
         const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
         camera.zoom = 1.2
         camera.x = mL + aw / 2 - enemyX * camera.zoom
@@ -845,7 +971,7 @@ async function boot() {
     const strat = i18n.t(`enemy.${kind}.strat` as any)
 
     modal.innerHTML = `
-      <div class="pcb-settings-card" style="width: 360px; text-align: center; border-color: ${color}; box-shadow: 0 0 20px ${color}33;">
+      <div class="pcb-settings-card" style="width: 360px; max-width: 90%; text-align: center; border-color: ${color}; box-shadow: 0 0 20px ${color}33;">
         <h2 style="color: ${color}; font-size: 14px; margin-bottom: 6px;">${i18n.t('enemy.intro.title')}</h2>
         
         <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 16px 0;">

@@ -155,7 +155,7 @@ export class CampaignMenu {
     })
 
     modal.innerHTML = `
-      <div class="pcb-settings-card" style="width: 440px; max-height: 80vh; overflow-y: auto;">
+      <div class="pcb-settings-card" style="width: 440px; max-width: 90%; max-height: 80vh; overflow-y: auto;">
         <h2 style="font-size: 16px; margin-bottom: 16px;">${i18n.t('bestiary.title')}</h2>
         <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
           ${itemsHtml}

@@ -36,7 +36,7 @@
 
 .pcb-radialmenu { position: fixed; width: 0; height: 0; z-index: 200; pointer-events: none; }
 .pcb-radial-backdrop { position: fixed; inset: 0; background: rgba(4,9,7,0.6); z-index: 90; pointer-events: none; opacity: 0; transition: opacity 0.18s ease-out; }
-.pcb-radial-backdrop.show { opacity: 1; }
+.pcb-radial-backdrop.show { opacity: 1; pointer-events: auto; }
 .pcb-radialmenu-item { position: absolute; pointer-events: auto; width: 68px; height: 68px; transform: translate(-50%, -50%) scale(0); border-radius: 50%; background: #0a1712; border: 2px solid var(--neon-color); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font: bold 9px monospace; cursor: pointer; transition: transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.2), box-shadow 0.2s, background 0.2s; box-shadow: 0 0 10px var(--neon-glow); }
 .pcb-radialmenu.open .pcb-radialmenu-item { transform: translate(var(--dx), var(--dy)) scale(1); }
 .pcb-radialmenu-item:hover { background: var(--neon-color); color: #000; box-shadow: 0 0 16px var(--neon-color); }
@@ -109,7 +109,7 @@
 .pcb-wavepreview-count { color: #36e0e0; }
 
 /* Тултипы постройки */
-.pcb-radial-tooltip { position: fixed; transform: translate(-50%, 0); width: 220px; padding: 10px 12px; background: rgba(10,22,17,0.96); border: 1.5px solid #fff; border-radius: 6px; z-index: 130; font: 10px monospace; color: #fff; pointer-events: none; text-align: left; }
+.pcb-radial-tooltip { position: fixed; transform: translate(-50%, 0); width: 220px; padding: 10px 12px; background: rgba(10,22,17,0.96); border: 1.5px solid #fff; border-radius: 6px; z-index: 250; font: 10px monospace; color: #fff; pointer-events: none; text-align: left; }
 
 #app canvas {
   touch-action: none;
@@ -126,4 +126,171 @@
 .settings-row input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 14px; height: 14px; border-radius: 50%; background: #36e0e0; cursor: pointer; box-shadow: 0 0 8px #36e0e0; }
 .settings-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #36e0e0; cursor: pointer; }
 .settings-row button.active { text-shadow: 0 0 8px #36e0e0; }
+
+/* Container for rotation on mobile */
+#game-container {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0b1611;
+}
+
+body.pcb-portrait #game-container {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%) rotate(90deg);
+  overflow: hidden;
+}
+
+#app {
+  width: 100%;
+  height: 100%;
+}
+#app canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: none;
+}
+
+@media (max-width: 800px) {
+  /* Hide side panels to maximize board space on mobile */
+  .pcb-legend, .pcb-tips {
+    display: none !important;
+  }
+
+  /* Compact HUD */
+  .pcb-tophud {
+    padding: 0 8px;
+    height: 44px;
+    font-size: 11px;
+  }
+  .pcb-hud-left, .pcb-hud-center, .pcb-hud-right {
+    gap: 6px;
+  }
+  .pcb-hud-badge {
+    padding: 2px 4px;
+    font-size: 11px;
+  }
+  .pcb-hud-btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  .hud-level-label {
+    display: none;
+  }
+  .next-wave-btn {
+    padding: 4px 6px;
+  }
+
+  /* Reposition and compact the tower panel */
+  .pcb-towerpanel {
+    top: auto;
+    bottom: 8px;
+    right: 8px;
+    width: 160px;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  .pcb-towerpanel h3 {
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  .pcb-towerpanel button {
+    margin-top: 4px;
+    padding: 4px;
+    font-size: 10px;
+  }
+
+  /* Scale radial menu slightly for mobile viewport fit */
+  .pcb-radialmenu {
+    transform: scale(0.85);
+  }
+  .pcb-radial-tooltip {
+    width: 180px;
+    padding: 6px 8px;
+    font-size: 9px;
+  }
+
+  /* Responsive Campaign Screen */
+  .pcb-campaign-screen {
+    padding: 16px 12px;
+  }
+  .pcb-campaign-header {
+    margin-bottom: 16px;
+  }
+  .pcb-campaign-header h1 {
+    font-size: 26px;
+    letter-spacing: 4px;
+  }
+  .pcb-campaign-levels {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+  }
+  .pcb-level-card {
+    padding: 10px;
+    gap: 4px;
+  }
+  .pcb-level-title {
+    font-size: 13px;
+  }
+  .pcb-level-stars {
+    font-size: 12px;
+    margin-top: 2px;
+  }
+  .pcb-campaign-footer {
+    gap: 10px !important;
+  }
+  .pcb-campaign-reset {
+    padding: 6px 12px !important;
+    font-size: 10px !important;
+  }
+
+  /* Response overlay victory/defeat cards */
+  .pcb-overlay-card {
+    padding: 16px 20px;
+    max-width: 320px;
+  }
+  .pcb-overlay-card h2 {
+    font-size: 18px;
+  }
+  .pcb-overlay-card h3 {
+    margin: 4px 0 10px;
+    font-size: 12px;
+  }
+  .pcb-victory-stars {
+    font-size: 24px;
+    margin-bottom: 10px;
+    letter-spacing: 4px;
+  }
+  .pcb-overlay-score {
+    margin-bottom: 16px;
+    font-size: 11px;
+  }
+  .pcb-overlay-actions {
+    gap: 6px;
+  }
+  .pcb-overlay-actions button {
+    font-size: 11px;
+    padding: 6px;
+  }
+  
+  .pcb-settings-card {
+    width: 280px;
+    padding: 12px 16px;
+  }
+  .pcb-settings-card h2 {
+    font-size: 15px;
+    margin-bottom: 12px;
+  }
+  .settings-row {
+    margin-bottom: 10px;
+  }
+}
+
 
