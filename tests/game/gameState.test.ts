@@ -4,17 +4,17 @@ import { GameState } from '../../src/game/GameState'
 describe('GameState', () => {
   it('starts in build with gold/lives', () => {
     const g = new GameState(0, 10)
-    expect(g.phase).toBe('build'); expect(g.lives).toBe(20); expect(g.gold).toBe(120)
+    expect(g.phase).toBe('build'); expect(g.lives).toBe(20); expect(g.gold).toBe(110)
   })
   it('spend gates on funds', () => {
     const g = new GameState(0, 10)
-    expect(g.spend(40)).toBe(true); expect(g.gold).toBe(80)
-    expect(g.spend(1000)).toBe(false); expect(g.gold).toBe(80)
+    expect(g.spend(40)).toBe(true); expect(g.gold).toBe(70)
+    expect(g.spend(1000)).toBe(false); expect(g.gold).toBe(70)
   })
   it('wave lifecycle awards gold and advances', () => {
     const g = new GameState(0, 10)
     g.startWave(); expect(g.phase).toBe('wave')
-    g.endWave(); expect(g.phase).toBe('build'); expect(g.gold).toBe(120 + 14)
+    g.endWave(); expect(g.phase).toBe('build'); expect(g.gold).toBe(110 + 14)
   })
   it('leak reduces lives; 0 → lose', () => {
     const g = new GameState(0, 10)

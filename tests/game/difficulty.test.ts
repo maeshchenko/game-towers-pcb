@@ -8,8 +8,8 @@ describe('difficulty + economy', () => {
   })
   it('economy curves', () => {
     expect(startLives).toBe(20)
-    expect(startGold(0)).toBe(120)
-    expect(startGold(5)).toBe(195)
+    expect(startGold(0)).toBe(110)
+    expect(startGold(5)).toBe(185)
     expect(waveClearGold(1)).toBe(14)
   })
   it('effective damage subtracts armor minus pierce, min 1', () => {

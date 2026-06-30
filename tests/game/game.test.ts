@@ -41,7 +41,7 @@ describe('Game', () => {
     expect(g.sellValue(t)).toBe(24)
     g.sell(t)
     expect(g.towers).toHaveLength(0)
-    expect(g.state.gold).toBe(120 - 40 + 24)
+    expect(g.state.gold).toBe(110 - 40 + 24)
   })
   it('peeks upcoming wave', () => {
     const g = new Game(miniLevel(), 1)

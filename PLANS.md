@@ -9,6 +9,5 @@ Order = rough priority, top first. Tick `[x]` only as a momentary marker before 
 - [ ] **Finish T0 tile track.** Bridge over/under render (crossing visual), tile editor palette in `/editor`, save/load tile grids. (`src/tiles/`, `src/editor/`.)
 
 ## Polish backlog
-- [ ] **Per-map difficulty curve polish.** Re-run `npm run balance:optimize` after content changes and re-bake `meta.tune.hpMul`. Some levels are "cliffs" (no smooth pressure gradient — see MEMORY); thin pads or reshape paths where tension can't be tuned in.
 - [ ] **Real enemy art** — enemies are simple neon tokens now; design themed glyphs/sprites per type.
 

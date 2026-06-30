@@ -82,9 +82,18 @@ Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-reali
   - **Regenerator (`healer`)**: Periodic AoE healing in a `2.5`-cell radius at `(15 + target.maxHp * 0.03) * dt` per second. Excludes healing itself. Visually highlighted with a pulsing green ring.
   - **Glitch (`rogue`)**: Moves erratically by fluctuating between `0.3x` and `2.2x` of base speed every `0.6s`. Direct counter: slowed state (from **SLOW** tower aura) stabilizes speed to a constant `slowFactor`.
   - **Boss (`boss`)**: Completely immune to slow effects (`slowFactor = 1`).
-- **Tower Stats & Roles**: Sniper buffed (high single-target damage & pierce), Mortar buffed (heavy splash damage & radius), Tesla buffed (lightning chain damage) to create distinct utility profiles.
+- **Tower Stats & Upgrade Economy**:
+  - **Cannon**: Cheap, robust single-target damage. Upgrade cost ramps 40 -> 60 -> 90; L3 damage is 45.
+  - **Slow**: Aura slow (0 damage). Range and slow factors scale 35 ($35, 60% slow) -> 45 ($55, 55% slow) -> 5.0 ($80, 70% slow).
+  - **Sniper**: High armor piercing, massive single-target burst. L3 pierce is 999, damage 300, cost 180.
+  - **Mortar**: Heavy AoE splash. Scales range/splash/damage up to L3 cost 160, 115 damage, 3.5 splash.
+  - **Tesla**: Multi-target chain lightning. Scales chain range/count/damage up to L3 cost 125, 40 damage.
+  - **Upgrade Costs**: Made significantly more expensive to force a deliberate decision between placing new towers vs. upgrading.
+- **Wave Pacing (Sawtooth Pattern)**:
+  - Rewrote wave generator to introduce armored Tanks at wave 3 and Healers at wave 4.
+  - Designed distinct wave challenges (speed, armor, healing, swarms, synergy tests) rather than a linear difficulty increase.
+- **Campaign HP Balancing**: All 12 level `hpMul` multipliers retuned deterministically using `balance-optimize` and saved back into level files. Calibrated hpMul array: `[1.40, 1.25, 0.75, 1.90, 2.65, 1.00, 1.20, 1.10, 1.30, 1.90, 1.05, 2.00]`.
 - **Reference Defense Strategy**: Upgraded `basicPlacement` in `sim.ts` to build a competent multi-tower setup (Sniper/Mortar on special spots, balanced 20/20/20/20/20 mix of Slow/Tesla/Mortar/Sniper/Cannon on regular spots).
-- **Campaign HP Balancing**: All 12 level `hpMul` multipliers retuned deterministically using `balance-optimize` and saved back into level files.
 
 ## Gotchas
 - Background `Agent` (subagent) calls have HUNG (one stalled ~28 min, empty output). If a subagent's output file doesn't grow for minutes, `TaskStop` it and do the work inline.

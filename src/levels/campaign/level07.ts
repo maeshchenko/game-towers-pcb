@@ -6,7 +6,7 @@ import { mcuCore, opAmp, ledIndicator, transistorSwitch, passiveBank } from '../
 // Dense 5-lane serpentine (a "grid of contacts") with many turns — long time-under-fire keeps it fair
 // at this difficulty. Coverage-greedy spots. Decor: MCU core + passive bank in the lane gaps.
 export function buildLevel07(board: Board): Level {
-  const b = new LevelBuilder(board, 107, { name: 'campaign.level6.name', difficulty: 6, archetype: 'serpentine', tune: { hpMul: 2.15 } })
+  const b = new LevelBuilder(board, 107, { name: 'campaign.level6.name', difficulty: 6, archetype: 'serpentine', tune: { hpMul: 1.20 } })
   b.path([
     [0, 3], [40, 3], [40, 9], [4, 9], [4, 15], [40, 15], [40, 21], [4, 21], [4, 27], [40, 27], [40, 30], [43, 30],
   ])

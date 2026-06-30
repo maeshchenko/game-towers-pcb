@@ -6,7 +6,7 @@ import { mcuCore, powerSupply, passiveBank } from '../../pipeline/circuits'
 // THREE spawns funnel into a collector spine → ONE finish. Dense. Spots line the spine + convergence.
 // Decor: MCU core + power supply + passive bank.
 export function buildLevel11(board: Board): Level {
-  const b = new LevelBuilder(board, 111, { name: 'campaign.level10.name', difficulty: 8, archetype: 'multiSpawn', tune: { hpMul: 1.20 } })
+  const b = new LevelBuilder(board, 111, { name: 'campaign.level10.name', difficulty: 8, archetype: 'multiSpawn', tune: { hpMul: 1.05 } })
   const merge: [number, number] = [30, 22]
   const finish: [number, number] = [59, 40]
   const spine: [number, number][] = [merge, [30, 34], [50, 34], [50, 40], finish]

@@ -6,7 +6,7 @@ import { powerSupply, opAmp, ledIndicator, passiveBank } from '../../pipeline/ci
 // Serpentine with a deliberate CHOKE kill-zone (a tight double-back at 50–75% of the path) where
 // specials + builds cluster. Decor centrepiece: a linear power-supply block by the top edge.
 export function buildLevel04(board: Board): Level {
-  const b = new LevelBuilder(board, 104, { name: 'campaign.level3.name', difficulty: 4, archetype: 'serpentine', tune: { hpMul: 2.45 } })
+  const b = new LevelBuilder(board, 104, { name: 'campaign.level3.name', difficulty: 4, archetype: 'serpentine', tune: { hpMul: 1.90 } })
   b.path([
     [0, 3], [28, 3], [28, 8], [6, 8], [6, 12], [26, 12], [26, 15], [9, 15], [9, 18], [29, 18], [29, 21], [31, 21],
   ])

@@ -28,11 +28,11 @@ describe('Tower', () => {
   it('slow tower returns an aura field', () => {
     const t = new Tower('slow', { x: 24, y: 0 }, PITCH)
     const shot = t.update(0.1, [near()])
-    expect(shot?.aura?.slow).toBeCloseTo(0.55, 5)
+    expect(shot?.aura?.slow).toBeCloseTo(0.60, 5)
   })
   it('upgrade raises level and damage', () => {
     const t = new Tower('cannon', { x: 24, y: 0 }, PITCH)
     expect(t.upgrade()).toBe(true)
-    expect(t.stats.damage).toBe(17)
+    expect(t.stats.damage).toBe(22)
   })
 })
