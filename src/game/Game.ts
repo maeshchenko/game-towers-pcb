@@ -22,6 +22,7 @@ export class Game {
   readonly state: GameState
   readonly towers: Tower[] = []
   speed = 1
+  public onSfx?: (type: string) => void
   private wm: WaveManager
   private spots: Spot[]
   readonly pitch: number
@@ -91,7 +92,11 @@ export class Game {
 
     // leaks
     for (const e of [...active]) {
-      if (e.reachedBase) { this.state.damageBase(e.leak); this.wm.remove(e) }
+      if (e.reachedBase) {
+        this.state.damageBase(e.leak)
+        this.wm.remove(e)
+        if (this.onSfx) this.onSfx('leak')
+      }
     }
     if (this.state.phase !== 'wave') return
 
@@ -102,14 +107,21 @@ export class Game {
       if (shot.aura) {
         for (const e of active) if (e.alive && Math.hypot(e.pos.x - t.pos.x, e.pos.y - t.pos.y) <= shot.aura.range) e.applySlow(shot.aura.slow, 0.25)
       } else {
-        if (shot.target) this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
+        if (shot.target) {
+          this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
+          if (this.onSfx) this.onSfx('shoot_' + t.kind)
+        }
         applyShot(shot, active, this.pitch)
       }
     }
 
     // deaths → bounty
     for (const e of [...this.wm.active]) {
-      if (e.hp <= 0) { this.state.add(e.bounty); this.wm.remove(e) }
+      if (e.hp <= 0) {
+        this.state.add(e.bounty)
+        this.wm.remove(e)
+        if (this.onSfx) this.onSfx('kill')
+      }
     }
 
     // decay fire effects

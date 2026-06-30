@@ -57,3 +57,5 @@ Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-reali
 ## Gotchas
 - Background `Agent` (subagent) calls have HUNG (one stalled ~28 min, empty output). If a subagent's output file doesn't grow for minutes, `TaskStop` it and do the work inline.
 - `.superpowers/` is gitignored (ledger/briefs/reports live there).
+- **Board Grid bounds mismatch**: Генератор тайловой сетки требует минимум 5х5 тайлов (при размере тайла 6 клеток это минимум 30х30). Если запросить меньший размер платы (например, 24х18 в кампании), путь и декор сгенерируются до координат 30х30, выходя за рамки отрисованной платы. Решение: `generateLevel` перерассчитывает `actualBoard` размеры в соответствии с `grid.tcols * grid.tileSize` и `grid.trows * grid.tileSize`, синхронизируя все дочерние системы (медные дорожки, декор, рендер) с истинными границами.
+

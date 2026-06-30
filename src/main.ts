@@ -20,6 +20,7 @@ import type { Tower } from './game/Tower'
 import { CampaignMenu } from './ui/CampaignMenu'
 import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial } from './game/campaign'
 import { TutorialOverlay } from './ui/TutorialOverlay'
+import { audioEngine } from './ui/AudioEngine'
 
 // Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
@@ -139,6 +140,14 @@ async function boot() {
   function ensureGame() {
     if (!game && editor.state.level) {
       game = new Game(editor.state.level, ++seedCounter)
+      game.onSfx = (type) => {
+        if (type === 'leak') audioEngine.playLeak()
+        else if (type === 'kill') audioEngine.playEnemyDeath()
+        else if (type.startsWith('shoot_')) {
+          const kind = type.substring(6) as any
+          audioEngine.playShot(kind)
+        }
+      }
       selectedTower = null
       editor.enabled = false
       const ip = infoPanel(); if (ip) ip.style.display = 'none' // live game-bar HUD replaces the static panel
@@ -256,6 +265,12 @@ async function boot() {
 
   campaignMenu = new CampaignMenu({
     onSelectLevel: (index) => {
+      audioEngine.init()
+      if (audioEngine.isMuted()) {
+        audioEngine.setMute(false)
+      }
+      audioEngine.playClick()
+
       campaignMenu.hide()
       activeCampaignLevelIndex = index
       const lvlDef = CAMPAIGN_LEVELS[index]
@@ -408,6 +423,7 @@ async function boot() {
       game.speed = 0 // pause ticker updates
 
       if (won) {
+        audioEngine.playVictory()
         if (activeCampaignLevelIndex !== null) {
           const res = registerVictory(activeCampaignLevelIndex, score)
           const hasNext = activeCampaignLevelIndex + 1 < CAMPAIGN_LEVELS.length
@@ -453,6 +469,7 @@ async function boot() {
           )
         }
       } else {
+        audioEngine.playDefeat()
         ui.showDefeatScreen(
           () => {
             ui.closeOverlay()

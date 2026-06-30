@@ -19,18 +19,26 @@ export function generateLevel(params: {
 }): Level {
   const { board, difficulty, seed } = params
   const { grid, archetype } = buildTileGrid(board, difficulty, seed, params.archetype)
+  
+  // Align board columns and rows with the generated tile grid size (so no paths go out of bounds)
+  const actualBoard = {
+    ...board,
+    cols: grid.tcols * grid.tileSize,
+    rows: grid.trows * grid.tileSize,
+  }
+
   const routes = compileRoutes(grid).map((t, i) => ({
     waypoints: stylePath(octilinearize(t.waypoints), makeRng(seed * 131 + i + 1)),
     cornerRadius: 0.5,
   }))
-  const paths = routes.length ? routes : [{ waypoints: [[1, 1], [board.cols - 2, board.rows - 2]] as Cell[], cornerRadius: 0.5 }]
-  const { spots, specialSpots } = tileSpots({ board, routes: paths, difficulty })
-  const { decor, nets } = buildDecorWithNets({ board, trace: paths, spots, specialSpots, seed })
+  const paths = routes.length ? routes : [{ waypoints: [[1, 1], [actualBoard.cols - 2, actualBoard.rows - 2]] as Cell[], cornerRadius: 0.5 }]
+  const { spots, specialSpots } = tileSpots({ board: actualBoard, routes: paths, difficulty })
+  const { decor, nets } = buildDecorWithNets({ board: actualBoard, trace: paths, spots, specialSpots, seed })
   const trace = paths[0]
-  const copper = routeCopper({ decor, nets, board, trace, paths })
+  const copper = routeCopper({ decor, nets, board: actualBoard, trace, paths })
   return {
     version: 1,
-    board,
+    board: actualBoard,
     seed,
     tiles: grid,
     trace,

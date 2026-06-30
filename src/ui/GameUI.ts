@@ -2,6 +2,7 @@
 import type { Game } from '../game/Game'
 import type { Tower } from '../game/Tower'
 import { TOWER_DEFS, type TowerKind } from '../game/towerTypes'
+import { audioEngine } from './AudioEngine'
 
 export function formatHud(s: { wave: number; waveCount: number; lives: number; gold: number; phase: string }) {
   return { wave: `WAVE ${s.wave}/${s.waveCount}`, lives: `LIVES ${s.lives}`, gold: `CURRENCY ${s.gold}` }
@@ -66,7 +67,7 @@ export class GameUI {
     btnMap.className = 'pcb-hud-btn'
     btnMap.textContent = 'MAP'
     btnMap.style.marginLeft = '12px'
-    btnMap.onclick = () => { if (this.opts.onMenu) this.opts.onMenu() }
+    btnMap.onclick = () => { audioEngine.playClick(); if (this.opts.onMenu) this.opts.onMenu() }
     left.appendChild(btnMap)
 
     const center = document.createElement('div')
@@ -87,32 +88,40 @@ export class GameUI {
     const btnStart = document.createElement('button')
     btnStart.className = 'pcb-hud-btn active'
     btnStart.textContent = 'START WAVE'
-    btnStart.onclick = () => this.opts.onStartWave()
+    btnStart.onclick = () => { audioEngine.playClick(); this.opts.onStartWave() }
 
     const btnPause = document.createElement('button')
     btnPause.className = 'pcb-hud-btn'
     btnPause.textContent = '⏸'
-    btnPause.onclick = () => this.opts.onTogglePlay()
+    btnPause.onclick = () => { audioEngine.playClick(); this.opts.onTogglePlay() }
 
     const btn1x = document.createElement('button')
     btn1x.className = 'pcb-hud-btn active'
     btn1x.textContent = '1×'
-    btn1x.onclick = () => { this.opts.onSpeed(1); this.selectSpeed(1) }
+    btn1x.onclick = () => { audioEngine.playClick(); this.opts.onSpeed(1); this.selectSpeed(1) }
     this.speedBtns[1] = btn1x
 
     const btn2x = document.createElement('button')
     btn2x.className = 'pcb-hud-btn'
     btn2x.textContent = '2×'
-    btn2x.onclick = () => { this.opts.onSpeed(2); this.selectSpeed(2) }
+    btn2x.onclick = () => { audioEngine.playClick(); this.opts.onSpeed(2); this.selectSpeed(2) }
     this.speedBtns[2] = btn2x
 
     const btn4x = document.createElement('button')
     btn4x.className = 'pcb-hud-btn'
     btn4x.textContent = '4×'
-    btn4x.onclick = () => { this.opts.onSpeed(4); this.selectSpeed(4) }
+    btn4x.onclick = () => { audioEngine.playClick(); this.opts.onSpeed(4); this.selectSpeed(4) }
     this.speedBtns[4] = btn4x
 
-    right.append(btnStart, btnPause, btn1x, btn2x, btn4x)
+    const btnMute = document.createElement('button')
+    btnMute.className = 'pcb-hud-btn'
+    btnMute.textContent = audioEngine.isMuted() ? '🔇' : '🔊'
+    btnMute.onclick = () => {
+      const muted = audioEngine.toggleMute()
+      btnMute.textContent = muted ? '🔇' : '🔊'
+    }
+
+    right.append(btnStart, btnPause, btn1x, btn2x, btn4x, btnMute)
     hud.append(left, center, right)
     document.body.appendChild(hud)
 
@@ -225,6 +234,7 @@ export class GameUI {
 
       btn.onclick = (e) => {
         e.stopPropagation()
+        audioEngine.playBuild()
         this.opts.onBuild(k, spotIndex)
         this.closeRadialMenu()
       }
@@ -287,15 +297,20 @@ export class GameUI {
     this.panel.innerHTML = `<h3>${t.kind.toUpperCase()} L${t.level + 1}</h3>
       <div style="margin-bottom: 8px;">DMG ${s.damage} · RATE ${s.fireRate} · RANGE ${s.range}</div>
       <div style="margin-bottom: 8px;">MODE ${t.targetMode}</div>`
-    const mk = (label: string, fn: () => void) => {
+    const mk = (label: string, fn: () => void, sfxType: 'click' | 'upgrade' | 'sell') => {
       const b = document.createElement('button')
       b.textContent = label
-      b.onclick = fn
+      b.onclick = () => {
+        if (sfxType === 'upgrade') audioEngine.playUpgrade()
+        else if (sfxType === 'sell') audioEngine.playSell()
+        else audioEngine.playClick()
+        fn()
+      }
       this.panel.appendChild(b)
     }
-    if (t.level < t.maxLevel) mk(`Upgrade $${TOWER_DEFS[t.kind][t.level + 1].cost}`, this.opts.onUpgrade)
-    mk(`Sell $${sellValue}`, this.opts.onSell)
-    mk('Target: ' + t.targetMode, this.opts.onTargetMode)
+    if (t.level < t.maxLevel) mk(`Upgrade $${TOWER_DEFS[t.kind][t.level + 1].cost}`, this.opts.onUpgrade, 'upgrade')
+    mk(`Sell $${sellValue}`, this.opts.onSell, 'sell')
+    mk('Target: ' + t.targetMode, this.opts.onTargetMode, 'click')
   }
 
   showVictoryScreen(stars: number | null, score: number, onNext: (() => void) | null, onRetry: () => void, onMenu: () => void): void {
