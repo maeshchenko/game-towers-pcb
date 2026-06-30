@@ -43,4 +43,10 @@ describe('Game', () => {
     expect(g.towers).toHaveLength(0)
     expect(g.state.gold).toBe(120 - 40 + 24)
   })
+  it('peeks upcoming wave', () => {
+    const g = new Game(miniLevel(), 1)
+    const wave = g.peekWave(0)
+    expect(wave.length).toBeGreaterThan(0)
+    expect(wave[0].count).toBeGreaterThan(0)
+  })
 })

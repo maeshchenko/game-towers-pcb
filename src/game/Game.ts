@@ -78,6 +78,10 @@ export class Game {
     this.state.startWave()
   }
 
+  peekWave(waveIndex: number): import('./WaveManager').WaveEntry[] {
+    return this.wm.peek(waveIndex)
+  }
+
   tick(dt: number): void {
     if (this.state.phase !== 'wave') return
     const step = dt * this.speed
