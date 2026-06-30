@@ -8,9 +8,10 @@ A 2D tower-defense game styled as a printed circuit board: dark-green substrate,
 
 ```bash
 npm install
-npm run dev      # http://localhost:5173
-npm run build    # tsc (noEmit) + vite build
-npm test         # vitest
+npm run dev              # http://localhost:5173
+npm run build            # tsc (noEmit) + vite build
+npm test                 # vitest
+npm run balance:optimize # per-map balance: recommends meta.tune.hpMul per campaign level
 ```
 
 ## Routes (dev)
@@ -24,7 +25,7 @@ npm test         # vitest
 
 ## Reproducible tracks
 
-Every track is deterministic from a code `COLSxROWS.DIFF.SEED` (e.g. `60x45.4.882641`). The code shows bottom-right (copyable) and lives in the URL as `?t=...` — open the same URL to get the exact same track.
+Every random track is deterministic from a code `COLSxROWS.DIFF.SEED` (e.g. `60x45.4.882641`). The code shows bottom-right (copyable) and lives in the URL as `?t=...` — open the same URL to get the exact same track. The **12 campaign levels are hand-authored** (`src/levels/`, not seed-generated) and deep-link as `?t=authored-N` (N = 1..12).
 
 ## Project notes
 

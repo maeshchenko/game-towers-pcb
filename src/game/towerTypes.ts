@@ -20,13 +20,13 @@ export const TOWER_DEFS: Record<TowerKind, TowerLevel[]> = {
     { range: 14.0, fireRate: 0.55, damage: 130, cost: 130, pierce: 999 },
   ],
   mortar: [
-    { range: 7.0, fireRate: 0.6, damage: 14, splashRadius: 2.4, cost: 75 },
-    { range: 7.5, fireRate: 0.7, damage: 20, splashRadius: 2.8, cost: 70 },
-    { range: 8.0, fireRate: 0.8, damage: 30, splashRadius: 3.2, cost: 95 },
+    { range: 7.0, fireRate: 0.7, damage: 20, splashRadius: 2.6, cost: 70 },
+    { range: 7.5, fireRate: 0.8, damage: 28, splashRadius: 3.0, cost: 70 },
+    { range: 8.0, fireRate: 0.9, damage: 42, splashRadius: 3.4, cost: 90 },
   ],
   tesla: [
-    { range: 5.5, fireRate: 2.2, damage: 6, chainCount: 2, chainRange: 3.0, cost: 60 },
-    { range: 6.0, fireRate: 2.5, damage: 9, chainCount: 3, chainRange: 3.2, cost: 55 },
-    { range: 6.5, fireRate: 2.8, damage: 12, chainCount: 4, chainRange: 3.5, cost: 80 },
+    { range: 5.5, fireRate: 2.2, damage: 9, chainCount: 3, chainRange: 3.0, cost: 55 },
+    { range: 6.0, fireRate: 2.5, damage: 13, chainCount: 4, chainRange: 3.2, cost: 55 },
+    { range: 6.5, fireRate: 2.8, damage: 17, chainCount: 5, chainRange: 3.5, cost: 75 },
   ],
 }

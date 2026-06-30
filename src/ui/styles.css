@@ -35,6 +35,8 @@
 .pcb-hud-btn.active { background: #2bd06a; color: #000; border-color: #2bd06a; font-weight: bold; box-shadow: 0 0 10px rgba(43,208,106,0.6); }
 
 .pcb-radialmenu { position: fixed; width: 0; height: 0; z-index: 200; pointer-events: none; }
+.pcb-radial-backdrop { position: fixed; inset: 0; background: rgba(4,9,7,0.6); z-index: 90; pointer-events: none; opacity: 0; transition: opacity 0.18s ease-out; }
+.pcb-radial-backdrop.show { opacity: 1; }
 .pcb-radialmenu-item { position: absolute; pointer-events: auto; width: 68px; height: 68px; transform: translate(-50%, -50%) scale(0); border-radius: 50%; background: #0a1712; border: 2px solid var(--neon-color); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font: bold 9px monospace; cursor: pointer; transition: transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.2), box-shadow 0.2s, background 0.2s; box-shadow: 0 0 10px var(--neon-glow); }
 .pcb-radialmenu.open .pcb-radialmenu-item { transform: translate(var(--dx), var(--dy)) scale(1); }
 .pcb-radialmenu-item:hover { background: var(--neon-color); color: #000; box-shadow: 0 0 16px var(--neon-color); }

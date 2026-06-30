@@ -22,7 +22,9 @@ export class GameUI {
   private elWave!: HTMLElement; private elLives!: HTMLElement; private elGold!: HTMLElement
   private elDiff!: HTMLElement
   private panel!: HTMLElement
+  private levelNumber = 1   // campaign level # (fixed across all waves of the level)
   private radial!: HTMLElement
+  private radialBackdrop!: HTMLElement
   private overlay!: HTMLElement
   private wavePreview!: HTMLElement
   private radialTooltip!: HTMLElement
@@ -154,6 +156,25 @@ export class GameUI {
     this.radial.className = 'pcb-radialmenu'
     document.body.appendChild(this.radial)
 
+    // Dim backdrop behind the radial so the build menu reads as a modal, not merged into the board.
+    this.radialBackdrop = document.createElement('div')
+    this.radialBackdrop.className = 'pcb-radial-backdrop'
+    document.body.appendChild(this.radialBackdrop)
+
+    // Robust tutorial zoom/pan freeze: capturing blockers that detect the tutorial via the DOM (no
+    // dependency on main.ts), so the camera can't move while the guided ring is anchored to a spot.
+    // Lives in GameUI (a hot-reloadable module) so it applies even when main.ts isn't re-evaluated.
+    const tutorialActive = (): boolean => {
+      const b = document.querySelector('.pcb-tutorial-bubble') as HTMLElement | null
+      return !!b && getComputedStyle(b).display !== 'none'
+    }
+    window.addEventListener('wheel', (e) => {
+      if (tutorialActive()) { e.preventDefault(); e.stopImmediatePropagation() }
+    }, { capture: true, passive: false })
+    window.addEventListener('pointermove', (e) => {
+      if (tutorialActive()) e.stopImmediatePropagation()
+    }, { capture: true })
+
     // Radial Build Tooltip
     this.radialTooltip = document.createElement('div')
     this.radialTooltip.className = 'pcb-radial-tooltip'
@@ -181,7 +202,7 @@ export class GameUI {
     return hud
   }
 
-  retranslateHud(game?: Game, difficulty = 1): void {
+  retranslateHud(_game?: Game, difficulty = 1): void {
     const lbl = document.querySelector('.hud-level-label')
     if (lbl) lbl.textContent = i18n.t('hud.level') + ' '
     
@@ -191,7 +212,7 @@ export class GameUI {
     const mapBtn = document.querySelector('.map-btn') as HTMLElement
     if (mapBtn) mapBtn.textContent = i18n.t('hud.map')
 
-    const lvlNum = game ? String(game.state.waveNumber).padStart(2, '0') : '01'
+    const lvlNum = String(this.levelNumber).padStart(2, '0')
     const lvlEl = document.querySelector('.level-num')
     if (lvlEl) lvlEl.textContent = lvlNum
 
@@ -301,6 +322,13 @@ export class GameUI {
     if (this.speedBtns[mult]) this.speedBtns[mult].classList.add('active')
   }
 
+  /** set the campaign level number shown top-left (stays fixed for all waves of the level) */
+  setLevelNumber(n: number): void {
+    this.levelNumber = n
+    const el = document.querySelector('.level-num')
+    if (el) el.textContent = String(n).padStart(2, '0')
+  }
+
   update(game: Game, difficulty = 1): void {
     const s = game.state
     const h = formatHud({ wave: s.waveNumber, waveCount: s.waveCount, lives: s.lives, gold: s.gold, phase: s.phase })
@@ -308,10 +336,11 @@ export class GameUI {
     this.elWave.textContent = h.wave
     this.elLives.textContent = `❤ ${s.lives}`
     this.elGold.textContent = `⚡ ${s.gold}`
+    this.refreshRadialAffordability(s.gold)   // open build ring tracks gold live
 
     // Update level name/number in HUD
     const lvlEl = document.querySelector('.level-num')
-    if (lvlEl) lvlEl.textContent = String(game.state.waveNumber).padStart(2, '0')
+    if (lvlEl) lvlEl.textContent = String(this.levelNumber).padStart(2, '0') // LEVEL #, not wave
 
     this.updateDiffBadge(difficulty)
 
@@ -341,7 +370,19 @@ export class GameUI {
     }
   }
 
-  openRadialMenu(spotIndex: number, clientX: number, clientY: number, goldAvailable: number, allowedTowerKind?: TowerKind): void {
+  /** enable/grey a single radial item from its cost + current gold (kind-restriction is fixed) */
+  private setRadialItemAffordable(btn: HTMLElement, gold: number): void {
+    const blocked = btn.dataset.kindBlocked === '1' || gold < Number(btn.dataset.cost)
+    btn.style.opacity = blocked ? '0.35' : '1'
+    btn.style.pointerEvents = blocked ? 'none' : 'auto'
+  }
+  /** re-evaluate every open radial item against the CURRENT gold (called each frame from update) */
+  private refreshRadialAffordability(gold: number): void {
+    if (!this.radial.classList.contains('open')) return
+    for (const btn of Array.from(this.radial.children)) this.setRadialItemAffordable(btn as HTMLElement, gold)
+  }
+
+  openRadialMenu(spotIndex: number, clientX: number, clientY: number, goldAvailable: number, allowedTowerKind?: TowerKind, showTooltips = true): void {
     this.radial.style.left = `${clientX}px`
     this.radial.style.top = `${clientY}px`
     this.radial.innerHTML = ''
@@ -357,10 +398,11 @@ export class GameUI {
       btn.style.setProperty('--neon-glow', theme.glow)
       btn.innerHTML = `${theme.name}<span>$${cost}</span>`
 
-      if (goldAvailable < cost || (allowedTowerKind && k !== allowedTowerKind)) {
-        btn.style.opacity = '0.35'
-        btn.style.pointerEvents = 'none'
-      }
+      // remember cost + the fixed kind-restriction so affordability can be refreshed LIVE while the menu
+      // stays open (gold earned mid-build must unlock items without closing/reopening the ring).
+      btn.dataset.cost = String(cost)
+      btn.dataset.kindBlocked = allowedTowerKind && k !== allowedTowerKind ? '1' : '0'
+      this.setRadialItemAffordable(btn, goldAvailable)
 
       btn.onclick = (e) => {
         e.stopPropagation()
@@ -371,6 +413,7 @@ export class GameUI {
 
       // Add tooltip hover events
       btn.onmouseenter = () => {
+        if (!showTooltips) return
         const def = TOWER_DEFS[k][0]
         const descKey = `tower.${k}.desc` as any
         const desc = i18n.t(descKey)
@@ -407,11 +450,13 @@ export class GameUI {
     // Trigger reflow to apply CSS transitions
     this.radial.getBoundingClientRect()
     this.radial.classList.add('open')
+    this.radialBackdrop.classList.add('show')
   }
 
   closeRadialMenu(): void {
     if (!this.radial.classList.contains('open')) return
     this.radial.classList.remove('open')
+    this.radialBackdrop.classList.remove('show')
     this.radialTooltip.style.display = 'none'
     setTimeout(() => {
       if (!this.radial.classList.contains('open')) {
@@ -424,7 +469,7 @@ export class GameUI {
     if (!t) { this.panel.style.display = 'none'; return }
     const s = t.stats
     this.panel.style.display = 'block'
-    this.panel.innerHTML = `<h3>${t.kind.toUpperCase()} L${t.level + 1}</h3>
+    this.panel.innerHTML = `<h3>${TOWER_THEMES[t.kind].name} L${t.level + 1}</h3>
       <div style="margin-bottom: 8px;">DMG ${s.damage} · RATE ${s.fireRate} · RANGE ${s.range}</div>
       <div style="margin-bottom: 8px;">MODE ${t.targetMode}</div>`
     const mk = (label: string, fn: () => void, sfxType: 'click' | 'upgrade' | 'sell') => {
@@ -442,8 +487,32 @@ export class GameUI {
     const sellStr = i18n.lang === 'ru' ? 'Продать' : 'Sell'
     const targetStr = i18n.lang === 'ru' ? 'Приоритет' : 'Target'
 
-    if (t.level < t.maxLevel) mk(`${upgradeStr} $${TOWER_DEFS[t.kind][t.level + 1].cost}`, this.opts.onUpgrade, 'upgrade')
-    mk(`${sellStr} $${sellValue}`, this.opts.onSell, 'sell')
+    // Upgrade slot is ALWAYS present (disabled "MAX" when maxed) so the Sell button never jumps up
+    // into the spot the cursor just clicked — prevents accidental sells right after a max upgrade.
+    if (t.level < t.maxLevel) {
+      mk(`${upgradeStr} $${TOWER_DEFS[t.kind][t.level + 1].cost}`, this.opts.onUpgrade, 'upgrade')
+    } else {
+      const maxBtn = document.createElement('button')
+      maxBtn.textContent = i18n.lang === 'ru' ? 'МАКС. УРОВЕНЬ' : 'MAX LEVEL'
+      maxBtn.disabled = true
+      maxBtn.style.opacity = '0.5'
+      this.panel.appendChild(maxBtn)
+    }
+    // Sell requires a two-click confirm (destructive + irreversible) so it is never a single misclick.
+    const sellBtn = document.createElement('button')
+    let armed = false
+    const confirmStr = i18n.lang === 'ru' ? 'Точно продать?' : 'Confirm sell?'
+    const paint = () => {
+      sellBtn.textContent = armed ? `${confirmStr} $${sellValue}` : `${sellStr} $${sellValue}`
+      sellBtn.style.background = armed ? '#7a2030' : ''
+      sellBtn.style.borderColor = armed ? '#e8503a' : ''
+    }
+    paint()
+    sellBtn.onclick = () => {
+      if (!armed) { armed = true; paint(); audioEngine.playClick(); window.setTimeout(() => { armed = false; paint() }, 2500); return }
+      audioEngine.playSell(); this.opts.onSell()
+    }
+    this.panel.appendChild(sellBtn)
     mk(`${targetStr}: ` + t.targetMode, this.opts.onTargetMode, 'click')
   }
 

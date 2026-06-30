@@ -38,28 +38,31 @@ function rr(s: ShapeSpec[], x: number, y: number, w: number, h: number, rad: num
 function ci(s: ShapeSpec[], x: number, y: number, rad: number, color: number, alpha = 1): void { s.push({ type: 'circle', x, y, r: rad, color, alpha }) }
 function ln(s: ShapeSpec[], x1: number, y1: number, x2: number, y2: number, width: number, color: number, alpha = 1): void { s.push({ type: 'line', x1, y1, x2, y2, width, color, alpha }) }
 
-/** Through-hole joint: annular pad + concave shiny solder fillet (IPC-A-610) + drilled hole. */
+/** Through-hole joint: annular pad + concave shiny solder fillet (IPC-A-610) + cut lead. */
 function padHole(s: ShapeSpec[], x: number, y: number, p: number): void {
-  ci(s, x + 0.5, y + 1, p * 0.3, C.shadow, 0.35)         // soft seat shadow
-  ci(s, x, y, p * 0.3, C.solderMid, 1)                    // fillet base (darker tin)
-  ci(s, x, y, p * 0.24, C.pad, 1)                         // bright tin ring
-  ci(s, x - p * 0.07, y - p * 0.08, p * 0.12, C.white, 0.55) // specular catch-light (concave + shiny)
-  ci(s, x, y, p * 0.09, C.solderMid, 1)                   // lead wire boundary
-  ci(s, x, y, p * 0.05, C.wire, 1)                        // lead wire core (cut silver wire)
+  const R = p * 0.34
+  ci(s, x + 0.6, y + 1.1, R, C.shadow, 0.4)               // soft seat shadow
+  ci(s, x, y, R, C.solderMid, 1)                          // outer solder fillet (darker tin)
+  ci(s, x, y, R * 0.82, C.pad, 1)                         // bright tin annular ring
+  ci(s, x, y, R * 0.44, C.solderMid, 1)                   // concave dip toward the lead
+  ci(s, x, y, R * 0.27, C.wire, 1)                        // cut silver lead in the joint
+  ci(s, x - R * 0.3, y - R * 0.32, R * 0.34, C.white, 0.55) // concave specular catch-light (top-left)
 }
-/** Pseudo-3D disc from top: cast shadow → side wall → top face → highlight. */
+/** Pseudo-3D disc from top: cast shadow → side wall → top face → rim shade → highlight. */
 function topDisc(s: ShapeSpec[], cx: number, cy: number, rad: number, color: number, wall = 3): void {
-  ci(s, cx + 2, cy + 4, rad, C.shadow, 0.4)
-  ci(s, cx, cy + wall, rad, color, 1); ci(s, cx, cy + wall, rad, C.shadow, 0.4)
+  ci(s, cx + 2.5, cy + 4.5, rad, C.shadow, 0.45)
+  ci(s, cx, cy + wall, rad, color, 1); ci(s, cx, cy + wall, rad, C.shadow, 0.5)  // darker side wall
   ci(s, cx, cy, rad, color, 1)
-  ci(s, cx - rad * 0.32, cy - rad * 0.3, rad * 0.42, C.white, 0.18)
+  ci(s, cx + rad * 0.28, cy + rad * 0.3, rad * 0.6, C.shadow, 0.22)              // bottom-right cylinder shade
+  ci(s, cx - rad * 0.3, cy - rad * 0.32, rad * 0.46, C.white, 0.22)             // top-left highlight
 }
-/** Pseudo-3D box from top. */
+/** Pseudo-3D box from top: cast shadow → side wall → top face → edge shade → highlight band. */
 function topBox(s: ShapeSpec[], x: number, y: number, w: number, h: number, color: number, rad = 2, wall = 3): void {
-  rr(s, x + 2, y + 4, w, h, rad, C.shadow, 0.4)
-  rr(s, x, y + wall, w, h, rad, color, 1); rr(s, x, y + wall, w, h, rad, C.shadow, 0.4)
+  rr(s, x + 2, y + 4.5, w, h, rad, C.shadow, 0.45)
+  rr(s, x, y + wall, w, h, rad, color, 1); rr(s, x, y + wall, w, h, rad, C.shadow, 0.5)  // darker side wall
   rr(s, x, y, w, h, rad, color, 1)
-  rr(s, x + w * 0.1, y + h * 0.1, w * 0.6, Math.max(1.5, h * 0.16), rad, C.white, 0.16)
+  rr(s, x, y + h * 0.62, w, h * 0.38, rad, C.shadow, 0.18)                        // bottom edge shade (volume)
+  rr(s, x + w * 0.08, y + h * 0.1, w * 0.62, Math.max(1.5, h * 0.18), rad, C.white, 0.2) // top highlight band
 }
 
 // --- pad geometry shared by leadEnds + draw (top-down: pads at the footprint, near the body) ---
@@ -113,9 +116,10 @@ export function vintagePins(kind: VintageKind): string[] {
 }
 export function pin(kind: VintageKind, name: string): number { return vintagePins(kind).indexOf(name) }
 
-// helper: short lead wire entering a pad from the body
+// helper: short lead wire entering a pad from the body — two-tone for a rounded metallic look
 function leadWire(s: ShapeSpec[], fromX: number, fromY: number, toX: number, toY: number, p: number): void {
-  ln(s, fromX, fromY, toX, toY, Math.max(1.6, p * 0.12), C.wire, 1)
+  ln(s, fromX, fromY, toX, toY, Math.max(2.2, p * 0.18), C.solderMid, 0.95) // wire body (darker tin)
+  ln(s, fromX, fromY, toX, toY, Math.max(1, p * 0.08), C.solder, 0.95)       // bright centre highlight
 }
 
 function silkLabel(s: ShapeSpec[], ref: string | undefined, cx: number, y: number, p: number): void {

@@ -38,7 +38,8 @@ export const PALETTE = {
   inductor: 0x2a2f2c,
   ledRed: 0xc04040,
   ledGreen: 0x46b866,
-  copperTrace: 0x265c39,
+  copperTrace: 0x2f7a4a,   // bright etched-copper core of a trace
+  copperBed: 0x0c2418,     // dark relief channel under the copper core
   routing: 0x163d28,   // faint background copper-routing web
 } as const
 

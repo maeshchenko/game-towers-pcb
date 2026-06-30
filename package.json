@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "balance:optimize": "vitest run --config vitest.scripts.config.ts"
   },
   "dependencies": {
     "pixi.js": "^8.6.0"

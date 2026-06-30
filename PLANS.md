@@ -5,10 +5,10 @@
 Order = rough priority, top first. Tick `[x]` only as a momentary marker before deleting the line.
 
 ## Next up
+- [ ] **Re-enable campaign decor.** Decor is hidden now (`SHOW_DECOR=false` in `Renderer.ts`) to focus on track+towers. Place it AROUND the tower spots via `LevelBuilder.fillBlocks` (footprint keeps a gap from path AND from spots), then flip `SHOW_DECOR=true` and tune density per level. (`src/levels/`, `src/render/Renderer.ts`.)
 - [ ] **Finish T0 tile track.** Bridge over/under render (crossing visual), tile editor palette in `/editor`, save/load tile grids. (`src/tiles/`, `src/editor/`.)
 
 ## Polish backlog
-- [ ] **Balance tuning** across full difficulty ramp (1→9) — verify each preset size winnable + pressure in band; tune `DIFFICULTY_RAMP` / wave curves if needed.
+- [ ] **Per-map difficulty curve polish.** Re-run `npm run balance:optimize` after content changes and re-bake `meta.tune.hpMul`. Some levels are "cliffs" (no smooth pressure gradient — see MEMORY); thin pads or reshape paths where tension can't be tuned in.
 - [ ] **Real enemy art** — enemies are simple neon tokens now; design themed glyphs/sprites per type.
-- [ ] **Decor density/connectivity aesthetics** — tune big-block packing + MST link density so the full-board schematic reads cleanly at every preset.
 

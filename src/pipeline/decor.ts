@@ -308,7 +308,10 @@ export function buildDecorWithNets(args: {
           if (d < bestD) { bestD = d; bestA = a; bestB = b }
         }
         if (bestB < 0) break
-        inTree.add(bestB); nets.push([blocks[bestA].last, blocks[bestB].first]) // out → in
+        inTree.add(bestB)
+        // Skip the visual link when blocks are far apart — long copper snaking across the whole board
+        // reads as crude. Distant clusters stay separate nets (as on real boards). out → in otherwise.
+        if (bestD <= 18) nets.push([blocks[bestA].last, blocks[bestB].first])
       }
     }
   }

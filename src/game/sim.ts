@@ -10,15 +10,16 @@ import { startLives } from './difficulty'
  * Stops when the current spot's tower is unaffordable or all spots are filled.
  */
 export function basicPlacement(game: Game): void {
-  // 1) fill free spots cheapest-first (cannon mostly, a slow at every 4th)
-  const n = game.spotCells().length
-  for (let i = 0; i < n; i++) {
+  // Reference defense: fill the highest-value pads (best coverage first — a thinking player) with cannon
+  // DPS and a slow at every 4th, then drain leftover gold into upgrades round-robin.
+  const order = game.buildOrder()
+  for (let r = 0; r < order.length; r++) {
+    const i = order[r]
     if (!game.canBuild(i)) continue
-    const kind: TowerKind = i % 4 === 3 ? 'slow' : 'cannon'
+    const kind: TowerKind = r % 4 === 3 ? 'slow' : 'cannon'
     if (game.state.gold < TOWER_DEFS[kind][0].cost) continue
     game.build(kind, i)
   }
-  // 2) spend remaining gold upgrading towers round-robin (a basic player scales DPS, esp. vs bosses)
   let progressed = true
   while (progressed) {
     progressed = false

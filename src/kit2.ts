@@ -11,6 +11,7 @@ import { amplifierStage, timer555, ledBar, opAmp, transistorSwitch, mcuCore, pow
 import { routeOctilinear } from './geom/router'
 import { cellKey } from './geom/grid'
 import type { Cell } from './geom/types'
+import { chamfer45, filletPixels, strokeCopper, type CopperStyle } from './render/copperStyle'
 
 // SMD decor kind → vintage part (same mapping the game uses)
 const KMAP: Record<string, VintageKind> = {
@@ -25,34 +26,14 @@ const TILE = 172
 const COLS = 7
 type Pt = { x: number; y: number }
 
-function sub(a: Pt, b: Pt): Pt { return { x: a.x - b.x, y: a.y - b.y } }
-function add(a: Pt, b: Pt): Pt { return { x: a.x + b.x, y: a.y + b.y } }
-function scale(a: Pt, s: number): Pt { return { x: a.x * s, y: a.y * s } }
-function norm(a: Pt): Pt { const l = Math.hypot(a.x, a.y) || 1; return { x: a.x / l, y: a.y / l } }
-function len(a: Pt): number { return Math.hypot(a.x, a.y) }
+// drop a point if direction doesn't change across it (collinear simplify)
+const simp = (pts: Pt[]): Pt[] => pts.filter((p, i) => i === 0 || i === pts.length - 1 || Math.sign(p.x - pts[i - 1].x) !== Math.sign(pts[i + 1].x - p.x) || Math.sign(p.y - pts[i - 1].y) !== Math.sign(pts[i + 1].y - p.y))
 
-function filletPathPixels(pts: Pt[], radius: number, arcSteps = 6): Pt[] {
-  if (pts.length < 3) return pts
-  const out: Pt[] = [pts[0]]
-  for (let i = 1; i < pts.length - 1; i++) {
-    const prev = pts[i - 1], cur = pts[i], next = pts[i + 1]
-    const inDir = norm(sub(cur, prev))
-    const outDir = norm(sub(next, cur))
-    const r = Math.min(radius, len(sub(cur, prev)) / 2, len(sub(next, cur)) / 2)
-    const start = sub(cur, scale(inDir, r))
-    const end = add(cur, scale(outDir, r))
-    out.push(start)
-    for (let s = 1; s < arcSteps; s++) {
-      const t = s / arcSteps
-      const a = scale(start, (1 - t) * (1 - t))
-      const b = scale(cur, 2 * (1 - t) * t)
-      const c = scale(end, t * t)
-      out.push(add(add(a, b), c))
-    }
-    out.push(end)
-  }
-  out.push(pts[pts.length - 1])
-  return out
+// PCB copper trace: simplify → 45° chamfer → fillet → dark bed + bright core + teardrop pads.
+const copperOf = (core: number, width = 2.4): CopperStyle => ({ core, width, alpha: 0.95, bed: PALETTE.copperBed, bedAlpha: 0.6, bedMul: 2.3, teardrop: { r: 4, color: core, alpha: 0.95 } })
+function strokeCopperPath(g: Graphics, raw: Pt[], core: number, opts?: { chamfer?: number; radius?: number; width?: number }): void {
+  const pts = filletPixels(chamfer45(simp(raw), opts?.chamfer ?? 11), opts?.radius ?? 8)
+  strokeCopper(g, pts, copperOf(core, opts?.width))
 }
 
 function drawShapes(shapes: ShapeSpec[], ox = 0, oy = 0): Container {
@@ -165,7 +146,6 @@ async function boot() {
     if (m === dL) return { x: gx - e, y: pad.y }
     return { x: gx + w + e, y: pad.y }
   }
-  const simp = (pts: Pt[]): Pt[] => pts.filter((p, i) => i === 0 || i === pts.length - 1 || Math.sign(p.x - pts[i - 1].x) !== Math.sign(pts[i + 1].x - p.x) || Math.sign(p.y - pts[i - 1].y) !== Math.sign(pts[i + 1].y - p.y))
   pairs.forEach((pr, i) => {
     const col = i % PCOLS, x = 16 + col * (PW + 10)
     if (col === 0 && i > 0) y += PH + 10
@@ -174,12 +154,9 @@ async function boot() {
     const A = placePad(pr.a, x + PW * 0.28, PADY), B = placePad(pr.b, x + PW * 0.72, PADY)
     const la = A.leads[Math.max(0, pin(pr.a.kind, pr.a.pin))], lb = B.leads[Math.max(0, pin(pr.b.kind, pr.b.pin))]
     const ea = esc(la, A.gx, A.gy, pr.a.kind), eb = esc(lb, B.gx, B.gy, pr.b.kind)
-    // perpendicular stubs → up into the clear channel → across → down into the target (head-on)
-    const route = filletPathPixels(simp([la, ea, { x: ea.x, y: channelY }, { x: eb.x, y: channelY }, eb, lb]), 12)
+    // perpendicular stubs → up into the clear channel → across → down into the target (head-on), 45° corners
     const cg = new Graphics()
-    cg.moveTo(route[0].x, route[0].y); for (let k = 1; k < route.length; k++) cg.lineTo(route[k].x, route[k].y)
-    cg.stroke({ color: cop, width: 2.5, cap: 'round', join: 'round' })
-    cg.circle(la.x, la.y, 3).fill({ color: cop }); cg.circle(lb.x, lb.y, 3).fill({ color: cop })
+    strokeCopperPath(cg, [la, ea, { x: ea.x, y: channelY }, { x: eb.x, y: channelY }, eb, lb], cop)
     world.addChild(cg)
     world.addChild(drawShapes(buildVintageShapes(pr.a.kind, P, pr.a.opts), A.gx, A.gy))
     world.addChild(drawShapes(buildVintageShapes(pr.b.kind, P, pr.b.opts), B.gx, B.gy))
@@ -209,9 +186,9 @@ async function boot() {
   }
   const placeAt = (kind: VintageKind, gx: number, gy: number, opts?: VintageOpts): Pt[] => { partsList.push({ kind, x: gx, y: gy, opts }); return leadsAt(kind, gx, gy) }
   const Lp = (kind: VintageKind, leads: Pt[], name: string): Pt => leads[Math.max(0, pin(kind, name))]
-  const draw = (pts: Pt[], w = 2.5) => { copperG.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) copperG.lineTo(pts[i].x, pts[i].y); copperG.stroke({ color: COP, width: w, cap: 'round', join: 'round' }) }
+  const draw = (pts: Pt[], w = 2.4) => strokeCopperPath(copperG, pts, COP, { width: w })
   const seg = (a: Pt, b: Pt) => draw([a, b])                                   // straight (aligned pads)
-  const linkVHV = (a: Pt, b: Pt, midY: number) => draw(filletPathPixels([a, { x: a.x, y: midY }, { x: b.x, y: midY }, b], 12)) // vertical-horizontal-vertical
+  const linkVHV = (a: Pt, b: Pt, midY: number) => draw([a, { x: a.x, y: midY }, { x: b.x, y: midY }, b]) // vertical-horizontal-vertical, 45° corners
   const junction = (p: Pt) => topG.circle(p.x, p.y, 3.5).fill({ color: COP })
   const thermal = (p: Pt) => { topG.circle(p.x, p.y, 5.5).stroke({ color: COP, width: 1.5 }); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]] as const) topG.moveTo(p.x, p.y).lineTo(p.x + dx * 5.5, p.y + dy * 5.5).stroke({ color: COP, width: 2 }) }
   const cap = (t: string, x: number, yy: number) => text(t, x, yy, PALETTE.textDim, 11)
@@ -308,62 +285,73 @@ async function boot() {
       }
     }
 
+    // keep-out: block every pad cell + its 4-neighbours so traces never slide along a foreign pin row
+    for (let idx = 0; idx < blk.items.length; idx++) {
+      for (const p of getItemPads(blk.items[idx], idx)) {
+        const c = padToCell(p)
+        for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) blocked.add(cellKey([c[0] + dx, c[1] + dy]))
+      }
+    }
+
     const padNet = new Map<string, number>()
     const cg = new Graphics()
 
-    blk.nets.forEach((net, netIdx) => {
-      for (let k = 1; k < net.length; k++) {
-        const itemIdxA = net[k - 1], itemIdxB = net[k]
-        const itA = blk.items[itemIdxA], itB = blk.items[itemIdxB]
-        const padsA = getItemPads(itA, itemIdxA), padsB = getItemPads(itB, itemIdxB)
-        if (padsA.length === 0 || padsB.length === 0) continue
+    // flatten nets into pad-to-pad tasks; route SHORTEST first → cleaner greedy layout, fewer detours
+    type Task = { netIdx: number; itemIdxA: number; itemIdxB: number }
+    const tasks: Task[] = []
+    blk.nets.forEach((net, netIdx) => { for (let k = 1; k < net.length; k++) tasks.push({ netIdx, itemIdxA: net[k - 1], itemIdxB: net[k] }) })
+    const taskDist = (t: Task): number => {
+      const a = getItemPads(blk.items[t.itemIdxA], t.itemIdxA), b = getItemPads(blk.items[t.itemIdxB], t.itemIdxB)
+      let m = Infinity
+      for (const pa of a) for (const pb of b) m = Math.min(m, Math.hypot(pa.x - pb.x, pa.y - pb.y))
+      return m
+    }
+    tasks.sort((x, y) => taskDist(x) - taskDist(y))
 
-        let bestPair: { padA: typeof padsA[0]; padB: typeof padsB[0]; dist: number } | null = null
-        for (const pA of padsA) {
-          if (padNet.has(`${itemIdxA}_${pA.padIdx}`) && padNet.get(`${itemIdxA}_${pA.padIdx}`) !== netIdx) continue
-          for (const pB of padsB) {
-            if (padNet.has(`${itemIdxB}_${pB.padIdx}`) && padNet.get(`${itemIdxB}_${pB.padIdx}`) !== netIdx) continue
-            const dist = Math.hypot(pA.x - pB.x, pA.y - pB.y)
-            if (!bestPair || dist < bestPair.dist) bestPair = { padA: pA, padB: pB, dist }
-          }
+    let skipped = 0
+    for (const { netIdx, itemIdxA, itemIdxB } of tasks) {
+      const itA = blk.items[itemIdxA], itB = blk.items[itemIdxB]
+      const padsA = getItemPads(itA, itemIdxA), padsB = getItemPads(itB, itemIdxB)
+      if (padsA.length === 0 || padsB.length === 0) continue
+
+      let bestPair: { padA: typeof padsA[0]; padB: typeof padsB[0]; dist: number } | null = null
+      for (const pA of padsA) {
+        if (padNet.has(`${itemIdxA}_${pA.padIdx}`) && padNet.get(`${itemIdxA}_${pA.padIdx}`) !== netIdx) continue
+        for (const pB of padsB) {
+          if (padNet.has(`${itemIdxB}_${pB.padIdx}`) && padNet.get(`${itemIdxB}_${pB.padIdx}`) !== netIdx) continue
+          const dist = Math.hypot(pA.x - pB.x, pA.y - pB.y)
+          if (!bestPair || dist < bestPair.dist) bestPair = { padA: pA, padB: pB, dist }
         }
-        if (!bestPair) continue
-
-        const { padA, padB } = bestPair
-        padNet.set(`${itemIdxA}_${padA.padIdx}`, netIdx)
-        padNet.set(`${itemIdxB}_${padB.padIdx}`, netIdx)
-
-        const cellA = padToCell(padA), cellB = padToCell(padB)
-        const dirA = getEscapeDir(padA.kind, padA.padIdx, itA.cell[1])
-        const dirB = getEscapeDir(padB.kind, padB.padIdx, itB.cell[1])
-        const escA = getEscapeCell(cellA, dirA), escB = getEscapeCell(cellB, dirB)
-        
-        // temporarily unblock local escape paths
-        const unblocks = [cellA, escA, [cellA[0] + dirA.x, cellA[1] + dirA.y], cellB, escB, [cellB[0] + dirB.x, cellB[1] + dirB.y]].map(c => cellKey([c[0], c[1]]))
-        const restoring = unblocks.filter(k => blocked.has(k))
-        unblocks.forEach(k => blocked.delete(k))
-
-        const cellPath = routeOctilinear({ cols, rows, start: escA, goal: escB, blocked, turnPenalty: 1.5 })
-
-        restoring.forEach(k => blocked.add(k))
-
-        let pxPath: Pt[] = []
-        if (cellPath) {
-          const fullPath: Cell[] = [cellA, [cellA[0] + dirA.x, cellA[1] + dirA.y], ...(cellPath as Cell[]), [cellB[0] + dirB.x, cellB[1] + dirB.y], cellB]
-          pxPath = simp(fullPath.map(cellToPx))
-          pxPath[0] = { x: padA.x, y: padA.y }
-          pxPath[pxPath.length - 1] = { x: padB.x, y: padB.y }
-          for (const c of fullPath) blocked.add(cellKey(c))
-        } else {
-          pxPath = [{ x: padA.x, y: padA.y }, { x: padB.x, y: padB.y }]
-        }
-
-        const smoothed = filletPathPixels(pxPath, 4)
-        cg.moveTo(smoothed[0].x, smoothed[0].y)
-        for (let i = 1; i < smoothed.length; i++) cg.lineTo(smoothed[i].x, smoothed[i].y)
-        cg.stroke({ color: COP4, width: 2.2, cap: 'round', join: 'round' })
       }
-    })
+      if (!bestPair) continue
+
+      const { padA, padB } = bestPair
+      const cellA = padToCell(padA), cellB = padToCell(padB)
+      const dirA = getEscapeDir(padA.kind, padA.padIdx, itA.cell[1])
+      const dirB = getEscapeDir(padB.kind, padB.padIdx, itB.cell[1])
+      const escA = getEscapeCell(cellA, dirA), escB = getEscapeCell(cellB, dirB)
+
+      // temporarily unblock local escape paths (the two endpoints + their escape lanes)
+      const unblocks = [cellA, escA, [cellA[0] + dirA.x, cellA[1] + dirA.y], cellB, escB, [cellB[0] + dirB.x, cellB[1] + dirB.y]].map(c => cellKey([c[0], c[1]]))
+      const restoring = unblocks.filter(k => blocked.has(k))
+      unblocks.forEach(k => blocked.delete(k))
+
+      const cellPath = routeOctilinear({ cols, rows, start: escA, goal: escB, blocked, turnPenalty: 2.5 })
+
+      restoring.forEach(k => blocked.add(k))
+
+      if (!cellPath) { skipped++; continue } // no straight crossing fallback — skip rather than short two nets
+
+      padNet.set(`${itemIdxA}_${padA.padIdx}`, netIdx)
+      padNet.set(`${itemIdxB}_${padB.padIdx}`, netIdx)
+      const fullPath: Cell[] = [cellA, [cellA[0] + dirA.x, cellA[1] + dirA.y], ...(cellPath as Cell[]), [cellB[0] + dirB.x, cellB[1] + dirB.y], cellB]
+      const pxPath = simp(fullPath.map(cellToPx))
+      pxPath[0] = { x: padA.x, y: padA.y }
+      pxPath[pxPath.length - 1] = { x: padB.x, y: padB.y }
+      for (const c of fullPath) blocked.add(cellKey(c))
+      strokeCopperPath(cg, pxPath, COP4, { width: 2.2, chamfer: 6, radius: 4 })
+    }
+    if (skipped) console.warn(`[kit2] block "${title}": ${skipped} net(s) unrouted (skipped to avoid crossings)`)
 
     world.addChild(cg)
     for (const it of blk.items) {

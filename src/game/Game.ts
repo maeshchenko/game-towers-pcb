@@ -12,7 +12,7 @@ import { WaveManager, mapWaves } from './WaveManager'
 import { GameState } from './GameState'
 import { hpScale, SPEED_SCALE } from './difficulty'
 
-interface Spot { cell: Cell; pos: Pt; tower: Tower | null; special: boolean }
+interface Spot { cell: Cell; pos: Pt; tower: Tower | null; special: boolean; score: number }
 
 /** A transient fire effect for one shot, drawn as a fading beam. */
 export interface Fx { from: Pt; to: Pt; kind: TowerKind; ttl: number }
@@ -36,15 +36,17 @@ export class Game {
     const diff = level.meta.difficulty
     const waves = mapWaves(diff)
     this.state = new GameState(diff, waves.length)
-    this.wm = new WaveManager(paths, waves, hpScale(diff), this.pitch * SPEED_SCALE, seed)
+    this.wm = new WaveManager(paths, waves, hpScale(diff) * (level.meta.tune?.hpMul ?? 1), this.pitch * SPEED_SCALE, seed)
     this.spots = [
-      ...level.spots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: false })),
-      ...level.specialSpots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: true })),
+      ...level.spots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: false, score: s.score ?? 0 })),
+      ...level.specialSpots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: true, score: s.score ?? 0 })),
     ]
   }
 
   enemies(): Enemy[] { return this.wm.active }
   spotCells(): Cell[] { return this.spots.map((s) => s.cell) }
+  /** spot indices ordered by strategic value (coverage) desc — a competent player's build priority */
+  buildOrder(): number[] { return this.spots.map((_, i) => i).sort((a, b) => this.spots[b].score - this.spots[a].score) }
   canBuild(i: number): boolean { return (this.state.phase === 'build' || this.state.phase === 'wave') && !!this.spots[i] && !this.spots[i].tower }
 
   build(kind: TowerKind, i: number): boolean {

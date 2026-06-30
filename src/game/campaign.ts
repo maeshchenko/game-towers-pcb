@@ -1,5 +1,7 @@
 // src/game/campaign.ts
 import { startLives } from './difficulty'
+import type { Board, Level } from '../model/level'
+import { AUTHORED_LEVELS } from '../levels'
 
 export interface CampaignLevelDef {
   name: string
@@ -8,6 +10,8 @@ export interface CampaignLevelDef {
   rows: number
   difficulty: number
   seed: number
+  /** Hand-authored builder; when present the campaign loads this Level instead of generating. */
+  build?: (board: Board) => Level
 }
 
 export interface PlayerProgress {
@@ -32,6 +36,9 @@ export const CAMPAIGN_LEVELS: CampaignLevelDef[] = [
   { name: 'Критический перегруз', nameKey: 'campaign.level10.name', cols: 60, rows: 45, difficulty: 8, seed: 19203 },
   { name: 'Финал: Генератор', nameKey: 'campaign.level11.name', cols: 60, rows: 45, difficulty: 9, seed: 99999 },
 ]
+
+// Attach hand-authored builders by index (levels filled in one by one); others stay generator-backed.
+AUTHORED_LEVELS.forEach((fn, i) => { if (CAMPAIGN_LEVELS[i]) CAMPAIGN_LEVELS[i].build = fn })
 
 const SAVE_KEY = 'pcb_td_campaign_progress_v1'
 

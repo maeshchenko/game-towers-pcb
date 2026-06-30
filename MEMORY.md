@@ -53,6 +53,27 @@ serpentineH/V, spiral, branching (split→merge→one finish), multiSpawn (N spa
 
 **Generator robustness (fixed):** `generateLevel` must NEVER throw. Spiral is a connected turtle (not concentric rings); branching/multiSpawn/cross fall back to serpentineH on too-small grids. Regression test covers 4 boards × 6 archetypes × difficulties (`tests/tiles/generator.test.ts`).
 
+## Handcrafted campaign levels (`src/levels/`)
+The 12 campaign levels are **hand-authored**, not seed-generated. `dsl.ts` `LevelBuilder` composes path(s) + build/special spots + decor blocks (`pipeline/circuits.ts`) + wires; `build()` enforces the one-finish invariant; copper via `routeCopper`. `campaign/level01..12.ts` build each; `index.ts` exports `AUTHORED_LEVELS`. `campaign.ts` attaches `build` fns to `CAMPAIGN_LEVELS` by index; `main.ts:loadAuthoredOrGenerated` loads the authored `Level` when present, else falls back to the generator. **Deep-link `?t=authored-N`** (boot parses it; the app also writes it on load). Tests: `tests/levels/{dsl,authored,_harness}.test.ts` (one-finish + copper-on-pads + winnable per level).
+- **Tower spots = PRIMARY**, decor = secondary. `b.autoSpots(budget)` → `computeTowerSpots` (coverage-greedy), enhanced with: `pathGap` (dilate path → pads keep a gap from the trace, never touch/cross it), `occupied` (exclude decor footprints +gap), `candidateCells` whitelist; spots carry a coverage `score`. `patrolSpots` (neat lane-hugging even rows, count/spacing-driven) also exists but `autoSpots` is what ships (proven winnable). Lvl 2/3/8 use `patrolSpots({spacing})` to thin the pad field (see cliff gotcha).
+- **Decor is HIDDEN:** `SHOW_DECOR=false` in `Renderer.ts` skips decor+copper draw (focus = trace + towers). Decor data still builds (tests stay green). Substrate reverted to the pre-"gemini" look: silk cell grid + 45° hatch + simple via dots (the minimal/empty board read worse).
+- `LevelBuilder.fillBlocks` exists (validated placement: footprint keeps a gap from path + other decor) for re-enabling decor *around* the spots later.
+
+## Per-map balance optimizer (`scripts/balance-optimize.ts`, `npm run balance:optimize`)
+Mine, pcb-specific (NOT the reference repo's). Runs the real pcb sim (`game/sim.ts:simulate`) per authored level and **sweeps the per-map enemy-HP knob `meta.tune.hpMul`** (declared in `model/level.ts`, applied in `Game.ts`) to hit a difficulty-ramped target pressure (gentle tutorial → tense finale). It recommends; bake `hpMul` into each level's meta by hand. Runs via `vitest.scripts.config.ts` (separate include = `scripts/**`). Re-run after changing levels / tower / enemy numbers.
+- Reference defense `basicPlacement` now builds **best-coverage spots first** (`Game.buildOrder()` ordered by spot `score`) = a competent player, not arbitrary order.
+- Balance numbers were tuned in the reference sim (`tower-defence-game/src/sim/config.ts`). Only the **tesla/mortar buffs** ported to pcb (kills cannon's near-monopoly; test-safe because the reference defense only builds cannon). cannon-cost↑ / armor↑ / economy-tighten did **NOT** port — they make pcb's hard levels unwinnable (pcb is already at its difficulty ceiling; the two projects have different map economies).
+
+## Tutorial / build-menu UX
+- **Build radial:** affordability re-evaluated live each frame (`GameUI.refreshRadialAffordability`) so gold earned mid-menu unlocks chips without re-opening; dim **backdrop scrim** (`.pcb-radial-backdrop`, z90 — dims board, not the top HUD) so the menu reads as a modal; item tooltips suppressed during the tutorial.
+- **Tower sell** = two-click confirm + a fixed disabled "МАКС" slot holding the Upgrade position (so Sell never jumps under the cursor on a max-upgrade → no accidental sell).
+- **Enemy intros only on level 1** (`activeCampaignLevelIndex===0`); later levels never pause.
+- **Level # label** decoupled from wave number (`GameUI.setLevelNumber`, set on load) — it's the campaign level, fixed for all 10 waves. Wave shows separately ("ВОЛНА X/10").
+- **Tutorial camera frozen** (no zoom/pan while a spot is highlighted) via a **capture-phase wheel/pointer blocker in `GameUI`** keyed on `.pcb-tutorial-bubble` visibility (DOM-detected) — see HMR gotcha. Tutorial bubble offset 150px clear of the radial ring.
+- **Names consistent:** the upgrade panel uses the themed name (`TOWER_THEMES[kind].name` = PULSE/MISSILE/LASER/…), matching the build menu (was the raw `kind`).
+- **Trackpad zoom:** proportional to scroll delta with a separate gentle path for pinch (`ctrlKey`) — replaced the fixed ±15%/event that avalanched on a trackpad's high-frequency deltas; wheel feel preserved.
+- **`frameLevel` fits path AND spots** (spot cells added to the bbox so pads never clip off-screen) and is tighter (pad `pitch*0.4`, fill `0.99`, margins `mL=156 mR=24 mT=56 mB=64`) so large boards fill more screen while everything stays in frame.
+
 ## Docs
 Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-realism research under `docs/research/` and `.superpowers/sdd/` (gitignored scratch: briefs, reports, progress ledger).
 
@@ -64,6 +85,10 @@ Specs/plans under `docs/superpowers/{specs,plans}/`; TD-map taxonomy + PCB-reali
 - **Справочник сигналов (Бестиарий) и Интро врагов**: Кнопка `📖` в HUD и `🔍 БЕСТИАРИЙ` в меню Кампании открывают окно со всеми врагами и их слабостями. При первом появлении на поле боя нового типа врага, игра ставится на паузу (`speed = 0`), камера зумируется на враге и выводится попап-карточка. Для защиты от бесконечного спама окон на тике используется `introducingEnemies` блокирующее множество.
 - **Инварианты запуска волн**: Первая волна любого уровня запускается ТОЛЬКО вручную. Отсчет автоволн (5 секунд) включается начиная со 2-й волны. Досрочный запуск волн дает бонус `оставшиеся_секунды * 3` энергии с летящим текстом `+15 ⚡`.
 - **Язык и Подсказки**: Русский язык является дефолтным (`i18n.lang = 'ru'`). Блок подсказок слева внизу прокручивается автоматически каждые 8 секунд или вручную стрелками. Таймер сбрасывается при ручном переключении.
+- **HMR НЕ перезапускает `main.ts` (entry-модуль)**: Vite горячо подменяет компоненты/CSS (`GameUI.ts`, `styles.css`), но обработчики и состояние внутри `main.ts` (boot-замыкание) живут до ПОЛНОЙ перезагрузки страницы. Симптом: правка в `main.ts` «не применяется» в открытой вкладке. → Кросс-cutting input-обработчики (напр. заморозка зума в туториале) клади в hot-reloadable модуль (`GameUI`), а состояние детектируй по DOM. Зум-фриз туториала = capture-phase blocker в `GameUI`, который смотрит на видимость `.pcb-tutorial-bubble`.
+- **Обилие площадок → «обрыв» сложности**: эталонная пушечная защита держит полностью покрытую трассу идеально, потом резко рушится — нет плавного градиента давления, поэтому `hpMul` не может настроить напряжение на таких картах. Решение: МЕНЬШЕ площадок (`patrolSpots({spacing})` на lvl 2/3/8) возвращает градиент.
+- **Балансный сим немонотонен**: БОЛЬШЕ башен может ПРОИГРАТЬ — защита, ограниченная золотом, строит площадки по порядку до конца денег, поэтому ПОРЯДОК постройки (от спавна / по лучшему покрытию) важен не меньше количества. Не гонись за симом, добавляя площадки.
+- **Числа сима не переносятся 1:1 в pcb**: карты/экономика эталонного репо отличаются; настраивай pcb по его собственному тесту (`tests/levels/authored.test.ts`: проходимо + давление в полосе), а не по абсолютным числам сима.
 
 
 

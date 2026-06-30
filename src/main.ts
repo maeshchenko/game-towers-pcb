@@ -61,18 +61,22 @@ async function boot() {
     if (!lvl) return
     const pitch = lvl.board.pitch
     let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity
-    for (const t of levelPaths(lvl)) for (const [cx, cy] of t.waypoints) {
+    const acc = (cx: number, cy: number) => {
       const x = cx * pitch + pitch / 2, y = cy * pitch + pitch / 2
       minX = Math.min(minX, x); minY = Math.min(minY, y); maxX = Math.max(maxX, x); maxY = Math.max(maxY, y)
     }
+    for (const t of levelPaths(lvl)) for (const [cx, cy] of t.waypoints) acc(cx, cy)
+    // include the tower pads (and boost contacts) so they always fit on screen, not just the trace
+    for (const sp of lvl.spots) acc(sp.cell[0], sp.cell[1])
+    for (const sp of lvl.specialSpots) acc(sp.cell[0], sp.cell[1])
     if (!isFinite(minX)) return
     // fit the path into the free area (avoiding legend/top-bar/HUD) → tidy at ANY board size
-    const padc = pitch * 1.2
+    const padc = pitch * 0.4   // tight margin around path+spots → larger boards fill more screen
     minX -= padc; minY -= padc; maxX += padc; maxY += padc
-    const mL = 180, mR = 24, mT = 56, mB = 88 // UI margins: legend, mode-bar, HUD
+    const mL = 156, mR = 24, mT = 56, mB = 64 // UI margins: legend, mode-bar, HUD
     const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
     const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY)
-    camera.zoom = Math.max(0.2, Math.min(4, Math.min(aw / bw, ah / bh) * 0.97))
+    camera.zoom = Math.max(0.2, Math.min(4, Math.min(aw / bw, ah / bh) * 0.99))
     camera.x = mL + aw / 2 - ((minX + maxX) / 2) * camera.zoom
     camera.y = mT + ah / 2 - ((minY + maxY) / 2) * camera.zoom
     camera.apply(renderer.world)
@@ -84,12 +88,30 @@ async function boot() {
     board = { cols, rows, pitch: PITCH_PX }; editor.state.board = board
     editor.state.loadLevel(generateBalancedLevel({ board, difficulty, seed }))
     editor.redraw(); frameLevel()
+    ui.setLevelNumber(activeCampaignLevelIndex !== null ? activeCampaignLevelIndex + 1 : 1)
     const lvlName = editor.state.level?.meta.name
     updateLevelName(lvlName ? (i18n.t(lvlName as any) || lvlName) : 'LEVEL --')
     const code = `${cols}x${rows}.${difficulty}.${seed}`
     history.replaceState(null, '', `${location.pathname}?t=${code}`)
     const trackStr = i18n.lang === 'ru' ? 'трасса' : 'track'
     if (seedLabel) seedLabel.textContent = `${trackStr} ${code}`
+  }
+  // campaign: load a hand-authored level when one exists for this index, else fall back to generator
+  function loadAuthoredOrGenerated(index: number): void {
+    const def = CAMPAIGN_LEVELS[index]
+    if (def?.build) {
+      resetPlay(); ui.showTower(null, 0)
+      board = { cols: def.cols, rows: def.rows, pitch: PITCH_PX }; editor.state.board = board
+      editor.state.loadLevel(def.build(board))
+      editor.redraw(); frameLevel()
+      ui.setLevelNumber(index + 1)
+      updateLevelName(i18n.t(def.nameKey as any) || def.name)
+      history.replaceState(null, '', `${location.pathname}?t=authored-${index + 1}`)
+      const trackStr = i18n.lang === 'ru' ? 'уровень' : 'level'
+      if (seedLabel) seedLabel.textContent = `${trackStr} ${index + 1}`
+    } else {
+      makeLevel(def.cols, def.rows, def.difficulty, def.seed)
+    }
   }
   function newRandomLevel(): void {
     const difficulty = DIFFICULTY_RAMP[Math.min(campaign++, DIFFICULTY_RAMP.length - 1)]
@@ -311,8 +333,7 @@ async function boot() {
 
       campaignMenu.hide()
       activeCampaignLevelIndex = index
-      const lvlDef = CAMPAIGN_LEVELS[index]
-      makeLevel(lvlDef.cols, lvlDef.rows, lvlDef.difficulty, lvlDef.seed)
+      loadAuthoredOrGenerated(index)
       setMode('play')
 
       if (index === 0) {
@@ -382,7 +403,12 @@ async function boot() {
   } else {
     // Normal campaign screen or code-based launch:
     // We hide New Map and Editor buttons by default, so we don't call modeBtn() here.
-    if (m) {
+    const am = t && /^authored-(\d+)$/.exec(t)
+    if (am && CAMPAIGN_LEVELS[+am[1] - 1]?.build) {
+      activeCampaignLevelIndex = +am[1] - 1
+      loadAuthoredOrGenerated(+am[1] - 1)
+      setMode('play')
+    } else if (m) {
       makeLevel(+m[1], +m[2], +m[3], +m[4])
       setMode('play')
     } else {
@@ -419,6 +445,7 @@ async function boot() {
   window.addEventListener('pointermove', (e) => {
     if (!activePointers.has(e.pointerId)) return
     activePointers.set(e.pointerId, { clientX: e.clientX, clientY: e.clientY })
+    if (activeTutorial) return   // no pan/zoom while the tutorial guides a fixed spot
 
     if (activePointers.size === 1 && drag) {
       const dx = e.clientX - drag.x, dy = e.clientY - drag.y
@@ -468,10 +495,21 @@ async function boot() {
 
   app.canvas.addEventListener('wheel', (e) => {
     e.preventDefault()
-    const factor = e.deltaY < 0 ? 1.15 : 0.85
+    if (activeTutorial) return   // freeze camera during the guided tutorial so the ring stays aligned
+    const px = e.deltaMode === 1 ? e.deltaY * 16 : e.deltaMode === 2 ? e.deltaY * 400 : e.deltaY
+    let factor: number
+    if (e.ctrlKey) {
+      // TRACKPAD PINCH (ctrlKey on macOS): deltas can be large/fast, so use a tiny coefficient AND a
+      // tight per-event clamp -> each pinch event nudges zoom at most ~2.5%, so it's smooth and slow.
+      factor = Math.max(0.975, Math.min(1.025, Math.exp(-px * 0.0006)))
+    } else {
+      // MOUSE WHEEL: keep the prior ~1.15 / 0.85 feel (big discrete deltas).
+      factor = Math.max(0.85, Math.min(1.18, Math.exp(-px * 0.0016)))
+    }
     const r = app.canvas.getBoundingClientRect()
     camera.zoomAt(e.clientX - r.left, e.clientY - r.top, factor)
     camera.apply(renderer.world)
+    if ((window as any).__zoomdbg) console.log('[zoom]', { dy: e.deltaY, mode: e.deltaMode, ctrl: e.ctrlKey, factor: +factor.toFixed(3), zoom: +camera.zoom.toFixed(2) })
   }, { passive: false })
   function handleClick(e: PointerEvent): void {
     if (!game) return
@@ -516,7 +554,7 @@ async function boot() {
       const wy_c = spotCell[1] * pitch + pitch / 2
       const clientX = wx_c * camera.zoom + camera.x + r.left
       const clientY = wy_c * camera.zoom + camera.y + r.top
-      ui.openRadialMenu(bestI, clientX, clientY, game.state.gold, activeTutorial && tutorialStep === 1 ? 'cannon' : undefined)
+      ui.openRadialMenu(bestI, clientX, clientY, game.state.gold, activeTutorial && tutorialStep === 1 ? 'cannon' : undefined, !activeTutorial)
     } else {
       const t = game.towers.find((tw) => Math.hypot(tw.pos.x - wx, tw.pos.y - wy) <= pitch)
       selectedTower = t ?? null
@@ -542,10 +580,12 @@ async function boot() {
       const progress = loadProgress()
       if (!progress.seenIntroductions) progress.seenIntroductions = {}
       
-      const newEnemy = activeEnemies.find(e => {
+      // Enemy introductions are part of onboarding → only on the FIRST campaign level. Later levels
+      // (incl. random/editor where activeCampaignLevelIndex is null) never interrupt with intros.
+      const newEnemy = activeCampaignLevelIndex === 0 ? activeEnemies.find(e => {
         const k = e.kind
         return ['fast', 'healer', 'brute', 'tank', 'rogue', 'boss'].includes(k) && !progress.seenIntroductions![k] && !introducingEnemies.has(k)
-      })
+      }) : undefined
 
       if (newEnemy) {
         const kind = newEnemy.kind
@@ -615,14 +655,12 @@ async function boot() {
             hasNext ? () => {
               ui.closeOverlay()
               activeCampaignLevelIndex!++
-              const nextDef = CAMPAIGN_LEVELS[activeCampaignLevelIndex!]
-              makeLevel(nextDef.cols, nextDef.rows, nextDef.difficulty, nextDef.seed)
+              loadAuthoredOrGenerated(activeCampaignLevelIndex!)
               setMode('play')
             } : null,
             () => {
               ui.closeOverlay()
-              const lvlDef = CAMPAIGN_LEVELS[activeCampaignLevelIndex!]
-              makeLevel(lvlDef.cols, lvlDef.rows, lvlDef.difficulty, lvlDef.seed)
+              loadAuthoredOrGenerated(activeCampaignLevelIndex!)
               setMode('play')
             },
             () => {
@@ -656,8 +694,7 @@ async function boot() {
           () => {
             ui.closeOverlay()
             if (activeCampaignLevelIndex !== null) {
-              const lvlDef = CAMPAIGN_LEVELS[activeCampaignLevelIndex]
-              makeLevel(lvlDef.cols, lvlDef.rows, lvlDef.difficulty, lvlDef.seed)
+              loadAuthoredOrGenerated(activeCampaignLevelIndex)
             } else {
               const lvl = editor.state.level!
               makeLevel(lvl.board.cols, lvl.board.rows, lvl.meta.difficulty, lvl.seed)

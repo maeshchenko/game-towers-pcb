@@ -15,6 +15,6 @@ describe('stat tables', () => {
     expect(TOWER_DEFS.slow[0].aura).toBe(true)
     expect(TOWER_DEFS.sniper[0].pierce).toBe(4)
     expect(TOWER_DEFS.mortar[0].splashRadius).toBeGreaterThan(0)
-    expect(TOWER_DEFS.tesla[0].chainCount).toBe(2)
+    expect(TOWER_DEFS.tesla[0].chainCount).toBe(3) // buffed: tesla viable vs cannon dominance
   })
 })
