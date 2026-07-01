@@ -35,6 +35,7 @@ octagons, green START pad, red FINISH pad, dense realistic decor, and the side p
 | Path topology | **Single winding path**, START → FINISH |
 | Decor source | **Procedural package generator** (1:1 with reference); SVG slots optional later. Revised from "real SVG" after research — see Decor decision |
 | Generator router | **A\* on grid with turn/wander cost shaping** (controllable length & bendiness) |
+| Map size | **User-selectable** — presets (S/M/L/XL) + manual cols×rows. `pitch` **auto-fit to viewport** (`min(viewW/cols, viewH/rows)`): smaller map → larger cells, bigger map → smaller cells |
 
 ## Reuse from `../tower-defence-game`
 

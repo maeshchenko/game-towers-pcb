@@ -1816,22 +1816,82 @@ git commit -m "feat: editor state machine and live pipeline"
 
 ---
 
-### Task 16: Toolbar, save/load, side panels, integration
+### Task 16: Toolbar, save/load, map size, side panels, integration
 
 **Files:**
-- Create: `src/ui/Toolbar.ts`, `src/ui/Panels.ts`, `src/ui/styles.css`
+- Create: `src/app/viewport.ts`, `src/ui/Toolbar.ts`, `src/ui/Panels.ts`, `src/ui/styles.css`
 - Modify: `src/main.ts` (final wiring)
-- Test: `tests/ui/io.test.ts`
+- Test: `tests/app/viewport.test.ts`, `tests/ui/io.test.ts`
 
 **Interfaces:**
-- Consumes: `Level`; `serializeLevel`, `parseLevel`; `generateLevel`; `EditorState`/`Editor`/`Renderer`/`Camera`.
+- Consumes: `Level`, `Board`; `serializeLevel`, `parseLevel`; `generateLevel`; `EditorState`/`Editor`/`Renderer`/`Camera`.
 - Produces:
+  - `MAP_PRESETS: { label: string; cols: number; rows: number }[]` — `S 32×24`, `M 48×36`, `L 64×48`, `XL 96×72`.
+  - `fitPitch(cols: number, rows: number, viewW: number, viewH: number, opts?: { minPitch?: number; maxPitch?: number }): number` — integer pixels-per-cell so the board fits the viewport (`min(viewW/cols, viewH/rows)`), clamped to `[minPitch=8, maxPitch=48]`. Smaller boards → larger pitch; bigger boards → smaller pitch.
   - `levelToBlobUrl(level: Level): string` — JSON object-URL for download.
   - `readLevelFile(file: File): Promise<Level>` — parse an uploaded JSON file into a `Level`.
-  - `mountToolbar(opts: { onNew(): void; onGenerate(): void; onSave(): void; onLoad(file: File): void; onReseed(): void }): HTMLElement`
+  - `mountToolbar(opts: { onNew(): void; onGenerate(): void; onSave(): void; onLoad(file: File): void; onReseed(): void; onResize(cols: number, rows: number): void }): HTMLElement` — includes S/M/L/XL preset buttons and manual cols×rows number inputs that call `onResize`.
   - `mountPanels(level: Level | null): HTMLElement` — LEGEND / TIPS / LEVEL-info panels styled to the reference.
 
-- [ ] **Step 1: Write the failing test**
+- [ ] **Step 1: Write the failing fit-pitch test**
+
+```ts
+// tests/app/viewport.test.ts
+import { describe, it, expect } from 'vitest'
+import { fitPitch } from '../../src/app/viewport'
+
+describe('fitPitch', () => {
+  it('fits the board to the viewport (limiting dimension wins)', () => {
+    // 1600x900 view, 32x24 board: min(1600/32=50, 900/24=37.5) -> 37, clamped to 37 (<=48)
+    expect(fitPitch(32, 24, 1600, 900)).toBe(37)
+  })
+  it('smaller board yields a larger pitch than a bigger board', () => {
+    const small = fitPitch(32, 24, 1600, 900)
+    const big = fitPitch(96, 72, 1600, 900)
+    expect(small).toBeGreaterThan(big)
+  })
+  it('clamps to the max pitch', () => {
+    expect(fitPitch(2, 2, 4000, 4000)).toBe(48)
+  })
+  it('clamps to the min pitch', () => {
+    expect(fitPitch(2000, 2000, 800, 600)).toBe(8)
+  })
+})
+```
+
+- [ ] **Step 2: Run it to verify it fails**
+
+Run: `npx vitest run tests/app/viewport.test.ts`
+Expected: FAIL — module not found.
+
+- [ ] **Step 3: Implement `src/app/viewport.ts`**
+
+```ts
+// src/app/viewport.ts
+export const MAP_PRESETS: { label: string; cols: number; rows: number }[] = [
+  { label: 'S', cols: 32, rows: 24 },
+  { label: 'M', cols: 48, rows: 36 },
+  { label: 'L', cols: 64, rows: 48 },
+  { label: 'XL', cols: 96, rows: 72 },
+]
+
+export function fitPitch(
+  cols: number, rows: number, viewW: number, viewH: number,
+  opts: { minPitch?: number; maxPitch?: number } = {},
+): number {
+  const min = opts.minPitch ?? 8
+  const max = opts.maxPitch ?? 48
+  const raw = Math.floor(Math.min(viewW / cols, viewH / rows))
+  return Math.max(min, Math.min(max, raw))
+}
+```
+
+- [ ] **Step 4: Run it to verify it passes**
+
+Run: `npx vitest run tests/app/viewport.test.ts`
+Expected: PASS.
+
+- [ ] **Step 5: Write the failing IO test**
 
 ```ts
 // tests/ui/io.test.ts
@@ -1869,17 +1929,18 @@ And add `jsdom` to devDependencies:
 npm install -D jsdom
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [ ] **Step 6: Run test to verify it fails**
 
 Run: `npx vitest run tests/ui/io.test.ts`
 Expected: FAIL — module not found.
 
-- [ ] **Step 3: Implement `Toolbar.ts`, `Panels.ts`, `styles.css`**
+- [ ] **Step 7: Implement `Toolbar.ts`, `Panels.ts`, `styles.css`**
 
 ```ts
 // src/ui/Toolbar.ts
 import type { Level } from '../model/level'
 import { serializeLevel, parseLevel } from '../model/level'
+import { MAP_PRESETS } from '../app/viewport'
 
 export function levelToBlobUrl(level: Level): string {
   return URL.createObjectURL(new Blob([serializeLevel(level)], { type: 'application/json' }))
@@ -1891,6 +1952,7 @@ export function readLevelFile(file: File): Promise<Level> {
 
 export function mountToolbar(opts: {
   onNew(): void; onGenerate(): void; onSave(): void; onLoad(file: File): void; onReseed(): void
+  onResize(cols: number, rows: number): void
 }): HTMLElement {
   const bar = document.createElement('div')
   bar.className = 'pcb-toolbar'
@@ -1905,6 +1967,20 @@ export function mountToolbar(opts: {
   file.style.display = 'none'
   file.onchange = () => { if (file.files?.[0]) opts.onLoad(file.files[0]) }
   const load = btn('Load', () => file.click()); load.appendChild(file)
+
+  // map-size controls: presets + manual cols×rows
+  const colsIn = document.createElement('input'); colsIn.type = 'number'; colsIn.value = '64'; colsIn.className = 'pcb-size'; colsIn.title = 'cols'
+  const rowsIn = document.createElement('input'); rowsIn.type = 'number'; rowsIn.value = '48'; rowsIn.className = 'pcb-size'; rowsIn.title = 'rows'
+  for (const p of MAP_PRESETS)
+    btn(p.label, () => { colsIn.value = String(p.cols); rowsIn.value = String(p.rows); opts.onResize(p.cols, p.rows) })
+  bar.appendChild(colsIn); bar.appendChild(document.createTextNode('×')); bar.appendChild(rowsIn)
+  const apply = () => {
+    const c = Math.max(8, Math.min(256, Math.floor(Number(colsIn.value) || 0)))
+    const r = Math.max(8, Math.min(256, Math.floor(Number(rowsIn.value) || 0)))
+    colsIn.value = String(c); rowsIn.value = String(r); opts.onResize(c, r)
+  }
+  colsIn.onchange = apply; rowsIn.onchange = apply
+
   document.body.appendChild(bar)
   return bar
 }
@@ -1945,6 +2021,8 @@ export function mountPanels(level: Level | null): HTMLElement {
 .pcb-toolbar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 10; }
 .pcb-toolbar button { background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 6px 12px; font: 12px monospace; cursor: pointer; }
 .pcb-toolbar button:hover { background: #14140f; }
+.pcb-toolbar .pcb-size { width: 46px; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; font: 12px monospace; padding: 5px 4px; }
+.pcb-toolbar { align-items: center; color: #6f8f7e; font: 12px monospace; }
 .pcb-panels { position: fixed; inset: 0; pointer-events: none; }
 .pcb-panel { position: fixed; background: rgba(13,31,23,0.85); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 14px; font: 12px monospace; }
 .pcb-legend { top: 70px; left: 16px; } .pcb-info { top: 16px; right: 16px; } .pcb-tips { bottom: 16px; left: 16px; max-width: 200px; }
@@ -1955,7 +2033,9 @@ export function mountPanels(level: Level | null): HTMLElement {
 .sw.start { background: #35e07a; } .sw.finish { background: #e8503a; }
 ```
 
-- [ ] **Step 4: Final wiring in `src/main.ts`**
+- [ ] **Step 8: Final wiring in `src/main.ts`**
+
+`board` is mutable state. `applyBoard(cols, rows)` recomputes `pitch` via `fitPitch` so the map fills the viewport (smaller map → larger cells, bigger map → smaller cells), updates the editor's board, and redraws. `onResize` calls it.
 
 ```ts
 // src/main.ts
@@ -1966,41 +2046,57 @@ import { Renderer } from './render/Renderer'
 import { Camera } from './render/Camera'
 import { Editor } from './editor/Editor'
 import { generateLevel } from './pipeline/generator'
+import { fitPitch } from './app/viewport'
 import { mountToolbar, levelToBlobUrl, readLevelFile } from './ui/Toolbar'
 import { mountPanels } from './ui/Panels'
-
-const BOARD = { cols: 64, rows: 48, pitch: 24 }
+import type { Board } from './model/level'
 
 async function boot() {
   const app = await createPixiApp({ width: window.innerWidth, height: window.innerHeight, background: PALETTE.substrate })
   document.getElementById('app')!.appendChild(app.canvas)
   const renderer = new Renderer(app)
   const camera = new Camera()
-  const editor = new Editor(app, renderer, camera, BOARD, 1)
+
+  const view = () => ({ w: window.innerWidth, h: window.innerHeight })
+  let board: Board = { cols: 64, rows: 48, pitch: fitPitch(64, 48, view().w, view().h) }
+  const editor = new Editor(app, renderer, camera, board, 1)
   mountPanels(null)
+
+  const emptyLevel = (): import('./model/level').Level => ({
+    version: 1, board, seed: editor.state.seed, trace: { waypoints: [], cornerRadius: 0.5 },
+    spots: [], specialSpots: [], decor: [], meta: { name: 'Untitled', difficulty: 1 },
+  })
+
+  const applyBoard = (cols: number, rows: number) => {
+    board = { cols, rows, pitch: fitPitch(cols, rows, view().w, view().h) }
+    editor.state.board = board
+    if (editor.state.level) { editor.state.level.board = board; editor.state.recompute(); editor.redraw() }
+    else renderer.render(emptyLevel())
+  }
 
   let seedCounter = 1
   mountToolbar({
-    onNew: () => { editor.state.clear(); renderer.render({ version: 1, board: BOARD, seed: 1, trace: { waypoints: [], cornerRadius: 0.5 }, spots: [], specialSpots: [], decor: [], meta: { name: 'Untitled', difficulty: 1 } }) },
-    onGenerate: () => { editor.state.loadLevel(generateLevel({ board: BOARD, difficulty: 5, seed: ++seedCounter })); editor.redraw() },
+    onNew: () => { editor.state.clear(); renderer.render(emptyLevel()) },
+    onGenerate: () => { editor.state.loadLevel(generateLevel({ board, difficulty: 5, seed: ++seedCounter })); editor.redraw() },
     onReseed: () => { editor.state.reseed(++seedCounter); editor.redraw() },
     onSave: () => { if (!editor.state.level) return; const a = document.createElement('a'); a.href = levelToBlobUrl(editor.state.level); a.download = 'level.json'; a.click() },
-    onLoad: async (file) => { editor.state.loadLevel(await readLevelFile(file)); editor.redraw() },
+    onLoad: async (file) => { editor.state.loadLevel(await readLevelFile(file)); board = editor.state.board; editor.redraw() },
+    onResize: applyBoard,
   })
 }
 boot()
 ```
 
-- [ ] **Step 5: Run tests + manual integration check**
+- [ ] **Step 9: Run tests + manual integration check**
 
 Run: `npx vitest run` → Expected: all suites PASS.
-Run: `npm run dev` → verify: draw a trace by clicking (Enter to finish) → spots+decor appear; Auto-Generate makes a full level; Reseed reshuffles decor; Save downloads JSON; Load restores it. Compare against the reference image for 1:1 styling; tune `src/style/palette.ts` constants if needed.
+Run: `npm run dev` → verify: pick a size preset (S/M/L/XL) or type cols×rows → board rescales (smaller map = larger cells, bigger = smaller); draw a trace by clicking (Enter to finish) → spots+decor appear; Auto-Generate makes a full level at the chosen size; Reseed reshuffles decor; Save downloads JSON; Load restores it (including its board size). Compare against the reference image for 1:1 styling; tune `src/style/palette.ts` constants if needed.
 
-- [ ] **Step 6: Commit**
+- [ ] **Step 10: Commit**
 
 ```bash
-git add src/ui src/main.ts package.json tests/ui/io.test.ts
-git commit -m "feat: toolbar, save/load, panels, editor integration"
+git add src/app/viewport.ts src/ui src/main.ts package.json tests/app/viewport.test.ts tests/ui/io.test.ts
+git commit -m "Тулбар, save/load, панели, размер карты, интеграция"
 ```
 
 ---
@@ -2011,6 +2107,7 @@ git commit -m "feat: toolbar, save/load, panels, editor integration"
 - Octilinear 45° + rounded corners → Tasks 4, 5, 12.
 - Grid snapping → Tasks 2, 15.
 - Draw-trace → auto-spots → auto-decor, live recompute → Tasks 8, 9, 15.
+- User-selectable map size (presets + manual) + auto-fit pitch (scale follows size) → Task 16 (`fitPitch`, `MAP_PRESETS`, `onResize`).
 - Single START→FINISH path → Tasks 4, 10, 14 (pads).
 - Procedural package decor (1:1) → Tasks 9, 13.
 - A* router + generator solvability invariant → Tasks 7, 10.

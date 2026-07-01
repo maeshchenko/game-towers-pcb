@@ -1,0 +1,86 @@
+import type { Board, Trace, TowerSpot } from '../model/level'
+import type { Cell } from '../geom/types'
+import { cellKey } from '../geom/grid'
+import { pathSamples, coverage } from '../geom/sampling'
+
+function pathCellSet(trace: Trace): Set<string> {
+  const set = new Set<string>()
+  const wp = trace.waypoints
+  for (let i = 1; i < wp.length; i++) {
+    const a = wp[i - 1], b = wp[i]
+    const steps = Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))
+    for (let k = 0; k <= steps; k++) {
+      const t = steps === 0 ? 0 : k / steps
+      set.add(cellKey([Math.round(a[0] + (b[0] - a[0]) * t), Math.round(a[1] + (b[1] - a[1]) * t)]))
+    }
+  }
+  return set
+}
+
+function normalizeTraces(trace: Trace | Trace[]): Trace[] {
+  return Array.isArray(trace) ? trace : [trace]
+}
+
+export function computeTowerSpots(args: {
+  board: Board; trace: Trace | Trace[]; budget: number
+  rangeCells?: number; minSeparation?: number; specialEvery?: number
+  /** cells already taken by decor (etc.); spots avoid these so pads never sit on a component */
+  occupied?: Set<string>
+  /** rings of empty cells to keep BETWEEN a spot and the trace (gap so pads never touch the road) */
+  pathGap?: number
+  /** restrict candidate cells to this neat whitelist (else scan the whole board) */
+  candidateCells?: Cell[]
+}): { spots: TowerSpot[]; specialSpots: TowerSpot[] } {
+  const rangeCells = args.rangeCells ?? 4
+  const minSeparation = args.minSeparation ?? 3
+  const specialEvery = args.specialEvery ?? 5
+  const pathGap = args.pathGap ?? 1
+  const traces = normalizeTraces(args.trace)
+  const allSamples = traces.flatMap(t => pathSamples(t.waypoints, args.board.pitch))
+  // Blocked = path cells dilated by `pathGap` (so a spot never touches/crosses the trace) plus any
+  // externally-occupied cells (decor footprints already padded by their own gap).
+  const blocked = new Set<string>()
+  for (const t of traces) for (const k of pathCellSet(t)) {
+    const c = k.split(',').map(Number)
+    for (let dx = -pathGap; dx <= pathGap; dx++)
+      for (let dy = -pathGap; dy <= pathGap; dy++)
+        blocked.add(cellKey([c[0] + dx, c[1] + dy]))
+  }
+  if (args.occupied) for (const k of args.occupied) blocked.add(k)
+  const samples = allSamples
+
+  const candidates: { cell: Cell; score: number }[] = []
+  const scan = (cell: Cell) => {
+    if (blocked.has(cellKey(cell))) return
+    const score = coverage(cell, rangeCells, samples, args.board.pitch)
+    if (score > 0) candidates.push({ cell, score })
+  }
+  if (args.candidateCells) {
+    for (const c of args.candidateCells) scan(c)
+  } else {
+    for (let x = 0; x < args.board.cols; x++)
+      for (let y = 0; y < args.board.rows; y++) scan([x, y])
+  }
+  candidates.sort((a, b) => b.score - a.score)
+
+  const chosen: { cell: Cell; score: number }[] = []
+  for (const cand of candidates) {
+    if (chosen.length >= args.budget) break
+    const tooClose = chosen.some((c) =>
+      Math.hypot(c.cell[0] - cand.cell[0], c.cell[1] - cand.cell[1]) < minSeparation)
+    if (!tooClose) chosen.push(cand)
+  }
+
+  const spots: TowerSpot[] = []
+  const specialSpots: TowerSpot[] = []
+  chosen.forEach((c, i) => {
+    if ((i + 1) % specialEvery === 0) specialSpots.push({ cell: c.cell, score: c.score, kind: 'special' })
+    else spots.push({ cell: c.cell, score: c.score, kind: 'build' })
+  })
+  return { spots, specialSpots }
+}
+
+// Minimum number of tower spots a level must offer, by difficulty.
+export function minSpots(difficulty: number): number {
+  return Math.max(4, 6 + difficulty)
+}
