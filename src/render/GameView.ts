@@ -38,9 +38,9 @@ export class GameView {
   constructor(app: Application, layers: Renderer['layers'], private game: Game) {
     this.enemies = new EnemyViews(app, layers.game)
     this.towers = new TowerViews(layers.game)
-    this.projectiles = new ProjectileViews(app, layers.projectiles, game.pitch)
-    this.beams = new BeamFx(layers.projectiles, game.events, game.pitch)
     this.particles = new ParticleSystem(app, layers.particles)
+    this.projectiles = new ProjectileViews(app, layers.projectiles, game.pitch, this.particles)
+    this.beams = new BeamFx(layers.projectiles, game.events, game.pitch, this.particles)
     this.decals = new Decals(layers.decals)
     this.floating = new FloatingText(layers.floatingText)
     this.towers.bind(game.events) // build/upgrade/recoil scale tweens — owned by TowerViews itself
@@ -91,7 +91,7 @@ export class GameView {
     this.time += dtSec
     this.towers.sync(this.game, selected, dtSec)
     this.enemies.sync(this.game.enemies(), this.time, dtSec)
-    this.projectiles.sync(this.game.projectiles)
+    this.projectiles.sync(this.game.projectiles, dtSec)
     this.beams.update(dtSec)
     this.particles.update(dtSec)
     this.decals.update(dtSec)
