@@ -111,7 +111,7 @@ export class LevelBuilder {
    * road or another component. Spots placed afterwards (autoSpots) then keep clear of this decor too.
    */
   fillBlocks(makers: Array<(origin: Cell, alloc: RefAlloc) => BlockResult>, opts: { gap?: number; margin?: number; stride?: number } = {}): this {
-    const gap = opts.gap ?? 1, margin = opts.margin ?? 1, stride = opts.stride ?? 2
+    const gap = opts.gap ?? 2, margin = opts.margin ?? 1, stride = opts.stride ?? 2
     const blocked = this.pathBlocked(gap)
     for (const k of this.occupiedByDecor(gap)) blocked.add(k)   // respect already hand-placed decor
     const { cols, rows } = this.board
