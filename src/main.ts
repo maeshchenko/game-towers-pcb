@@ -310,7 +310,7 @@ async function boot() {
     if (!game && editor.state.level) {
       game = new Game(editor.state.level, ++seedCounter)
       gameView?.destroy() // defensive: resetPlay normally clears it, this guards any future path that skips it
-      gameView = new GameView(app, renderer.layers, game)
+      gameView = new GameView(app, renderer, game)
       game.events.on((e) => {
         if (e.type === 'leak') audioEngine.playLeak()
         else if (e.type === 'enemyDied') audioEngine.playEnemyDeath()

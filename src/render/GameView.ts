@@ -12,6 +12,7 @@ import { BeamFx } from './views/BeamFx'
 import { ParticleSystem } from './juice/Particles'
 import { Decals } from './juice/Decals'
 import { FloatingText } from './juice/FloatingText'
+import { Vfx } from './juice/Vfx'
 import { DamageAggregator } from './juice/floatingLogic'
 import { ENEMY_RADIUS } from './views/textures'
 import { enemyTheme } from './theme'
@@ -32,10 +33,12 @@ export class GameView {
   readonly particles: ParticleSystem
   private decals: Decals
   private floating: FloatingText
+  private vfx: Vfx
   private damageAgg = new DamageAggregator()
   private unsubs: (() => void)[] = []
 
-  constructor(app: Application, layers: Renderer['layers'], private game: Game) {
+  constructor(app: Application, renderer: Renderer, private game: Game) {
+    const layers = renderer.layers
     this.enemies = new EnemyViews(app, layers.game)
     this.towers = new TowerViews(layers.game)
     this.particles = new ParticleSystem(app, layers.particles)
@@ -43,6 +46,7 @@ export class GameView {
     this.beams = new BeamFx(layers.projectiles, game.events, game.pitch, this.particles)
     this.decals = new Decals(layers.decals)
     this.floating = new FloatingText(layers.floatingText)
+    this.vfx = new Vfx(app, renderer.world, renderer.vfxOverlay, [layers.projectiles, layers.particles])
     this.towers.bind(game.events) // build/upgrade/recoil scale tweens — owned by TowerViews itself
     this.unsubs.push(game.events.on((e) => {
       if (e.type === 'enemyDamaged') {
@@ -51,6 +55,10 @@ export class GameView {
       } else if (e.type === 'enemyDied') {
         this.onEnemyDied(e.kind, e.pos)
         this.floating.spawn('+' + e.bounty, e.pos.x, e.pos.y - FLOAT_TEXT_OFFSET_Y, PALETTE.padGold)
+        if (e.kind === 'boss') this.vfx.rgbSplitPulse()
+      } else if (e.type === 'baseHit') {
+        this.vfx.flashVignette()
+        this.vfx.rgbSplitPulse()
       } else if (e.type === 'towerBuilt') {
         this.particles.burst({
           x: e.pos.x, y: e.pos.y, count: 10,
@@ -100,6 +108,7 @@ export class GameView {
       this.floating.spawn(String(Math.round(b.amount)), b.x, b.y - FLOAT_TEXT_OFFSET_Y, 0xffffff, scale)
     }
     this.floating.update(dtSec)
+    this.vfx.update(dtSec)
   }
 
   destroy(): void {
@@ -111,6 +120,7 @@ export class GameView {
     this.beams.destroy()
     this.particles.destroy()
     this.decals.destroy()
+    this.vfx.destroy()
     this.floating.destroy()
   }
 }

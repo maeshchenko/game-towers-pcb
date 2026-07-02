@@ -28,6 +28,9 @@ const PERSISTENT_LAYERS = new Set(['game', 'decals', 'projectiles', 'particles',
 
 export class Renderer {
   readonly world = new Container()
+  // Screen-space overlay for vfx (Task 9): added to app.stage AFTER world, so it sits above
+  // everything and is unaffected by camera pan/zoom/shake. Never cleared by render().
+  readonly vfxOverlay = new Container()
   readonly layers = {
     board: new Container(), copper: new Container(), decor: new Container(), decals: new Container(),
     trace: new Container(), spot: new Container(), game: new Container(), projectiles: new Container(),
@@ -39,7 +42,7 @@ export class Renderer {
       this.layers.trace, this.layers.spot, this.layers.game, this.layers.projectiles,
       this.layers.particles, this.layers.overlay, this.layers.floatingText,
     )
-    this.app.stage.addChild(this.world)
+    this.app.stage.addChild(this.world, this.vfxOverlay)
   }
 
   render(level: Level): void {
