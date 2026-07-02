@@ -24,6 +24,8 @@ import { audioEngine } from './ui/AudioEngine'
 import { i18n } from './ui/i18n'
 import { initGsap } from './render/juice/tweens'
 import { initMotion } from './render/juice/motion'
+import { ScreenShake } from './render/juice/ScreenShake'
+import { HitStop } from './render/juice/HitStop'
 
 // Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
@@ -116,6 +118,8 @@ async function boot() {
 
   const renderer = new Renderer(app)
   const camera = new Camera()
+  const shake = new ScreenShake()
+  const hitStop = new HitStop()
 
   const view = () => {
     const isPortrait = window.innerWidth < window.innerHeight
@@ -308,6 +312,13 @@ async function boot() {
         if (e.type === 'leak') audioEngine.playLeak()
         else if (e.type === 'enemyDied') audioEngine.playEnemyDeath()
         else if (e.type === 'shotFired') audioEngine.playShot(e.kind as any)
+      })
+      game.events.on((e) => {
+        if (e.type === 'baseHit') shake.add(0.35)
+        else if (e.type === 'enemyDied') {
+          if (e.kind === 'boss') { shake.add(0.6); hitStop.trigger(0.13) }
+          else hitStop.trigger(0.05)
+        } else if (e.type === 'projectileImpact' && e.kind === 'mortar') shake.add(0.08)
       })
       selectedTower = null
       editor.enabled = false
@@ -716,10 +727,14 @@ async function boot() {
       lastPhase = null
       return
     }
-    game.tick(ticker.deltaMS / 1000)
-    gameView?.update(ticker.deltaMS / 1000, selectedTower)
+    const rawDt = ticker.deltaMS / 1000
+    const simDt = hitStop.filter(rawDt)
+    game.tick(simDt)
+    gameView?.update(rawDt, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
     camera.apply(renderer.world)
+    shake.update(rawDt)
+    shake.applyTo(renderer.world)
 
     if (game.state.phase === 'wave') {
       const activeEnemies = game.enemies()
