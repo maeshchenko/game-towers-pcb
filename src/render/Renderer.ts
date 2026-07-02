@@ -113,8 +113,8 @@ export class Renderer {
     const viaInnerR = Math.max(1, pitch * 0.06)
     const padR = pitch * 0.22
     const chamferCut = pitch * 0.4
-    // Halved from pitch*0.22 — runs read as straight lines with crisp 45° corners, not hoses.
-    const filletRadius = pitch * 0.11
+    // Barely-there rounding: reference boards read as straight runs with crisp 45° corners.
+    const filletRadius = pitch * 0.04
 
     // Endpoints landing on a component pad already get pad art from drawVintageItem/drawDecor —
     // giving them a via dot too reads as a fake extra via. Only free-floating endpoints (test
@@ -129,12 +129,15 @@ export class Renderer {
       const g = new Graphics()
       const rawPts = copper.points.map(c => cellToPx(c, pitch))
       const pts = filletPixels(chamfer45(Renderer.simplifyCollinear(rawPts), chamferCut), filletRadius)
-      strokeCopper(g, pts, { core: traceColor, width: traceW, alpha: traceAlpha })
+      // Dark recessed bed under the core (kit2 look): the run reads as etched copper with depth,
+      // not a flat glowing line.
+      strokeCopper(g, pts, { core: traceColor, width: traceW, alpha: traceAlpha, bed: PALETTE.copperBed, bedAlpha: 0.6, bedMul: 2.3 })
 
       const firstCell = copper.points[0], lastCell = copper.points[copper.points.length - 1]
       const first = pts[0], last = pts[pts.length - 1]
       if (isPadAnchor(firstCell)) {
         teardrop(g, first, dirTo(first, pts[1]), padR, traceW, traceColor, traceAlpha)
+        this.addPinLabel(copper.labelA, first, pitch)
       } else {
         g.circle(first.x, first.y, viaOuterR).fill({ color: traceColor, alpha: traceAlpha + 0.05 })
         g.circle(first.x, first.y, viaInnerR).fill({ color: PALETTE.substrate, alpha: 1 })
@@ -142,12 +145,27 @@ export class Renderer {
       if (isPadAnchor(lastCell)) {
         const n = pts.length - 1
         teardrop(g, last, dirTo(last, pts[n - 1]), padR, traceW, traceColor, traceAlpha)
+        this.addPinLabel(copper.labelB, last, pitch)
       } else {
         g.circle(last.x, last.y, viaOuterR).fill({ color: traceColor, alpha: traceAlpha + 0.05 })
         g.circle(last.x, last.y, viaInnerR).fill({ color: PALETTE.substrate, alpha: 1 })
       }
       this.layers.copper.addChild(g)
     }
+  }
+
+  // kit2-style pin-function label ('anode', 'VCC', '+', …) next to a wired pad — tiny gold
+  // silkscreen text, offset below the pad so it never sits on the trace run.
+  private addPinLabel(label: string | undefined, at: { x: number; y: number }, pitch: number): void {
+    if (!label) return
+    const t = new Text({
+      text: label,
+      style: { fontFamily: 'monospace', fontSize: Math.max(7, pitch * 0.26), fill: 0xd8c060 },
+    })
+    t.anchor.set(0.5, 0)
+    t.alpha = 0.6
+    t.position.set(at.x, at.y + pitch * 0.3)
+    this.layers.copper.addChild(t)
   }
 
   private drawDecor(level: Level): void {

@@ -2,10 +2,23 @@ import type { Level, DecorItem } from '../model/level'
 import { footprintCells, padAnchors } from '../render/decorBuilder'
 import { routeOctilinear } from '../geom/router'
 import type { Cell } from '../geom/types'
-import { VFOOT, vintageLeadEnds, type VintageKind } from '../render/vintageDecor'
+import { VFOOT, vintageLeadEnds, vintagePins, type VintageKind } from '../render/vintageDecor'
 
 export interface Copper {
   points: [number, number][]
+  /** Pin function names for the endpoints ('anode', 'VCC', '+', …) — rendered as silkscreen labels. */
+  labelA?: string
+  labelB?: string
+}
+
+// Pin names worth printing on the silkscreen — functional names read "engineer-stylish";
+// generic terminal names (t1/x1/end1/A/B of passives, IO of ICs) would just be noise.
+const LABELED_PINS = new Set(['anode', 'cathode', '+', '-', 'IN', 'OUT', 'GND', 'VCC', 'OSC', 'E', 'B', 'C', 'tip+', 'sleeve-'])
+const UNLABELED_KINDS = new Set<VintageKind>(['resAxial', 'inductorAxial', 'ceramicDisc', 'filmCap', 'crystalHC49', 'trimpot'])
+function padLabel(kind: VintageKind, padIdx: number): string | undefined {
+  if (UNLABELED_KINDS.has(kind)) return undefined
+  const name = vintagePins(kind)[padIdx]
+  return name && LABELED_PINS.has(name) ? name : undefined
 }
 
 const VINTAGE_MAP: Record<string, VintageKind> = {
@@ -128,27 +141,56 @@ export function routeCopper(
     })
   }
 
+  // 2b. Pad keep-out (kit2 discipline): every pad cell + its 4-neighbours is blocked so routes
+  // never slide along a foreign pin row. The two pads of the segment being routed are unblocked
+  // locally for the duration of that route.
+  const padRing = new Map<string, string[]>() // `${itemIdx}_${padIdx}` → blocked cell keys
+  for (let idx = 0; idx < decor.length; idx++) {
+    for (const p of getItemPads2x(decor[idx], idx)) {
+      const keys: string[] = []
+      for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]] as const) {
+        keys.push(cellKey(p.cx + dx, p.cy + dy))
+      }
+      padRing.set(`${idx}_${p.padIdx}`, keys)
+      for (const k of keys) blocked.add(k)
+    }
+  }
+
   const result: Copper[] = []
   const padNet = new Map<string, number>()
 
-  // 3. Route segment-by-segment for each net
-  for (let netIdx = 0; netIdx < nets.length; netIdx++) {
-    const net = nets[netIdx]
-    if (net.length < 2) continue
-
+  // 3. Flatten nets into pad-to-pad tasks and route SHORTEST first (kit2 discipline):
+  // greedy layouts come out much cleaner when short local links claim their lanes before
+  // long ones have to detour around them.
+  interface Task { netIdx: number; idxA: number; idxB: number; ord: number; dist: number }
+  const tasks: Task[] = []
+  const minPadDist = (idxA: number, idxB: number): number => {
+    const a = getItemPads2x(decor[idxA], idxA), b = getItemPads2x(decor[idxB], idxB)
+    let m = Infinity
+    for (const pa of a) for (const pb of b) m = Math.min(m, Math.hypot(pa.cx - pb.cx, pa.cy - pb.cy))
+    return m
+  }
+  nets.forEach((net, netIdx) => {
+    if (net.length < 2) return
     for (let ni = 0; ni < net.length - 1; ni++) {
-      const idxA = net[ni]
-      const idxB = net[ni + 1]
+      const idxA = net[ni], idxB = net[ni + 1]
+      if (!decor[idxA] || !decor[idxB]) continue
+      tasks.push({ netIdx, idxA, idxB, ord: tasks.length, dist: minPadDist(idxA, idxB) })
+    }
+  })
+  tasks.sort((a, b) => a.dist - b.dist || a.ord - b.ord)
 
+  for (const { netIdx, idxA, idxB } of tasks) {
+    {
       const itemA = decor[idxA]
       const itemB = decor[idxB]
-      if (!itemA || !itemB) continue
 
       const padsA = getItemPads2x(itemA, idxA)
       const padsB = getItemPads2x(itemB, idxB)
       if (padsA.length === 0 || padsB.length === 0) continue
 
-      // Find closest pad pair on the 2x grid, respecting padNet allocations
+      // Find closest pad pair on the 2x grid, respecting padNet allocations.
+      // No "ignore allocations" fallback: double-booking a pad reads as a wiring error.
       let bestPair: { padA: typeof padsA[0]; padB: typeof padsB[0]; dist: number } | null = null
       for (const pA of padsA) {
         const keyA = `${idxA}_${pA.padIdx}`
@@ -160,18 +202,6 @@ export function routeCopper(
           const dist = Math.hypot(pA.cx - pB.cx, pA.cy - pB.cy)
           if (!bestPair || dist < bestPair.dist) {
             bestPair = { padA: pA, padB: pB, dist }
-          }
-        }
-      }
-
-      if (!bestPair) {
-        // Fallback: choose closest overall pad pair if fully allocated
-        for (const pA of padsA) {
-          for (const pB of padsB) {
-            const dist = Math.hypot(pA.cx - pB.cx, pA.cy - pB.cy)
-            if (!bestPair || dist < bestPair.dist) {
-              bestPair = { padA: pA, padB: pB, dist }
-            }
           }
         }
       }
@@ -201,7 +231,7 @@ export function routeCopper(
         Math.max(0, Math.min(rows2 - 1, cellB[1] + dirB.y * 2))
       ]
 
-      // Temporarily unblock local escape paths
+      // Temporarily unblock local escape paths + the keep-out rings of the two pads being wired
       const unblocks = [
         cellKey(cellA[0], cellA[1]),
         cellKey(cellA[0] + dirA.x, cellA[1] + dirA.y),
@@ -209,34 +239,87 @@ export function routeCopper(
         cellKey(cellB[0], cellB[1]),
         cellKey(cellB[0] + dirB.x, cellB[1] + dirB.y),
         cellKey(escB[0], escB[1]),
+        ...(padRing.get(`${idxA}_${padA.padIdx}`) ?? []),
+        ...(padRing.get(`${idxB}_${padB.padIdx}`) ?? []),
       ]
       const restored = unblocks.filter(k => blocked.has(k))
       unblocks.forEach(k => blocked.delete(k))
 
-      // Route on the 2x fine grid
-      const cellPath = routeOctilinear({
-        cols: cols2,
-        rows: rows2,
-        start: escA,
-        goal: escB,
-        blocked,
-        turnPenalty: 3.5,
-      })
+      // ── Connector templates, like a human board designer would lay them (kit2 look) ──
+      // Preference order: dead-straight run → stub-channel-stub with crisp corners → A* only
+      // as a last resort for awkward long links. A short link must NEVER wiggle.
+      const inBounds = (c: Cell): boolean => c[0] >= 0 && c[1] >= 0 && c[0] < cols2 && c[1] < rows2
+      const polyFree = (pts: Cell[]): boolean => {
+        for (let i = 1; i < pts.length; i++) {
+          const a = pts[i - 1], b = pts[i]
+          const sx = Math.sign(b[0] - a[0]), sy = Math.sign(b[1] - a[1])
+          const steps = Math.max(Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]))
+          for (let s = 0; s <= steps; s++) {
+            const c: Cell = [a[0] + sx * s, a[1] + sy * s]
+            if (!inBounds(c) || blocked.has(cellKey(c[0], c[1]))) return false
+          }
+        }
+        return true
+      }
+
+      let finalPath2x: Cell[] | null = null
+
+      // T1 — pads share a row/column: one straight etched run, enters both pads head-on.
+      if ((cellA[0] === cellB[0] || cellA[1] === cellB[1]) && polyFree([cellA, cellB])) {
+        finalPath2x = [cellA, cellB]
+      }
+
+      // T2 — kit2 pair connector: perpendicular stub out of each pad, a shared straight
+      // channel, head-on entry into the target. Try a few channel offsets before giving up.
+      if (!finalPath2x) {
+        const horizontalChannel = dirA.y !== 0 || dirB.y !== 0 || cellA[1] !== cellB[1]
+        if (horizontalChannel) {
+          const side = dirA.y < 0 || dirB.y < 0 ? -1 : 1
+          const base = side < 0 ? Math.min(escA[1], escB[1]) : Math.max(escA[1], escB[1])
+          for (let off = 0; off <= 4 && !finalPath2x; off++) {
+            const ch = base + side * off
+            const cand: Cell[] = [cellA, escA, [escA[0], ch], [escB[0], ch], escB, cellB]
+            if (ch >= 0 && ch < rows2 && polyFree(cand)) finalPath2x = cand
+          }
+        } else {
+          // both escapes horizontal and pads on different columns → vertical channel
+          const side = dirA.x < 0 || dirB.x < 0 ? -1 : 1
+          const base = side < 0 ? Math.min(escA[0], escB[0]) : Math.max(escA[0], escB[0])
+          for (let off = 0; off <= 4 && !finalPath2x; off++) {
+            const ch = base + side * off
+            const cand: Cell[] = [cellA, escA, [ch, escA[1]], [ch, escB[1]], escB, cellB]
+            if (ch >= 0 && ch < cols2 && polyFree(cand)) finalPath2x = cand
+          }
+        }
+      }
+
+      // T3 — last resort for long/awkward links: A* on the fine grid.
+      if (!finalPath2x) {
+        const cellPath = routeOctilinear({
+          cols: cols2,
+          rows: rows2,
+          start: escA,
+          goal: escB,
+          blocked,
+          turnPenalty: 2.5,
+        })
+        if (cellPath) {
+          finalPath2x = [
+            cellA,
+            [cellA[0] + dirA.x, cellA[1] + dirA.y],
+            ...(cellPath as Cell[]),
+            [cellB[0] + dirB.x, cellB[1] + dirB.y],
+            cellB,
+          ]
+        }
+      }
 
       // Restore blocked obstacles
       restored.forEach(k => blocked.add(k))
 
-      // No path found → skip this segment entirely (no wire is better than a fake straight line
+      // No route found → skip this segment entirely (no wire is better than a fake one
       // cutting through components/spots).
-      if (!cellPath) continue
-
-      const finalPath2x: Cell[] = [
-        cellA,
-        [cellA[0] + dirA.x, cellA[1] + dirA.y],
-        ...(cellPath as Cell[]),
-        [cellB[0] + dirB.x, cellB[1] + dirB.y],
-        cellB
-      ]
+      if (!finalPath2x) continue
       // Add path to blocked set for subsequent lines
       for (const p of finalPath2x) {
         blocked.add(cellKey(p[0], p[1]))
@@ -268,7 +351,7 @@ export function routeCopper(
         }
       }
 
-      result.push({ points })
+      result.push({ points, labelA: padLabel(padA.kind, padA.padIdx), labelB: padLabel(padB.kind, padB.padIdx) })
     }
   }
 
