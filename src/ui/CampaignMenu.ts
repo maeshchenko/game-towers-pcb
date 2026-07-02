@@ -152,7 +152,8 @@ export class CampaignMenu {
     modal.style.display = 'flex'
     
     let itemsHtml = ''
-    const kinds = ['normal', 'fast', 'healer', 'brute', 'tank', 'rogue', 'boss']
+    // Display order follows the FORM-NN nomenclature (story spec, Task 5).
+    const kinds = ['normal', 'fast', 'rogue', 'tank', 'healer', 'brute', 'boss']
     kinds.forEach((k) => {
       const unlocked = isEnemyUnlocked(k, unlockedLevelIndex)
       const color = getEnemyColor(k)
