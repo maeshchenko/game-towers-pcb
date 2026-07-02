@@ -32,6 +32,11 @@ export class ScreenShake {
     this.trauma = Math.max(0, Math.min(1, this.trauma + amount))
   }
 
+  /** Drops all pending trauma (e.g. on level reset) so shake never bleeds into the next run. */
+  reset(): void {
+    this.trauma = 0
+  }
+
   /** Advances the shake clock and decays trauma linearly toward 0. Call once per frame. */
   update(dt: number): void {
     this.trauma = Math.max(0, this.trauma - dt)
@@ -47,11 +52,20 @@ export class ScreenShake {
     return { x, y, angle }
   }
 
-  /** Adds the current offset on top of an already-set transform (e.g. after Camera.apply). */
-  applyTo(target: ShakeTarget): void {
-    const { x, y, angle } = this.offset
-    target.position.x += x
-    target.position.y += y
+  /**
+   * Adds the current offset on top of an already-set transform (e.g. after Camera.apply).
+   * Rotation happens around `pivot` (the screen center in main.ts), not the target's local
+   * origin — otherwise on large boards the far corner would swing several times past the
+   * intended MAX_OFFSET envelope, worst exactly on the big boss-kill/base-hit shakes.
+   */
+  applyTo(target: ShakeTarget, pivot: { x: number; y: number }): void {
+    const { x: ox, y: oy, angle } = this.offset
     target.rotation += angle
+    const dx = target.position.x - pivot.x
+    const dy = target.position.y - pivot.y
+    const cos = Math.cos(angle)
+    const sin = Math.sin(angle)
+    target.position.x = pivot.x + dx * cos - dy * sin + ox
+    target.position.y = pivot.y + dx * sin + dy * cos + oy
   }
 }

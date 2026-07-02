@@ -45,6 +45,16 @@ describe('HitStop', () => {
     expect(h.filter(0.02)).toBe(0) // frozen again
   })
 
+  it('reset cancels an active freeze and re-arms the cooldown for the next trigger', () => {
+    const h = new HitStop()
+    h.trigger(0.5)
+    expect(h.filter(0.1)).toBe(0) // frozen
+    h.reset()
+    expect(h.filter(0.1)).toBeCloseTo(0.1, 9) // freeze cancelled, dt passes through
+    h.trigger(0.05) // must be accepted right away — reset re-armed the cooldown
+    expect(h.filter(0.02)).toBe(0)
+  })
+
   it('trigger() is a no-op when juice.reducedFx is set', () => {
     juice.reducedFx = true
     const h = new HitStop()

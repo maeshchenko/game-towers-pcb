@@ -260,6 +260,9 @@ async function boot() {
     selectedTower = null
     gameView?.destroy()
     gameView = null
+    shake.reset() // drop leftover trauma/freeze so they don't bleed into the next level
+    hitStop.reset()
+    renderer.world.rotation = 0 // ticker early-returns without a game, so clear mid-shake tilt here
     editor.enabled = false // freehand trace off — board is generated; canvas drag pans the camera
     const ip = infoPanel(); if (ip) ip.style.display = '' // show static panel back in edit mode
     if (countdownTimer) {
@@ -733,8 +736,11 @@ async function boot() {
     gameView?.update(rawDt, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
     camera.apply(renderer.world)
+    // camera.apply resets position/scale but not rotation, so zero it before the additive shake
+    // to keep residual rotation from accumulating across frames.
+    renderer.world.rotation = 0
     shake.update(rawDt)
-    shake.applyTo(renderer.world)
+    shake.applyTo(renderer.world, { x: view().w / 2, y: view().h / 2 })
 
     if (game.state.phase === 'wave') {
       const activeEnemies = game.enemies()

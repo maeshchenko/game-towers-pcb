@@ -65,15 +65,54 @@ describe('ScreenShake', () => {
     expect(a.offset).toEqual(b.offset)
   })
 
-  it('applyTo ADDS the offset to an existing position/rotation', () => {
+  it('applyTo ADDS the offset to an existing position/rotation (pivot at the target position)', () => {
     const s = new ScreenShake()
     s.add(1)
     const o = s.offset
     const target = { position: { x: 5, y: 7 }, rotation: 0.2 }
-    s.applyTo(target)
+    // With pivot == target position the rotation term contributes nothing to position,
+    // so applyTo degenerates to plain adds.
+    s.applyTo(target, { x: 5, y: 7 })
     expect(target.position.x).toBeCloseTo(5 + o.x, 9)
     expect(target.position.y).toBeCloseTo(7 + o.y, 9)
     expect(target.rotation).toBeCloseTo(0.2 + o.angle, 9)
+  })
+
+  it('applyTo rotates the position around the pivot, not the local origin', () => {
+    const s = new ScreenShake()
+    s.add(1)
+    s.update(0.3) // advance the clock so the sine mix yields a non-zero angle
+    const o = s.offset
+    expect(o.angle).not.toBe(0)
+    const target = { position: { x: 100, y: 50 }, rotation: 0 }
+    const pivot = { x: 640, y: 360 }
+    // Expected: position rotated about the pivot by o.angle, then shifted by the linear offset.
+    const dx = 100 - pivot.x
+    const dy = 50 - pivot.y
+    const cos = Math.cos(o.angle)
+    const sin = Math.sin(o.angle)
+    const ex = pivot.x + dx * cos - dy * sin + o.x
+    const ey = pivot.y + dx * sin + dy * cos + o.y
+    s.applyTo(target, pivot)
+    expect(target.position.x).toBeCloseTo(ex, 9)
+    expect(target.position.y).toBeCloseTo(ey, 9)
+    expect(target.rotation).toBeCloseTo(o.angle, 9)
+    // Pure rotation preserves the distance to the pivot, so the total position change is bounded
+    // by |chord| + linear offset — no far-corner blow-up like rotating around a distant origin.
+    const dist = Math.hypot(dx, dy)
+    const chord = 2 * dist * Math.abs(Math.sin(o.angle / 2))
+    const moved = Math.hypot(target.position.x - 100, target.position.y - 50)
+    expect(moved).toBeLessThanOrEqual(chord + Math.hypot(o.x, o.y) + 1e-9)
+  })
+
+  it('reset drops all pending trauma immediately', () => {
+    const s = new ScreenShake()
+    s.add(1)
+    s.reset()
+    expect(s.offset).toEqual({ x: 0, y: 0, angle: 0 })
+    const target = { position: { x: 3, y: 4 }, rotation: 0 }
+    s.applyTo(target, { x: 0, y: 0 })
+    expect(target).toEqual({ position: { x: 3, y: 4 }, rotation: 0 })
   })
 
   it('add() is a no-op when juice.reducedFx is set', () => {

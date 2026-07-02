@@ -14,6 +14,12 @@ export class HitStop {
   // is never blocked by the cooldown.
   private sinceLast = COOLDOWN
 
+  /** Cancels any active freeze and re-arms the cooldown (e.g. on level reset). */
+  reset(): void {
+    this.remaining = 0
+    this.sinceLast = COOLDOWN
+  }
+
   /** Requests a freeze of `seconds`; overlapping freezes take the max, not the sum. No-op when
    * reducedFx is set, or when a trigger already fired within the last COOLDOWN seconds. */
   trigger(seconds: number): void {
