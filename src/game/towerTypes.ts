@@ -2,12 +2,14 @@ export type TowerKind = 'cannon' | 'slow' | 'sniper' | 'mortar' | 'tesla'
 export interface TowerLevel {
   range: number; fireRate: number; damage: number; cost: number
   slow?: number; aura?: boolean; splashRadius?: number; chainCount?: number; chainRange?: number; pierce?: number
+  /** Cells/sec — presence marks this tower as projectile-based (damage lands on arrival). */
+  projectileSpeed?: number
 }
 export const TOWER_DEFS: Record<TowerKind, TowerLevel[]> = {
   cannon: [
-    { range: 6.0, fireRate: 1.5, damage: 10, cost: 40 },
-    { range: 6.5, fireRate: 1.6, damage: 22, cost: 60 },
-    { range: 7.0, fireRate: 1.8, damage: 45, cost: 90 },
+    { range: 6.0, fireRate: 1.5, damage: 10, cost: 40, projectileSpeed: 18 },
+    { range: 6.5, fireRate: 1.6, damage: 22, cost: 60, projectileSpeed: 18 },
+    { range: 7.0, fireRate: 1.8, damage: 45, cost: 90, projectileSpeed: 18 },
   ],
   slow: [
     { range: 3.5, fireRate: 1.0, damage: 0, slow: 0.60, aura: true, cost: 35 },
@@ -20,9 +22,9 @@ export const TOWER_DEFS: Record<TowerKind, TowerLevel[]> = {
     { range: 15.0, fireRate: 0.50, damage: 300, cost: 180, pierce: 999 },
   ],
   mortar: [
-    { range: 7.5, fireRate: 0.65, damage: 30, splashRadius: 2.6, cost: 75 },
-    { range: 8.5, fireRate: 0.70, damage: 60, splashRadius: 3.0, cost: 110 },
-    { range: 9.5, fireRate: 0.75, damage: 115, splashRadius: 3.5, cost: 160 },
+    { range: 7.5, fireRate: 0.65, damage: 30, splashRadius: 2.6, cost: 75, projectileSpeed: 7 },
+    { range: 8.5, fireRate: 0.70, damage: 60, splashRadius: 3.0, cost: 110, projectileSpeed: 7 },
+    { range: 9.5, fireRate: 0.75, damage: 115, splashRadius: 3.5, cost: 160, projectileSpeed: 7 },
   ],
   tesla: [
     { range: 5.5, fireRate: 2.0, damage: 12, chainCount: 3, chainRange: 3.0, cost: 60 },

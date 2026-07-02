@@ -8,6 +8,7 @@ import { Tower } from './Tower'
 import type { TowerKind } from './towerTypes'
 import { TOWER_DEFS } from './towerTypes'
 import { applyShot } from './combat'
+import { Projectile } from './Projectile'
 import { WaveManager, mapWaves } from './WaveManager'
 import { GameState } from './GameState'
 import { hpScale, SPEED_SCALE } from './difficulty'
@@ -31,6 +32,8 @@ export class Game {
   private spent = new Map<Tower, number>()
   private _fx: Fx[] = []
   get fx(): Fx[] { return this._fx }
+  private _projectiles: Projectile[] = []
+  get projectiles(): Projectile[] { return this._projectiles }
   private grid: SpatialGrid<Enemy>
 
   constructor(level: Level, seed = 1) {
@@ -135,14 +138,61 @@ export class Game {
       if (!shot) continue
       if (shot.aura) {
         for (const e of active) if (e.alive && Math.hypot(e.pos.x - t.pos.x, e.pos.y - t.pos.y) <= shot.aura.range) e.applySlow(shot.aura.slow, 0.25)
-      } else {
-        if (shot.target) {
-          this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
-          this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, towerLevel: t.level })
+        continue
+      }
+      const spd = t.stats.projectileSpeed
+      if (spd && shot.target) {
+        // projectile weapons (cannon PULSE, mortar MISSILE): damage lands on arrival, not now.
+        const speedPx = spd * this.pitch
+        if (t.kind === 'mortar') {
+          // lead the target: aim where it will be when the shell lands
+          const tgt = shot.target
+          const eta = Math.hypot(tgt.pos.x - t.pos.x, tgt.pos.y - t.pos.y) / speedPx
+          const aim = { x: tgt.pos.x + tgt.vel.x * eta, y: tgt.pos.y + tgt.vel.y * eta }
+          this._projectiles.push(new Projectile(t.kind, t.pos, null, shot, speedPx, aim))
+        } else {
+          this._projectiles.push(new Projectile(t.kind, t.pos, shot.target, shot, speedPx))
         }
+        this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, towerLevel: t.level })
+      } else if (shot.target) {
+        // instant weapons (sniper beam, tesla arc)
+        this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
+        this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, towerLevel: t.level })
         applyShot(shot, active, this.pitch, (e) => this.events.emit(e), this.grid)
       }
     }
+
+    // projectiles in flight: advance, resolve impact damage on arrival (before bounty so
+    // projectile kills grant bounty the same tick)
+    const survivors: Projectile[] = []
+    for (const p of this._projectiles) {
+      if (!p.update(step)) { survivors.push(p); continue }
+      if (p.kind === 'mortar') {
+        // full splash damage to all alive enemies within splashRadius of the impact point
+        const r = (p.shot.splashRadius ?? 0) * this.pitch
+        const hit = this.grid.queryCircle(p.pos, r)
+        for (const e of hit) {
+          if (!e.alive) continue
+          e.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0)
+          this.events.emit({ type: 'enemyDamaged', kind: e.kind, amount: p.shot.damage ?? 0, pos: { x: e.pos.x, y: e.pos.y } })
+        }
+      } else {
+        // pulse bullet: hit its target, or retarget the nearest live enemy within 1.5 cells, else fizzle
+        let victim = p.target && p.target.alive ? p.target : null
+        if (!victim) {
+          const near = this.grid.queryCircle(p.pos, 1.5 * this.pitch).filter((e) => e.alive)
+          near.sort((a, b) => Math.hypot(a.pos.x - p.pos.x, a.pos.y - p.pos.y) - Math.hypot(b.pos.x - p.pos.x, b.pos.y - p.pos.y))
+          victim = near[0] ?? null
+        }
+        if (victim) {
+          victim.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0)
+          this.events.emit({ type: 'enemyDamaged', kind: victim.kind, amount: p.shot.damage ?? 0, pos: { x: victim.pos.x, y: victim.pos.y } })
+          if (p.shot.slow && p.shot.slow < 1) victim.applySlow(p.shot.slow, 1.5)
+        }
+      }
+      this.events.emit({ type: 'projectileImpact', kind: p.kind, pos: { x: p.pos.x, y: p.pos.y }, splashRadius: p.shot.splashRadius })
+    }
+    this._projectiles = survivors
 
     // deaths → bounty
     for (const e of [...this.wm.active]) {

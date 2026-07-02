@@ -15,6 +15,8 @@ export class Enemy {
   private slowTimer = 0
 
   private rogueTimer = 0
+  /** px/sec, updated each update(dt>0) from position delta — used for missile lead-aim. */
+  readonly vel: Pt = { x: 0, y: 0 }
 
   constructor(def: EnemyDef, points: Pt[], hpScale: number, speedPx: number) {
     this.hp = Math.round(def.hp * hpScale)
@@ -50,7 +52,12 @@ export class Enemy {
       }
     }
     
+    const prev = { x: this.pos.x, y: this.pos.y }
     this.follower.advance(dt * speedFactor)
+    if (dt > 0) {
+      this.vel.x = (this.pos.x - prev.x) / dt
+      this.vel.y = (this.pos.y - prev.y) / dt
+    }
   }
 
   takeDamage(n: number, pierce = 0): void {
