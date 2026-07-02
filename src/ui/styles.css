@@ -332,6 +332,103 @@ body.pcb-portrait #game-container {
   .settings-row {
     margin-bottom: 10px;
   }
+  .settings-row input[type="range"]::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  .settings-row input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* Терминальный оверлей истории кампании (typewriter log) — выше любого другого оверлея,
+   включая экран победы/поражения (z-index 180) и разовые модалки (z-index 300). */
+.pcb-story-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 12, 9, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+  font-family: monospace;
+  cursor: pointer;
+  animation: fadeIn 0.25s ease-out;
+  padding: 20px;
+  box-sizing: border-box;
+}
+.pcb-story-column {
+  width: 100%;
+  max-width: 640px;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: default;
+}
+.pcb-story-title {
+  color: #4a7a5e;
+  font-size: 13px;
+  letter-spacing: 2px;
+  margin-bottom: 14px;
+  line-height: 1.6em;
+}
+.pcb-story-line {
+  color: #6cf2a0;
+  font-size: 14px;
+  line-height: 1.6em;
+  min-height: 1.6em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-shadow: 0 0 6px rgba(108, 242, 160, 0.25);
+}
+.pcb-story-cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: #6cf2a0;
+  animation: pcb-story-cursor-blink 1s steps(1, start) infinite;
+}
+@keyframes pcb-story-cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.pcb-story-continue {
+  display: block;
+  margin-top: 24px;
+  background: transparent;
+  color: #6cf2a0;
+  border: none;
+  font: bold 14px monospace;
+  letter-spacing: 2px;
+  cursor: pointer;
+  padding: 6px 0;
+  text-shadow: 0 0 8px rgba(108, 242, 160, 0.5);
+}
+.pcb-story-continue:hover {
+  color: #fff;
+  text-shadow: 0 0 10px rgba(108, 242, 160, 0.9);
+}
+
+/* Floating bonus text */
+.pcb-floating-bonus {
+  position: absolute;
+  left: 50%;
+  top: -24px;
+  transform: translate(-50%, 0);
+  color: #f0c43a;
+  font: bold 14px monospace;
+  text-shadow: 0 0 8px rgba(240,196,58,0.6);
+  z-index: 120;
+  pointer-events: none;
+  animation: floatUpFade 1s forwards ease-out;
+}
+
+@keyframes floatUpFade {
+  0% { transform: translate(-50%, 0) scale(0.8); opacity: 0; }
+  20% { transform: translate(-50%, -8px) scale(1.1); opacity: 1; }
+  100% { transform: translate(-50%, -30px) scale(0.9); opacity: 0; }
 }
 
 

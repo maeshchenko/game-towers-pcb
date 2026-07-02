@@ -135,6 +135,7 @@ const TRANSLATIONS = {
     // story.blank is a shared pause key for blank separator lines in the spec texts
     // (a single space, rendered as an empty terminal line between paragraphs).
     'story.blank': ' ',
+    'story.continue': 'ПРОДОЛЖИТЬ',
 
     'story.intro.1': 'СДКС «ВЕГА-9» · ПОСТ-ПРОВЕРКА………………… OK',
     'story.intro.2': 'ПРИЁМНЫЙ ТРАКТ………………………………………… OK',
@@ -390,6 +391,7 @@ const TRANSLATIONS = {
     // story.blank is a shared pause key for blank separator lines in the spec texts
     // (a single space, rendered as an empty terminal line between paragraphs).
     'story.blank': ' ',
+    'story.continue': 'CONTINUE',
 
     'story.intro.1': 'DSCS VEGA-9 · POWER-ON SELF TEST………… OK',
     'story.intro.2': 'RECEIVER CHAIN……………………………………… OK',
