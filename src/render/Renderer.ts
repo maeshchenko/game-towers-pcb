@@ -22,25 +22,29 @@ const VINTAGE_MAP: Record<string, VintageKind> = {
 // Decor is hidden for now — focus is on the trace + tower spots (primary). Flip to re-enable parts.
 const SHOW_DECOR = false
 
+// Layers that hold live gameplay state (owned by GameLayers or Task 8-10 view modules) — never
+// cleared on level re-render, or a level re-render would destroy the running game's graphics.
+const PERSISTENT_LAYERS = new Set(['game', 'decals', 'projectiles', 'particles', 'floatingText'])
+
 export class Renderer {
   readonly world = new Container()
   readonly layers = {
-    board: new Container(), copper: new Container(), decor: new Container(),
-    trace: new Container(), spot: new Container(), game: new Container(), overlay: new Container(),
+    board: new Container(), copper: new Container(), decor: new Container(), decals: new Container(),
+    trace: new Container(), spot: new Container(), game: new Container(), projectiles: new Container(),
+    particles: new Container(), overlay: new Container(), floatingText: new Container(),
   }
   constructor(private app: Application) {
     this.world.addChild(
-      this.layers.board, this.layers.copper, this.layers.decor,
-      this.layers.trace, this.layers.spot, this.layers.game, this.layers.overlay,
+      this.layers.board, this.layers.copper, this.layers.decor, this.layers.decals,
+      this.layers.trace, this.layers.spot, this.layers.game, this.layers.projectiles,
+      this.layers.particles, this.layers.overlay, this.layers.floatingText,
     )
     this.app.stage.addChild(this.world)
   }
 
   render(level: Level): void {
-    // The `game` layer holds live gameplay (enemies/towers) owned by GameLayers — never
-    // clear it here, or a level re-render would destroy the running game's graphics.
     for (const [name, c] of Object.entries(this.layers)) {
-      if (name === 'game') continue
+      if (PERSISTENT_LAYERS.has(name)) continue
       for (const child of c.removeChildren()) child.destroy()
     }
     this.drawBoard(level)
