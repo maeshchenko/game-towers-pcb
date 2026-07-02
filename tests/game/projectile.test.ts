@@ -227,19 +227,7 @@ describe('Game projectile bindings', () => {
     expect(p.pos.x).toBe(frozen.x) // frozen between waves — thaws next wave
     expect(p.pos.y).toBe(frozen.y)
   })
-
-  it('cannon fire pushes no Fx beam while its projectile flies', () => {
-    const game = makeTestGame()
-    game.build('cannon', 0)
-    const target = still(84, 240)
-    inject(game, [target])
-    primeCooldown(game)
-    let sawProjectile = false
-    for (let i = 0; i < 30; i++) {
-      game.tick(0.016)
-      if (game.projectiles.length > 0) sawProjectile = true
-      expect(game.fx.length).toBe(0)
-    }
-    expect(sawProjectile).toBe(true)
-  })
+  // Removed: 'cannon fire pushes no Fx beam while its projectile flies' pinned Fx-list exclusivity.
+  // The Fx system (Game._fx/get fx) was deleted in Task 10 — instant weapons now emit `shotFired`
+  // events consumed by BeamFx (render layer), and there is no fx list left to assert against.
 })

@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest'
-import { enemyColor } from '../../src/render/GameLayers'
+import { enemyTheme } from '../../src/render/theme'
+
+const enemyColor = (kind: string): number => enemyTheme(kind).color
 
 describe('enemyColor', () => {
   it('returns a distinct number per kind', () => {

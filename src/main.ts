@@ -12,7 +12,7 @@ import { mountToolbar, levelToBlobUrl, readLevelFile, retranslateToolbar } from 
 import { mountPanels, updateLevelName, retranslatePanels } from './ui/Panels'
 import { Game } from './game/Game'
 import { generateBalancedLevel } from './game/balance'
-import { GameLayers } from './render/GameLayers'
+import { GameView } from './render/GameView'
 import { GameUI } from './ui/GameUI'
 import type { Board } from './model/level'
 import { levelPaths } from './model/level'
@@ -141,7 +141,7 @@ async function boot() {
   let game: Game | null = null
   let selectedSpeed = 1
   let selectedTower: Tower | null = null
-  const gameLayers = new GameLayers(renderer.layers.game)
+  let gameView: GameView | null = null
 
   // Frame the camera on the PATH bounding box so the trace is the centered hero (~78% of viewport).
   function frameLevel(): void {
@@ -250,7 +250,8 @@ async function boot() {
   function resetPlay() {
     game = null
     selectedTower = null
-    gameLayers.clear()
+    gameView?.destroy()
+    gameView = null
     editor.enabled = false // freehand trace off — board is generated; canvas drag pans the camera
     const ip = infoPanel(); if (ip) ip.style.display = '' // show static panel back in edit mode
     if (countdownTimer) {
@@ -297,6 +298,7 @@ async function boot() {
   function ensureGame() {
     if (!game && editor.state.level) {
       game = new Game(editor.state.level, ++seedCounter)
+      gameView = new GameView(app, renderer.layers, game)
       game.events.on((e) => {
         if (e.type === 'leak') audioEngine.playLeak()
         else if (e.type === 'enemyDied') audioEngine.playEnemyDeath()
@@ -710,7 +712,7 @@ async function boot() {
       return
     }
     game.tick(ticker.deltaMS / 1000)
-    gameLayers.draw(game, selectedTower)
+    gameView?.update(ticker.deltaMS / 1000, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
     camera.apply(renderer.world)
 

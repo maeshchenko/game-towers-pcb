@@ -17,9 +17,6 @@ import { SpatialGrid } from './SpatialGrid'
 
 interface Spot { cell: Cell; pos: Pt; tower: Tower | null; special: boolean; score: number }
 
-/** A transient fire effect for one shot, drawn as a fading beam. */
-export interface Fx { from: Pt; to: Pt; kind: TowerKind; ttl: number }
-const FX_TTL = 0.14
 /** A pulse bullet whose target died retargets the nearest live enemy within this many cells. */
 const RETARGET_RADIUS_CELLS = 1.5
 
@@ -32,8 +29,6 @@ export class Game {
   private spots: Spot[]
   readonly pitch: number
   private spent = new Map<Tower, number>()
-  private _fx: Fx[] = []
-  get fx(): Fx[] { return this._fx }
   private _projectiles: Projectile[] = []
   get projectiles(): Projectile[] { return this._projectiles }
   private grid: SpatialGrid<Enemy>
@@ -102,7 +97,6 @@ export class Game {
 
   tick(dt: number): void {
     const step = dt * this.speed
-    this._fx = this._fx.filter((f) => (f.ttl -= step) > 0)
 
     if (this.state.phase !== 'wave') return
     const spawned = this.wm.update(step)
@@ -158,8 +152,7 @@ export class Game {
           this._projectiles.push(new Projectile(t.kind, t.pos, target, shot, speedPx))
         }
       } else {
-        // instant weapons (sniper beam, tesla arc) — resolve now and draw a beam Fx
-        this._fx.push({ from: t.pos, to: { x: target.pos.x, y: target.pos.y }, kind: t.kind, ttl: FX_TTL })
+        // instant weapons (sniper beam, tesla arc) — resolve now; shotFired event above drives the beam view (BeamFx)
         applyShot(shot, active, this.pitch, (e) => this.events.emit(e), this.grid)
       }
     }
