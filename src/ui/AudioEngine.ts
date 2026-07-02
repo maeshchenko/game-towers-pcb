@@ -590,10 +590,11 @@ export class AudioEngine {
         osc.connect(gain)
         gain.connect(this.ctx!.destination)
 
-        osc.type = 'square'
+        osc.type = 'triangle' // square was harsh/piercing at wave start
         osc.frequency.setValueAtTime(freq * shift, t + delay)
 
-        gain.gain.setValueAtTime(this.jitterGain(0.12 * this.sfxVol), t + delay)
+        gain.gain.setValueAtTime(0.0001, t + delay)
+        gain.gain.linearRampToValueAtTime(this.jitterGain(0.055 * this.sfxVol), t + delay + 0.03) // gentle attack, quieter
         gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.1)
 
         osc.start(t + delay)

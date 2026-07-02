@@ -42,7 +42,12 @@ export class Game {
     const paths = levelPaths(level).map((t: Trace) => filletPath(t.waypoints, t.cornerRadius, this.pitch))
     this._paths = paths
     const diff = level.meta.difficulty
-    const waves = mapWaves(diff)
+    // countMul: multi-spawn maps split the defense across entrances, so the same wave size is
+    // effectively N× harder there — such levels scale wave COUNTS down instead of gutting HP.
+    const countMul = level.meta.tune?.countMul ?? 1
+    const waves = mapWaves(diff).map((entries) =>
+      entries.map((e) => ({ ...e, count: Math.max(1, Math.round(e.count * countMul)) })),
+    )
     this.state = new GameState(diff, waves.length)
     this.wm = new WaveManager(paths, waves, hpScale(diff) * (level.meta.tune?.hpMul ?? 1), this.pitch * SPEED_SCALE, seed, diff)
     this.spots = [

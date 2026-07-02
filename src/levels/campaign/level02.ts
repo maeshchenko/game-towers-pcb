@@ -6,7 +6,7 @@ import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 // 4-lane serpentine with ONE tight hairpin (lanes 3 cells apart) → an S-tier double-coverage spot in
 // the fold. START top-left → FINISH bottom-right. Decor: LED indicator + a passive bank in the corners.
 export function buildLevel02(board: Board): Level {
-  const b = new LevelBuilder(board, 102, { name: 'campaign.level1.name', difficulty: 2, archetype: 'serpentine', tune: { hpMul: 2.45 } })
+  const b = new LevelBuilder(board, 102, { name: 'campaign.level1.name', difficulty: 2, archetype: 'serpentine', tune: { hpMul: 2.15 } })
   b.path([
     [0, 2], [20, 2], [20, 5], [4, 5], [4, 8], [20, 8], [20, 11], [4, 11], [4, 14], [21, 14], [23, 14],
   ])

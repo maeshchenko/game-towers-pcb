@@ -25,7 +25,7 @@ export interface Level {
   tiles?: TileGrid
   meta: { name: string; difficulty: number; archetype?: string; balance?: { won: boolean; pressure: number }
     /** per-map balance knob from scripts/balance-optimize: enemy-HP multiplier (1 = none). */
-    tune?: { hpMul?: number } }
+    tune?: { hpMul?: number; countMul?: number } }
 }
 
 /** Returns the authoritative set of enemy paths for a level. */

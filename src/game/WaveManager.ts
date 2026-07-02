@@ -19,68 +19,74 @@ export function mapWaves(difficulty: number): WaveEntry[][] {
 
   // Wave 1: Warmup - only normal
   w.push([
-    { kind: 'normal', count: 4 + b, interval: iv(1.2) }
+    { kind: 'normal', count: 7 + b * 2, interval: iv(1.0) }
   ])
 
   // Wave 2: Speed check - normal + fast
   w.push([
-    { kind: 'normal', count: 3 + b, interval: iv(1.0) },
-    { kind: 'fast', count: 4 + m2, interval: iv(0.6) }
+    { kind: 'normal', count: 5 + b, interval: iv(0.9) },
+    { kind: 'fast', count: 7 + b, interval: iv(0.5) }
   ])
 
   // Wave 3: Armor check - Tanks (slow but armored) + normals
   w.push([
-    { kind: 'normal', count: 4 + b, interval: iv(1.0) },
-    { kind: 'tank', count: 1 + Math.floor(difficulty / 4), interval: iv(3.0) }
+    { kind: 'normal', count: 7 + b, interval: iv(0.8) },
+    { kind: 'tank', count: 2 + Math.floor(difficulty / 3), interval: iv(2.6) },
+    { kind: 'fast', count: 4 + m2, interval: iv(0.5) }
   ])
 
   // Wave 4: Healing check - Healer + fast
   w.push([
-    { kind: 'healer', count: 1, interval: iv(4.0) },
-    { kind: 'fast', count: 6 + m2, interval: iv(0.5) }
+    { kind: 'healer', count: 1 + m3, interval: iv(3.5) },
+    { kind: 'fast', count: 9 + b, interval: iv(0.45) },
+    { kind: 'rogue', count: 4 + m2, interval: iv(0.4) }
   ])
 
   // Wave 5: Swarm check - fast + rogue (speed fluctuation)
   w.push([
-    { kind: 'fast', count: 4 + m2, interval: iv(0.6) },
-    { kind: 'rogue', count: 3 + m3, interval: iv(0.4) }
+    { kind: 'fast', count: 7 + b, interval: iv(0.5) },
+    { kind: 'rogue', count: 7 + m2, interval: iv(0.35) },
+    { kind: 'normal', count: 5 + b, interval: iv(0.8) }
   ])
 
   // Wave 6: Raw power check - Brutes (high HP, no armor) + normals
   w.push([
-    { kind: 'normal', count: 6 + b, interval: iv(0.8) },
-    { kind: 'brute', count: 1 + m2, interval: iv(2.0) }
+    { kind: 'normal', count: 9 + b * 2, interval: iv(0.7) },
+    { kind: 'brute', count: 1 + m2, interval: iv(2.0) },
+    { kind: 'fast', count: 6 + m2, interval: iv(0.5) }
   ])
 
   // Wave 7: Synergy check - Tanks + Healers + normals (Tough)
   w.push([
-    { kind: 'normal', count: 6 + b, interval: iv(0.8) },
-    { kind: 'tank', count: 3 + m2, interval: iv(2.0) },
-    { kind: 'healer', count: 1 + m3, interval: iv(3.0) }
+    { kind: 'normal', count: 9 + b, interval: iv(0.7) },
+    { kind: 'tank', count: 3 + m2, interval: iv(1.8) },
+    { kind: 'healer', count: 1 + m3, interval: iv(3.0) },
+    { kind: 'rogue', count: 5 + m3, interval: iv(0.4) }
   ])
 
   // Wave 8: Chaotic rush - Rogues + Fast + Healer
   w.push([
-    { kind: 'rogue', count: 6 + m2, interval: iv(0.4) },
-    { kind: 'fast', count: 8 + m2 * 2, interval: iv(0.5) },
-    { kind: 'healer', count: 1, interval: iv(4.0) }
+    { kind: 'rogue', count: 9 + b, interval: iv(0.35) },
+    { kind: 'fast', count: 12 + b, interval: iv(0.4) },
+    { kind: 'healer', count: 2, interval: iv(3.5) }
   ])
 
   // Wave 9: Penultimate test - Tanks + Brutes + Healers + Rogues
   w.push([
-    { kind: 'tank', count: 2 + m2, interval: iv(1.8) },
-    { kind: 'brute', count: 2 + Math.floor(difficulty / 4), interval: iv(2.2) },
-    { kind: 'healer', count: 2, interval: iv(2.5) },
-    { kind: 'rogue', count: 4 + m3, interval: iv(0.4) },
-    { kind: 'fast', count: 4 + m2, interval: iv(0.5) }
+    { kind: 'tank', count: 3 + m2, interval: iv(1.6) },
+    { kind: 'brute', count: 2 + Math.floor(difficulty / 3), interval: iv(2.0) },
+    { kind: 'healer', count: 2 + m3, interval: iv(2.4) },
+    { kind: 'rogue', count: 6 + m2, interval: iv(0.35) },
+    { kind: 'fast', count: 7 + m2, interval: iv(0.45) }
   ])
 
   // Wave 10: Boss wave - Boss + supporting tanks/healers/fast
   w.push([
     { kind: 'boss', count: difficulty >= 6 ? 3 : difficulty >= 3 ? 2 : 1, interval: iv(4.0) },
-    { kind: 'tank', count: 2 + m2, interval: iv(2.0) },
-    { kind: 'healer', count: 1 + Math.floor(difficulty / 5), interval: iv(3.0) },
-    { kind: 'fast', count: 6 + m2, interval: iv(0.6) }
+    { kind: 'tank', count: 3 + m2, interval: iv(1.8) },
+    { kind: 'healer', count: 2 + Math.floor(difficulty / 5), interval: iv(2.6) },
+    { kind: 'fast', count: 9 + b, interval: iv(0.5) },
+    { kind: 'normal', count: 7 + b, interval: iv(0.6) }
   ])
 
   return w

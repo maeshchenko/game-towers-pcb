@@ -8,7 +8,7 @@ import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 // (never on the track) and wired pad-to-pad. Tower spots come from the proven coverage placer, so
 // turrets land BESIDE the road, never on it.
 export function buildLevel01(board: Board): Level {
-  const b = new LevelBuilder(board, 101, { name: 'campaign.level0.name', difficulty: 1, archetype: 'serpentine', tune: { hpMul: 1.70 } })
+  const b = new LevelBuilder(board, 101, { name: 'campaign.level0.name', difficulty: 1, archetype: 'serpentine', tune: { hpMul: 1.65 } })
   b.path([
     [0, 2], [18, 2], [18, 6], [4, 6], [4, 10], [20, 10], [20, 14], [23, 14],
   ])

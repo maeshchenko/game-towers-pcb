@@ -6,7 +6,7 @@ import { transistorSwitch, amplifierStage, passiveBank, railSpine } from '../../
 // TWO spawns from different edges merge onto a common spine → ONE finish. Spots concentrate on the
 // shared spine (the kill-zone). Decor: transistor switch + amplifier stage (high-voltage theme).
 export function buildLevel08(board: Board): Level {
-  const b = new LevelBuilder(board, 108, { name: 'campaign.level7.name', difficulty: 7, archetype: 'multiSpawn', tune: { hpMul: 1.60 } })
+  const b = new LevelBuilder(board, 108, { name: 'campaign.level7.name', difficulty: 7, archetype: 'multiSpawn', tune: { hpMul: 1.95 } })
   const merge: [number, number] = [12, 16]
   const finish: [number, number] = [43, 22]
   // winding shared spine (switchbacks = more time under fire after the two spawns merge)
