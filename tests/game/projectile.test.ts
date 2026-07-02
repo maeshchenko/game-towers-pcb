@@ -227,6 +227,42 @@ describe('Game projectile bindings', () => {
     expect(p.pos.x).toBe(frozen.x) // frozen between waves — thaws next wave
     expect(p.pos.y).toBe(frozen.y)
   })
+
+  it('projectile advances proportionally to game.speed within a single tick', () => {
+    // baseline: one step at speed 1, from an identical post-fire position
+    const g1 = makeTestGame()
+    g1.build('cannon', 0)
+    const t1 = still(84, 240) // 132px from the tower — in cannon range, stays put
+    inject(g1, [t1])
+    primeCooldown(g1)
+    g1.tick(0.016) // fires the pulse; it also takes its first step this same tick
+    expect(g1.projectiles.length).toBe(1)
+    const before1 = { ...g1.projectiles[0].pos }
+    g1.tick(0.016) // one more step at speed 1
+    const dist1 = Math.hypot(g1.projectiles[0].pos.x - before1.x, g1.projectiles[0].pos.y - before1.y)
+
+    // speed 4: identical fresh setup, fire at the default speed 1, then switch to speed 4 for the measured tick
+    const g4 = makeTestGame()
+    g4.build('cannon', 0)
+    const t4 = still(84, 240)
+    inject(g4, [t4])
+    primeCooldown(g4)
+    g4.tick(0.016) // fires at default speed 1 — position matches g1's before1 by construction
+    expect(g4.projectiles.length).toBe(1)
+    const before4 = { ...g4.projectiles[0].pos }
+    expect(before4).toEqual(before1)
+    g4.speed = 4
+    g4.tick(0.016) // one tick at 4x game speed
+    const dist4 = Math.hypot(g4.projectiles[0].pos.x - before4.x, g4.projectiles[0].pos.y - before4.y)
+
+    expect(dist4 / dist1).toBeCloseTo(4, 1) // ~4x displacement per tick vs speed 1
+
+    // impact still lands and damages the target when flown out at 4x speed
+    let guard = 0
+    while (g4.projectiles.length > 0 && guard++ < 20) g4.tick(0.016)
+    expect(g4.projectiles.length).toBe(0)
+    expect(t4.hp).toBe(t4.maxHp - 10)
+  })
   // Removed: 'cannon fire pushes no Fx beam while its projectile flies' pinned Fx-list exclusivity.
   // The Fx system (Game._fx/get fx) was deleted in Task 10 — instant weapons now emit `shotFired`
   // events consumed by BeamFx (render layer), and there is no fx list left to assert against.
