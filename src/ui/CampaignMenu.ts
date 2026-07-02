@@ -118,7 +118,9 @@ export class CampaignMenu {
         }
       }
 
-      if (isCompleted) {
+      // Handler must match the render condition (!isLocked) — a rendered button without a
+      // handler lets the click bubble into the card and START THE LEVEL instead of the log.
+      if (!isLocked) {
         const logBtn = card.querySelector('.pcb-level-log-btn') as HTMLButtonElement | null
         if (logBtn) {
           logBtn.onclick = (e) => {
