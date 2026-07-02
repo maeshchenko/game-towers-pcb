@@ -1,5 +1,5 @@
 import type { Level, DecorItem } from '../model/level'
-import { footprintCells, padAnchors } from '../render/decorBuilder'
+import { footprintCells } from '../render/decorBuilder'
 import { routeOctilinear } from '../geom/router'
 import type { Cell } from '../geom/types'
 import { VFOOT, vintageLeadEnds, vintagePins, type VintageKind } from '../render/vintageDecor'
@@ -52,6 +52,11 @@ function buildPathSet(waypoints: [number, number][]): Set<string> {
 function getEscapeDir(kind: VintageKind, padIdx: number, cy_cell: number): { x: number; y: number } {
   switch (kind) {
     case 'resAxial': case 'diodeAxial': case 'inductorAxial': return padIdx === 0 ? { x: -1, y: 0 } : { x: 1, y: 0 }
+    // 2-pad radial parts: pads sit left/right of the body centre → the lead leaves sideways,
+    // never up/down (vertical escapes made hook-shaped stubs on crystal/cap/LED links).
+    case 'ceramicDisc': case 'filmCap': case 'electroRadial': case 'tantalum': case 'led5mm':
+    case 'crystalHC49': case 'trimpot': case 'batteryClip':
+      return padIdx === 0 ? { x: -1, y: 0 } : { x: 1, y: 0 }
     case 'to92': case 'to220': return { x: 0, y: 1 }
     case 'dipIC': return padIdx % 2 === 0 ? { x: 0, y: -1 } : { x: 0, y: 1 }
     default: return cy_cell < 4 ? { x: 0, y: 1 } : { x: 0, y: -1 }
@@ -137,7 +142,7 @@ export function routeCopper(
       const py = oy + l.y
       const cx = Math.max(0, Math.min(cols2 - 1, Math.round((px - pitch / 4) / (pitch / 2))))
       const cy = Math.max(0, Math.min(rows2 - 1, Math.round((py - pitch / 4) / (pitch / 2))))
-      return { cx, cy, itemIdx, padIdx, kind: v }
+      return { cx, cy, px, py, itemIdx, padIdx, kind: v }
     })
   }
 
@@ -269,6 +274,21 @@ export function routeCopper(
         finalPath2x = [cellA, cellB]
       }
 
+      // T1.5 — single-corner L: pads on perpendicular escape axes close to each other get one
+      // clean corner (chamfered to 45° at render time), the way a designer joins two nearby pads.
+      if (!finalPath2x) {
+        const manhattan = Math.abs(cellA[0] - cellB[0]) + Math.abs(cellA[1] - cellB[1])
+        if (manhattan <= 10) {
+          const corners: Cell[] = dirA.x !== 0
+            ? [[cellB[0], cellA[1]], [cellA[0], cellB[1]]]
+            : [[cellA[0], cellB[1]], [cellB[0], cellA[1]]]
+          for (const corner of corners) {
+            const cand: Cell[] = [cellA, corner, cellB]
+            if (polyFree(cand)) { finalPath2x = cand; break }
+          }
+        }
+      }
+
       // T2 — kit2 pair connector: perpendicular stub out of each pad, a shared straight
       // channel, head-on entry into the target. Try a few channel offsets before giving up.
       if (!finalPath2x) {
@@ -328,15 +348,10 @@ export function routeCopper(
       // Convert back to fractional cells on the 1x grid for the renderer
       const points = finalPath2x.map(c => [c[0] / scale, c[1] / scale] as [number, number])
       
-      // Override endpoints with the exact 1x integer cells of the anchors to pass tests and snap correctly
-      const anchorsA = padAnchors(itemA)
-      const anchorsB = padAnchors(itemB)
-      const bestA = anchorsA[padA.padIdx]
-      const bestB = anchorsB[padB.padIdx]
-      if (bestA && bestB) {
-        points[0] = [bestA[0], bestA[1]]
-        points[points.length - 1] = [bestB[0], bestB[1]]
-      }
+      // Override endpoints with the TRUE pad positions of the drawn vintage parts (fractional
+      // cell coords) — the trace must visibly touch the solder pad it claims to connect.
+      points[0] = [padA.px / pitch - 0.5, padA.py / pitch - 0.5]
+      points[points.length - 1] = [padB.px / pitch - 0.5, padB.py / pitch - 0.5]
 
       // Insert orthogonal transition at the start if not already orthogonal
       if (points.length >= 2 && points[0][0] !== points[1][0] && points[0][1] !== points[1][1]) {

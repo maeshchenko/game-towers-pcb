@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { mcuCore, passiveBank } from '../../pipeline/circuits'
+import { mcuCore, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 11 «Критический перегруз» — 60×45, difficulty 8.
 // THREE spawns funnel into a collector spine → ONE finish. Dense. Spots line the spine + convergence.
@@ -14,6 +14,7 @@ export function buildLevel11(board: Board): Level {
   b.path([[0, 22], [14, 22], ...spine])              // spawn 2 (mid)
   b.path([[0, 42], [14, 42], [14, 22], ...spine])    // spawn 3 (bottom)
   b.block(mcuCore([34, 6], b.alloc))
+  b.block(railSpine([16, 6], b.alloc, 3)); b.block(railSpine([43, 4], b.alloc, 8))
   b.block(passiveBank([20, 4], 5, b.alloc))
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   b.patrolSpots()

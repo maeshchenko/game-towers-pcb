@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { passiveBank, opAmp } from '../../pipeline/circuits'
+import { passiveBank, opAmp, railSpine } from '../../pipeline/circuits'
 
 // Level 10 «Многослойный мост» — 60×45, difficulty 8.
 // A single weaving path that crosses itself several times (bridges). Spots sit at the crossings
@@ -15,6 +15,7 @@ export function buildLevel10(board: Board): Level {
       b.block(passiveBank([2, 38], 5, b.alloc))
   b.block(passiveBank([40, 36], 4, b.alloc))
   b.block(opAmp([34, 20], b.alloc))
+  b.block(railSpine([0, 6], b.alloc, 4)); b.block(railSpine([32, 6], b.alloc, 1))
   // Tower spots from the coverage-greedy placer → always BESIDE the lanes, never on them.
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   b.patrolSpots()

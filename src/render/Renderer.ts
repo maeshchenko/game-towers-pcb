@@ -111,7 +111,7 @@ export class Renderer {
     const traceW = Math.max(1.5, pitch * 0.12)
     const viaOuterR = Math.max(2, pitch * 0.14)
     const viaInnerR = Math.max(1, pitch * 0.06)
-    const padR = pitch * 0.22
+    const padR = pitch * 0.14 // subtle teardrop — big flares read as solder blobs
     const chamferCut = pitch * 0.4
     // Barely-there rounding: reference boards read as straight runs with crisp 45° corners.
     const filletRadius = pitch * 0.04

@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { powerSupply, ledIndicator, passiveBank } from '../../pipeline/circuits'
+import { powerSupply, ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 04 «Шунт питания» — 32×24, difficulty 4.
 // Serpentine with a deliberate CHOKE kill-zone (a tight double-back at 50–75% of the path) where
@@ -16,6 +16,7 @@ export function buildLevel04(board: Board): Level {
   // ── Fill bands between lanes with wired fragments (auto-added) ──
   b.block(ledIndicator([23, 5], b.alloc));
   b.block(passiveBank([18, 10], 0, b.alloc));
+  b.block(railSpine([0, 5], b.alloc, 2)); b.block(railSpine([16, 0], b.alloc, 7));
   b.block(passiveBank([24, 10], 5, b.alloc));
   b.block(passiveBank([12, 10], 2, b.alloc));
   b.block(passiveBank([12, 20], 6, b.alloc));

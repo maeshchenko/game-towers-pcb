@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { ledIndicator, passiveBank } from '../../pipeline/circuits'
+import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 02 «Поворот ключа» — 24×18, difficulty 2.
 // 4-lane serpentine with ONE tight hairpin (lanes 3 cells apart) → an S-tier double-coverage spot in
@@ -17,8 +17,7 @@ export function buildLevel02(board: Board): Level {
   b.block(passiveBank([6, 0], 0, b.alloc));
   b.block(passiveBank([12, 0], 2, b.alloc));
   b.block(ledIndicator([17, 0], b.alloc));
-  b.block(passiveBank([8, 16], 0, b.alloc));
-  b.block(passiveBank([12, 16], 2, b.alloc));
+  b.block(railSpine([8, 16], b.alloc, 4, 3)); // short D→L→C rail replaces three clumped banks
   // Tower spots from the coverage-greedy placer → always BESIDE the lanes, never on them.
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   b.patrolSpots({ spacing: 5 })

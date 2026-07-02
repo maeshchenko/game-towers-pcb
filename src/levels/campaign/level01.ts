@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { ledIndicator, passiveBank } from '../../pipeline/circuits'
+import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 01 «Вводные шины» — 24×18, difficulty 1, tutorial.
 // Gentle 3-lane serpentine, START top-left → FINISH bottom-right (opposite corners), many soft turns
@@ -16,6 +16,7 @@ export function buildLevel01(board: Board): Level {
   // ── Hand-placed decor, one block per free band — a populated board, not one lonely cluster ──
   // Band A (rows 0–1, above the top lane): a decoupling pair
   b.block(passiveBank([18, 0], 4, b.alloc))    // decoupling pair, top-right
+  b.block(railSpine([0, 17], b.alloc, 1))      // power rail along the bottom edge
   // Band B (rows 3–5, between lanes 1 & 2): a resistor divider
   b.block(passiveBank([1, 4], 5, b.alloc))     // R-divider, left
   // Band D (rows 7–9, between lanes 2 & 3): an LED indicator

@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { timer555, passiveBank } from '../../pipeline/circuits'
+import { timer555, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 12 «Финал: Генератор» — 60×45, difficulty 9. The showcase:
 // TWO spawns merge → an inward spiral kill-zone that self-crosses (a bridge) → ONE finish.
@@ -16,6 +16,7 @@ export function buildLevel12(board: Board): Level {
   b.path([[0, 42], [20, 42], [20, 22], ...spiral.slice(1)]) // spawn 2 (bottom-left) → merge
       b.block(timer555([49, 2], b.alloc))
   b.block(passiveBank([2, 30], 4, b.alloc))
+  b.block(railSpine([0, 5], b.alloc, 6)); b.block(railSpine([22, 4], b.alloc, 0))
   // Tower spots from the coverage-greedy placer → always BESIDE the lanes, never on them.
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   b.patrolSpots()

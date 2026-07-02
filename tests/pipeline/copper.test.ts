@@ -68,11 +68,13 @@ describe('routeCopper', () => {
     const startPt = copper.points[0] as [number, number]
     const endPt   = copper.points[copper.points.length - 1] as [number, number]
 
+    // Endpoints are the TRUE (fractional) solder-pad positions of the drawn vintage part,
+    // which sit within the item's pad cells — assert proximity, not exact integer identity.
     const isKnownPad = (pt: [number, number]) =>
-      allPads.some(([px, py]) => px === pt[0] && py === pt[1])
+      allPads.some(([px, py]) => Math.hypot(px - pt[0], py - pt[1]) <= 0.75)
 
-    expect(isKnownPad(startPt), `start ${JSON.stringify(startPt)} is not a pad anchor`).toBe(true)
-    expect(isKnownPad(endPt),   `end   ${JSON.stringify(endPt)} is not a pad anchor`).toBe(true)
+    expect(isKnownPad(startPt), `start ${JSON.stringify(startPt)} is not near a pad anchor`).toBe(true)
+    expect(isKnownPad(endPt),   `end   ${JSON.stringify(endPt)} is not near a pad anchor`).toBe(true)
   })
 
   it('is deterministic — two calls with the same inputs return identical results', () => {

@@ -18,7 +18,7 @@ export function buildLevel06(board: Board): Level {
   b.block(ledIndicator([12, 6], b.alloc));
   b.block(opAmp([10, 14], b.alloc));
   b.block(passiveBank([38, 13], 1, b.alloc));
-  b.block(railSpine([23, 13], b.alloc, 1));
+  b.block(railSpine([23, 13], b.alloc, 1)); b.block(railSpine([0, 8], b.alloc, 8));
   b.block(railSpine([18, 28], b.alloc, 4));
   b.block(opAmp([10, 21], b.alloc));
   b.block(transistorSwitch([22, 21], b.alloc));

@@ -149,9 +149,9 @@ export function opAmp(origin: Cell, alloc: RefAlloc): BlockResult {
   const cRef = alloc.nextC()
 
   const u   = item('soic', 8, [ox,     oy    ], 0, uRef)
-  // feedback resistors stacked to the right
+  // feedback divider laid END-TO-END in one row to the right (axial parts chain like on a real board)
   const rf1 = item('res',  1, [ox + 4, oy    ], 0, r1)
-  const rf2 = item('res',  1, [ox + 4, oy + 1], 0, r2)
+  const rf2 = item('res',  1, [ox + 7, oy    ], 0, r2)
   // bypass cap above IC
   const bp  = item('mlcc', 1, [ox + 1, oy - 2], 0, cRef)
 
@@ -160,8 +160,7 @@ export function opAmp(origin: Cell, alloc: RefAlloc): BlockResult {
 
   const nets: number[][] = [
     [0, 1],  // U out → R1 feedback
-    [0, 2],  // U in- → R2 feedback
-    [1, 2],  // feedback divider node
+    [1, 2],  // divider node: R1 tail → R2 head, one short straight run
     [0, 3],  // U VCC ↔ bypass cap
     [3],     // bypass cap GND
   ]
@@ -194,7 +193,7 @@ export function ledIndicator(origin: Cell, alloc: RefAlloc): BlockResult {
 //  A power rail laid the way a board designer lays one: every part shares the same
 //  2×1 footprint row, so all pads sit on ONE line and every link renders as a
 //  dead-straight etched run (kit2 section-3 look). 14×1 cells.
-export function railSpine(origin: Cell, alloc: RefAlloc, variant = 0): BlockResult {
+export function railSpine(origin: Cell, alloc: RefAlloc, variant = 0, count = 5): BlockResult {
   const [ox, oy] = origin
   const parts: Array<{ kind: string; v: number; ref: string }> = [
     { kind: 'diode', v: 0, ref: alloc.nextD() },
@@ -202,7 +201,7 @@ export function railSpine(origin: Cell, alloc: RefAlloc, variant = 0): BlockResu
     { kind: 'tant', v: 0, ref: alloc.nextC() },
     { kind: 'res', v: variant % 9, ref: alloc.nextR() },
     { kind: 'led', v: variant % 2, ref: alloc.nextD() },
-  ]
+  ].slice(0, Math.max(2, count))
   const items: DecorItem[] = []
   let x = ox
   for (const p of parts) {
@@ -226,12 +225,11 @@ export function transistorSwitch(origin: Cell, alloc: RefAlloc): BlockResult {
   const dRef = alloc.nextD()
 
   const q   = item('sot23', 1, [ox,     oy    ], 0, qRef)
-  // base resistor to the left
+  // base resistor to the left, pull-down chained further left — one tidy row, end-to-end
   const rB  = item('res',   1, [ox - 3, oy    ], 0, rb)
-  // pull-down below base
-  const rP  = item('res',   1, [ox - 3, oy + 1], 0, rPD)
-  // flyback diode above transistor
-  const fly = item('diode', 1, [ox,     oy - 2], 0, dRef)
+  const rP  = item('res',   1, [ox - 6, oy    ], 0, rPD)
+  // flyback diode to the right, same row
+  const fly = item('diode', 1, [ox + 3, oy    ], 0, dRef)
 
   const items = [q, rB, rP, fly]
   //  indices:  0   1   2   3
@@ -272,7 +270,8 @@ export function passiveBank(origin: Cell, count: number, alloc: RefAlloc): Block
     case 5: { const a = add('res', alloc.nextR(), 0, 0), b = add('res', alloc.nextR(), 3, 0); nets.push([a, b]); break }       // R divider
     case 6: { const a = add('diode', alloc.nextD(), 0, 0), b = add('mlcc', alloc.nextC(), 3, 0); nets.push([a, b]); break }    // snubber
     case 7: {                                                                                                                   // crystal oscillator
-      const x = add('xtal', alloc.nextY(), 0, 0), c1 = add('mlcc', alloc.nextC(), 0, 2), c2 = add('mlcc', alloc.nextC(), 2, 2)
+      // load caps sit BESIDE the crystal (reference look), one short lead-bend link each
+      const c1 = add('mlcc', alloc.nextC(), 0, 1), x = add('xtal', alloc.nextY(), 2, 0), c2 = add('mlcc', alloc.nextC(), 5, 1)
       nets.push([x, c1], [x, c2]); break
     }
     default: { const a = add('inductor', alloc.nextL(), 0, 0), b = add('elec', alloc.nextC(), 3, 0); nets.push([a, b]) }       // LC filter (rare elec)
@@ -287,8 +286,8 @@ export function amplifierStage(origin: Cell, alloc: RefAlloc): BlockResult {
   const [ox, oy] = origin, items: DecorItem[] = [], nets: number[][] = []
   const add = (k: string, ref: string, dc: number, dr: number) => { items.push(item(k, 1, [ox + dc, oy + dr], 0, ref)); return items.length - 1 }
   const cin = add('mlcc', alloc.nextC(), 0, 2), r1 = add('res', alloc.nextR(), 2, 0), r2 = add('res', alloc.nextR(), 2, 4)
-  const rc = add('res', alloc.nextR(), 5, 0), q = add('sot23', alloc.nextQ(), 5, 2), re = add('res', alloc.nextR(), 5, 5)
-  const ce = add('mlcc', alloc.nextC(), 8, 5), cout = add('mlcc', alloc.nextC(), 8, 2)
+  const rc = add('res', alloc.nextR(), 5, 0), q = add('sot23', alloc.nextQ(), 5, 2), re = add('res', alloc.nextR(), 5, 4)
+  const ce = add('mlcc', alloc.nextC(), 8, 4), cout = add('mlcc', alloc.nextC(), 8, 2)
   nets.push([cin, q], [r1, q], [r2, q], [rc, q], [q, re], [re, ce], [q, cout])
   return { items, nets }
 }

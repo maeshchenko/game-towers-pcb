@@ -168,8 +168,11 @@ async function boot() {
     for (const sp of lvl.spots) acc(sp.cell[0], sp.cell[1])
     for (const sp of lvl.specialSpots) acc(sp.cell[0], sp.cell[1])
     if (!isFinite(minX)) return
-    // fit the path into the free area (avoiding legend/top-bar/HUD) → tidy at ANY board size
-    const padc = pitch * 0.4   // tight margin around path+spots → larger boards fill more screen
+    // fit the path into the free area (avoiding legend/top-bar/HUD) → tidy at ANY board size.
+    // Margin must cover the build-spot bracket art (pitch*0.62 half-size + glow), or edge-row
+    // towers get clipped while background decor stays visible — framing is keyed to GAMEPLAY
+    // (path + spots) only; decor never affects it and may clip freely.
+    const padc = pitch * 0.9
     minX -= padc; minY -= padc; maxX += padc; maxY += padc
     const isMobile = view().w < 800
     const mL = isMobile ? 16 : 156

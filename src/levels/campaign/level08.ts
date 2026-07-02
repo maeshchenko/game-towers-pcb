@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { transistorSwitch, amplifierStage, passiveBank } from '../../pipeline/circuits'
+import { transistorSwitch, amplifierStage, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 08 «Высокое напряжение» — 44×33, difficulty 7.
 // TWO spawns from different edges merge onto a common spine → ONE finish. Spots concentrate on the
@@ -16,6 +16,7 @@ export function buildLevel08(board: Board): Level {
   // spawn 2 (bottom-left)
   b.path([[0, 30], [8, 30], [8, 16], merge, ...spine])
   b.block(transistorSwitch([26, 4], b.alloc))
+  b.block(railSpine([10, 7], b.alloc, 5)); b.block(railSpine([30, 3], b.alloc, 2))
   b.block(amplifierStage([34, 10], b.alloc))
   b.block(passiveBank([2, 16], 4, b.alloc))
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
