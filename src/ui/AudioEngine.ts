@@ -583,25 +583,25 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
-      const shift = this.vary(1, 2)
-      const playTone = (freq: number, delay: number) => {
+      const shift = this.vary(1, 1)
+      // Radar/sonar ping: a soft rising sine blip + a quieter echo — reads as "incoming
+      // carrier detected", not a drum hit.
+      const ping = (delay: number, vol: number) => {
         const osc = this.ctx!.createOscillator()
         const gain = this.ctx!.createGain()
         osc.connect(gain)
         gain.connect(this.ctx!.destination)
-
-        osc.type = 'triangle' // square was harsh/piercing at wave start
-        osc.frequency.setValueAtTime(freq * shift, t + delay)
-
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(660 * shift, t + delay)
+        osc.frequency.linearRampToValueAtTime(880 * shift, t + delay + 0.12)
         gain.gain.setValueAtTime(0.0001, t + delay)
-        gain.gain.linearRampToValueAtTime(this.jitterGain(0.055 * this.sfxVol), t + delay + 0.03) // gentle attack, quieter
-        gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.1)
-
+        gain.gain.linearRampToValueAtTime(vol * this.sfxVol, t + delay + 0.02)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.28)
         osc.start(t + delay)
-        osc.stop(t + delay + 0.1)
+        osc.stop(t + delay + 0.3)
       }
-      playTone(220.00, 0)   // A3
-      playTone(293.66, 0.1) // D4
+      ping(0, 0.05)
+      ping(0.22, 0.02) // echo
     } catch (e) {}
   }
 

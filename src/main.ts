@@ -1003,9 +1003,10 @@ async function boot() {
     ensureGame()
     if (!game || game.state.phase !== 'build') return
 
-    // Calculate early start bonus
+    // Calculate early start bonus: scales with wave number so the risk/reward stays
+    // meaningful late game (up to ~5s × (6+wave) energy for an instant restart).
     if (waveCountdown > 0) {
-      const bonus = Math.ceil(waveCountdown) * 3
+      const bonus = Math.ceil(waveCountdown) * (6 + (game?.state.waveNumber ?? 1))
       game.state.add(bonus)
       audioEngine.playUpgrade() // nice positive sound for bonus!
       showFloatingBonusText(bonus)
