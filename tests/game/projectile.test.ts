@@ -144,9 +144,19 @@ describe('Game projectile bindings', () => {
     const b = still(124, 132) // 40px from a — inside the 62.4px splash around either aim point
     inject(game, [a, b])
     primeCooldown(game)
+    const damaged: import('../../src/game/events').GameEvent[] = []
+    game.events.on((ev) => { if (ev.type === 'enemyDamaged') damaged.push(ev) })
     for (let i = 0; i < 20; i++) game.tick(0.016) // one shell fired and landed; next shot ≫ 20 ticks away
     expect(a.hp).toBe(a.maxHp - 30)
     expect(b.hp).toBe(b.maxHp - 30)
+    expect(damaged.length).toBe(2)
+    // both splash hits share the same `from` (the shell's impact point), and each event's
+    // enemy ref is the actual enemy that took damage — not the tower position.
+    const froms = damaged.map((ev) => (ev.type === 'enemyDamaged' ? ev.from : undefined))
+    expect(froms[0]).toEqual(froms[1])
+    expect(froms[0]).not.toEqual(game.towers[0].pos)
+    const enemies = damaged.map((ev) => (ev.type === 'enemyDamaged' ? ev.enemy : undefined))
+    expect(enemies).toEqual(expect.arrayContaining([a, b]))
   })
 
   it('pulse retargets the nearest live enemy within 1.5 cells when its target dies mid-flight', () => {
@@ -159,9 +169,17 @@ describe('Game projectile bindings', () => {
     game.tick(0.016) // fire: pulse spawned, homing on target
     expect(game.projectiles.length).toBe(1)
     target.takeDamage(9999) // dies mid-flight → bullet flies to last known position
+    const damaged: import('../../src/game/events').GameEvent[] = []
+    game.events.on((ev) => { if (ev.type === 'enemyDamaged') damaged.push(ev) })
     for (let i = 0; i < 40; i++) game.tick(0.016)
     expect(game.projectiles.length).toBe(0)
     expect(bystander.hp).toBe(bystander.maxHp - 10) // bystander absorbed the hit
+    expect(damaged.length).toBe(1)
+    const hit = damaged[0]
+    if (hit.type === 'enemyDamaged') {
+      expect(hit.enemy).toBe(bystander) // retargeted onto the bystander, not the dead target
+      expect(hit.from).toEqual(game.towers[0].pos) // pulse `from` is the tower's launch point
+    }
   })
 
   it('pulse fizzles when nobody is near the impact: no damage, but projectileImpact is emitted', () => {

@@ -2,11 +2,12 @@
 import type { Pt } from '../geom/types'
 import type { TowerKind } from './towerTypes'
 import type { EnemyKind } from './enemyTypes'
+import type { Enemy } from './Enemy'
 
 export type GameEvent =
   | { type: 'shotFired'; kind: TowerKind; from: Pt; to: Pt; towerLevel: number }
-  | { type: 'enemyDamaged'; kind: EnemyKind; amount: number; pos: Pt }
-  | { type: 'enemyDied'; kind: EnemyKind; pos: Pt; bounty: number }
+  | { type: 'enemyDamaged'; kind: EnemyKind; amount: number; pos: Pt; enemy: Enemy; from?: Pt }
+  | { type: 'enemyDied'; kind: EnemyKind; pos: Pt; bounty: number; enemy: Enemy }
   | { type: 'enemySpawned'; kind: EnemyKind; pos: Pt }
   | { type: 'leak'; kind: EnemyKind; livesLost: number }
   | { type: 'waveStart'; index: number }

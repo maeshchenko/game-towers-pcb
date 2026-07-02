@@ -169,7 +169,7 @@ export class Game {
         for (const e of hit) {
           if (!e.alive) continue
           e.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0)
-          this.events.emit({ type: 'enemyDamaged', kind: e.kind, amount: p.shot.damage ?? 0, pos: { x: e.pos.x, y: e.pos.y } })
+          this.events.emit({ type: 'enemyDamaged', kind: e.kind, amount: p.shot.damage ?? 0, pos: { x: e.pos.x, y: e.pos.y }, enemy: e, from: { x: p.pos.x, y: p.pos.y } })
         }
       } else {
         // pulse bullet: hit its target, or retarget the nearest live enemy within 1.5 cells, else fizzle
@@ -181,7 +181,7 @@ export class Game {
         }
         if (victim) {
           victim.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0)
-          this.events.emit({ type: 'enemyDamaged', kind: victim.kind, amount: p.shot.damage ?? 0, pos: { x: victim.pos.x, y: victim.pos.y } })
+          this.events.emit({ type: 'enemyDamaged', kind: victim.kind, amount: p.shot.damage ?? 0, pos: { x: victim.pos.x, y: victim.pos.y }, enemy: victim, from: { x: p.from.x, y: p.from.y } })
           if (p.shot.slow && p.shot.slow < 1) victim.applySlow(p.shot.slow, 1.5)
         }
       }
@@ -194,7 +194,7 @@ export class Game {
       if (e.hp <= 0) {
         this.state.add(e.bounty)
         this.wm.remove(e)
-        this.events.emit({ type: 'enemyDied', kind: e.kind, pos: { x: e.pos.x, y: e.pos.y }, bounty: e.bounty })
+        this.events.emit({ type: 'enemyDied', kind: e.kind, pos: { x: e.pos.x, y: e.pos.y }, bounty: e.bounty, enemy: e })
       }
     }
 

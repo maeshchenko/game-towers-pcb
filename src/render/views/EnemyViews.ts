@@ -2,19 +2,32 @@
 // One pooled view per live enemy: baked sprite + tiny HP bar redrawn only when hp changes.
 import { Application, Container, Graphics, Sprite } from 'pixi.js'
 import type { Enemy } from '../../game/Enemy'
+import type { Pt } from '../../geom/types'
 import { PALETTE } from '../../style/palette'
 import { bakeEnemyTexture, ENEMY_RADIUS } from './textures'
+
+const FLASH_DECAY_PER_SEC = 18 // 0.9 -> 0 in 50ms
+const KICK_DECAY_PER_SEC = 10 // -> 0 in ~100ms
+const KICK_PX = 4
 
 class EnemyView {
   root = new Container()
   sprite: Sprite
+  flash: Sprite // additive hit flash, same baked texture, faded in/out over sprite
   hpBar = new Graphics()
   pulse = new Graphics() // healer aura ring; empty for others
   lastHp = -1
+  kick = { x: 0, y: 0 } // decaying visual-only knockback offset
   constructor(app: Application, kind: string) {
-    this.sprite = new Sprite(bakeEnemyTexture(app, kind))
+    const tex = bakeEnemyTexture(app, kind)
+    this.sprite = new Sprite(tex)
     this.sprite.anchor.set(0.5)
-    this.root.addChild(this.pulse, this.sprite, this.hpBar)
+    this.flash = new Sprite(tex)
+    this.flash.anchor.set(0.5)
+    this.flash.blendMode = 'add'
+    this.flash.tint = 0xffffff
+    this.flash.alpha = 0
+    this.root.addChild(this.pulse, this.sprite, this.flash, this.hpBar)
   }
 }
 
@@ -25,7 +38,22 @@ export class EnemyViews {
   private poolByKind = new Map<string, EnemyView[]>()
   constructor(private app: Application, private layer: Container) {}
 
-  sync(enemies: Enemy[], timeSec: number): void {
+  /** Hit feedback: additive flash + a small knockback kick away from the damage source. Called
+   * from the enemyDamaged event subscription (GameView), not from sync — sync only decays. */
+  onDamaged(enemy: Enemy, from?: Pt): void {
+    const v = this.views.get(enemy)
+    if (!v) return
+    v.flash.alpha = 0.9
+    if (from) {
+      const dx = enemy.pos.x - from.x, dy = enemy.pos.y - from.y
+      const d = Math.hypot(dx, dy)
+      if (d > 0) { v.kick.x = (dx / d) * KICK_PX; v.kick.y = (dy / d) * KICK_PX }
+    } else {
+      v.kick.x = 0; v.kick.y = 0
+    }
+  }
+
+  sync(enemies: Enemy[], timeSec: number, dt: number): void {
     const live = new Set<Enemy>()
     for (const e of enemies) {
       if (!e.alive) continue
@@ -34,11 +62,16 @@ export class EnemyViews {
       if (!v) {
         v = this.poolByKind.get(e.kind)?.pop() ?? new EnemyView(this.app, e.kind)
         v.lastHp = -1
+        v.flash.alpha = 0
+        v.kick.x = 0; v.kick.y = 0
         v.root.visible = true
         this.layer.addChild(v.root)
         this.views.set(e, v)
       }
-      v.root.position.set(e.pos.x, e.pos.y)
+      v.flash.alpha = Math.max(0, v.flash.alpha - dt * FLASH_DECAY_PER_SEC)
+      const kickDecay = Math.max(0, 1 - dt * KICK_DECAY_PER_SEC)
+      v.kick.x *= kickDecay; v.kick.y *= kickDecay
+      v.root.position.set(e.pos.x + v.kick.x, e.pos.y + v.kick.y)
       if (e.hp !== v.lastHp) {
         v.lastHp = e.hp
         const r = ENEMY_RADIUS[e.kind] ?? 6

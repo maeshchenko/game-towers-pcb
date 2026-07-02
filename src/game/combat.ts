@@ -16,7 +16,7 @@ export function applyShot(
   const dmg = shot.damage ?? 0
   if (dmg > 0) {
     target.takeDamage(dmg, shot.pierce ?? 0)
-    emit?.({ type: 'enemyDamaged', kind: target.kind, amount: dmg, pos: { x: target.pos.x, y: target.pos.y } })
+    emit?.({ type: 'enemyDamaged', kind: target.kind, amount: dmg, pos: { x: target.pos.x, y: target.pos.y }, enemy: target, from: shot.from })
   }
   if (shot.slow && shot.slow < 1) target.applySlow(shot.slow, 1.5)
 
@@ -27,7 +27,7 @@ export function applyShot(
       if (e === target || !e.alive) continue
       if (dist(e.pos, target.pos) <= r) {
         e.takeDamage(dmg, shot.pierce ?? 0)
-        emit?.({ type: 'enemyDamaged', kind: e.kind, amount: dmg, pos: { x: e.pos.x, y: e.pos.y } })
+        emit?.({ type: 'enemyDamaged', kind: e.kind, amount: dmg, pos: { x: e.pos.x, y: e.pos.y }, enemy: e, from: shot.from })
       }
     }
   }
@@ -41,7 +41,7 @@ export function applyShot(
       .slice(0, shot.chainCount)
     for (const e of candidates) {
       e.takeDamage(chainDmg, shot.pierce ?? 0)
-      emit?.({ type: 'enemyDamaged', kind: e.kind, amount: chainDmg, pos: { x: e.pos.x, y: e.pos.y } })
+      emit?.({ type: 'enemyDamaged', kind: e.kind, amount: chainDmg, pos: { x: e.pos.x, y: e.pos.y }, enemy: e, from: shot.from })
     }
   }
 }

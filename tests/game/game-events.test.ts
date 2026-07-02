@@ -35,7 +35,7 @@ describe('Game events', () => {
     expect(got.some((e) => e.type === 'waveStart' && e.index === 0)).toBe(true)
   })
 
-  it('emits enemyDied with bounty when enemy is killed in tick', () => {
+  it('emits enemyDied with bounty and the dead enemy ref when enemy is killed in tick', () => {
     const game = makeTestGame()
     game.startWave()
     // run spawn, then kill first enemy directly
@@ -46,6 +46,24 @@ describe('Game events', () => {
     game.events.on((ev) => got.push(ev))
     e.takeDamage(999999, 999)
     game.tick(0.016)
-    expect(got.some((ev) => ev.type === 'enemyDied')).toBe(true)
+    const died = got.find((ev) => ev.type === 'enemyDied')
+    expect(died).toBeDefined()
+    if (died?.type === 'enemyDied') expect(died.enemy).toBe(e)
+  })
+
+  it('emits enemyDamaged carrying the damaged enemy ref and the tower position as `from`', () => {
+    const game = makeTestGame()
+    game.build('cannon', 0)
+    game.startWave()
+    const got: GameEvent[] = []
+    game.events.on((ev) => got.push(ev))
+    let guard = 0
+    while (guard++ < 200 && !got.some((ev) => ev.type === 'enemyDamaged')) game.tick(0.016)
+    const dmg = got.find((ev) => ev.type === 'enemyDamaged')
+    expect(dmg).toBeDefined()
+    if (dmg?.type === 'enemyDamaged') {
+      expect(dmg.enemy.pos).toEqual(dmg.pos) // enemy ref is the same object the pos snapshot came from
+      expect(dmg.from).toEqual(game.towers[0].pos) // damage source is the firing tower
+    }
   })
 })
