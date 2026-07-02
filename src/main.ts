@@ -98,6 +98,16 @@ async function boot() {
   const app = await createPixiApp({ width: window.innerWidth, height: window.innerHeight, background: PALETTE.substrate })
   initGsap(app)
   initMotion()
+
+  // Audio unlocks on the FIRST user gesture anywhere — not only via the campaign-menu click.
+  // Direct URL entry (?t=...) and mid-level page reloads used to stay silent forever because
+  // nothing ever called setMute(false) on those paths.
+  const enableAudioOnce = () => {
+    window.removeEventListener('pointerdown', enableAudioOnce, true)
+    audioEngine.init()
+    if (audioEngine.isMuted()) audioEngine.setMute(false)
+  }
+  window.addEventListener('pointerdown', enableAudioOnce, true)
   document.getElementById('app')!.appendChild(app.canvas)
 
   // Override canvas.getBoundingClientRect
@@ -406,7 +416,8 @@ async function boot() {
           i18n.t('tutorial.step1'),
           sx,
           sy,
-          null
+          null,
+          150 // the radial chip menu opens around this spot — keep the text clear of the ring
         )
       }
     } else if (step === 2) {

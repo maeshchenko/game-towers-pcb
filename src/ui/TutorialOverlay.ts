@@ -21,7 +21,7 @@ export class TutorialOverlay {
     document.body.appendChild(this.spotlight)
   }
 
-  showStep(text: string, x: number, y: number, onNext: (() => void) | null = null): void {
+  showStep(text: string, x: number, y: number, onNext: (() => void) | null = null, gap = 60): void {
     this.mount()
 
     // Position bubble - auto flip if too low or high
@@ -30,8 +30,8 @@ export class TutorialOverlay {
     const container = document.getElementById('game-container')
     const screenW = container ? container.clientWidth : window.innerWidth
     const screenH = container ? container.clientHeight : window.innerHeight
-    // clear the radial build ring (~120px radius) so the text never sits on top of the chip menu
-    const gap = 150
+    // gap: 60 keeps the bubble hugging its target; the radial-menu step passes ~150 so the
+    // text clears the chip ring that opens on click
     const posY = y + bubbleHeight + gap > screenH ? y - bubbleHeight - gap : y + gap
     
     this.bubble!.style.left = `${Math.max(20, Math.min(screenW - 270, x - 125))}px`

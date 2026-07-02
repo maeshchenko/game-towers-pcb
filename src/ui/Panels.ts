@@ -38,6 +38,7 @@ export function mountPanels(level: Level | null): HTMLElement {
       <div>${i18n.t('hud.gold')} 650</div>
     </div>
     <div class="pcb-panel pcb-tips">
+      <span class="pcb-tips-close" style="position: absolute; top: 6px; right: 8px; cursor: pointer; color: #6cf2a0; font-size: 12px; padding: 2px 4px;" title="close">✕</span>
       <h3>${i18n.t('tips.title')}</h3>
       <p class="pcb-tip-content" style="min-height: 48px; margin: 0 0 10px 0; line-height: 1.4; font-size: 11px;"></p>
       <div class="pcb-tip-nav" style="display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 10px; color: #6cf2a0; user-select: none;">
@@ -47,6 +48,18 @@ export function mountPanels(level: Level | null): HTMLElement {
       </div>
     </div>`
   document.body.appendChild(wrap)
+
+  // Tips are dismissible and STAY dismissed across levels/sessions (annoying otherwise).
+  const TIPS_CLOSED_KEY = 'pcb_td_tips_closed_v1'
+  const tipsPanel = wrap.querySelector('.pcb-tips') as HTMLElement
+  if (tipsPanel) {
+    try { if (window.localStorage?.getItem(TIPS_CLOSED_KEY) === '1') tipsPanel.style.display = 'none' } catch {}
+    const close = tipsPanel.querySelector('.pcb-tips-close') as HTMLElement
+    if (close) close.onclick = () => {
+      tipsPanel.style.display = 'none'
+      try { window.localStorage?.setItem(TIPS_CLOSED_KEY, '1') } catch {}
+    }
+  }
 
   const prev = wrap.querySelector('.pcb-tip-prev') as HTMLElement
   const next = wrap.querySelector('.pcb-tip-next') as HTMLElement
