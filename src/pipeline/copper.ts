@@ -46,7 +46,7 @@ function getEscapeDir(kind: VintageKind, padIdx: number, cy_cell: number): { x: 
 }
 
 export function routeCopper(
-  level: Pick<Level, 'decor' | 'nets' | 'board' | 'trace' | 'paths'>,
+  level: Pick<Level, 'decor' | 'nets' | 'board' | 'trace' | 'paths'> & { spots?: Cell[] },
 ): Copper[] {
   const { decor, nets, trace } = level
   if (!nets || nets.length === 0) return []
@@ -85,6 +85,22 @@ export function routeCopper(
   const allPaths = level.paths && level.paths.length > 0 ? level.paths : [trace]
   for (const p of allPaths) {
     for (const k of buildPathSet(p.waypoints)) {
+      const [tx, ty] = k.split(',').map(Number)
+      blocked.add(cellKey(tx * scale, ty * scale))
+      blocked.add(cellKey(tx * scale + 1, ty * scale))
+      blocked.add(cellKey(tx * scale, ty * scale + 1))
+      blocked.add(cellKey(tx * scale + 1, ty * scale + 1))
+    }
+  }
+
+  // Block tower spots + specials on the 2x grid, dilated by 1 ring — copper must never run under a
+  // build/boost octagon (a trace visible under a spot reads as broken occupancy).
+  if (level.spots) {
+    const spotRing = new Set<string>()
+    for (const [sx, sy] of level.spots) {
+      for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) spotRing.add(cellKey(sx + dx, sy + dy))
+    }
+    for (const k of spotRing) {
       const [tx, ty] = k.split(',').map(Number)
       blocked.add(cellKey(tx * scale, ty * scale))
       blocked.add(cellKey(tx * scale + 1, ty * scale))
@@ -210,22 +226,20 @@ export function routeCopper(
       // Restore blocked obstacles
       restored.forEach(k => blocked.add(k))
 
-      let finalPath2x: Cell[] = []
-      if (cellPath) {
-        finalPath2x = [
-          cellA,
-          [cellA[0] + dirA.x, cellA[1] + dirA.y],
-          ...(cellPath as Cell[]),
-          [cellB[0] + dirB.x, cellB[1] + dirB.y],
-          cellB
-        ]
-        // Add path to blocked set for subsequent lines
-        for (const p of finalPath2x) {
-          blocked.add(cellKey(p[0], p[1]))
-        }
-      } else {
-        // Simple straight fallback
-        finalPath2x = [cellA, cellB]
+      // No path found → skip this segment entirely (no wire is better than a fake straight line
+      // cutting through components/spots).
+      if (!cellPath) continue
+
+      const finalPath2x: Cell[] = [
+        cellA,
+        [cellA[0] + dirA.x, cellA[1] + dirA.y],
+        ...(cellPath as Cell[]),
+        [cellB[0] + dirB.x, cellB[1] + dirB.y],
+        cellB
+      ]
+      // Add path to blocked set for subsequent lines
+      for (const p of finalPath2x) {
+        blocked.add(cellKey(p[0], p[1]))
       }
 
       // Convert back to fractional cells on the 1x grid for the renderer

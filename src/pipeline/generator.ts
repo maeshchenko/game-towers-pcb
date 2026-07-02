@@ -35,7 +35,10 @@ export function generateLevel(params: {
   const { spots, specialSpots } = tileSpots({ board: actualBoard, routes: paths, difficulty })
   const { decor, nets } = buildDecorWithNets({ board: actualBoard, trace: paths, spots, specialSpots, seed })
   const trace = paths[0]
-  const copper = routeCopper({ decor, nets, board: actualBoard, trace, paths })
+  const copper = routeCopper({
+    decor, nets, board: actualBoard, trace, paths,
+    spots: [...spots, ...specialSpots].map((s) => s.cell),
+  })
   return {
     version: 1,
     board: actualBoard,

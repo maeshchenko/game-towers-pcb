@@ -31,6 +31,8 @@ export function buildLevel01(board: Board): Level {
 
   // Tower spots: coverage-greedy placer over the path → always BESIDE the lanes, never on them.
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
-  b.patrolSpots()
+  // spacing tightened slightly: decor now correctly excludes spots from its footprint (occupancy
+  // fix), so the default spacing left too few legal slots near the dense top bands.
+  b.patrolSpots({ spacing: 3.5 })
   return b.build()
 }
