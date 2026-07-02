@@ -534,6 +534,12 @@ async function boot() {
   // reused across the whole session — show() tears down any previous run before mounting.
   const storyScreen = new StoryScreen()
 
+  // "ЖУРНАЛ СМЕНЫ · ЗАПИСЬ NN" — shared by the pre-level briefing and the campaign map's
+  // per-card "ЛОГ" replay button, so both read the exact same title.
+  function briefTitle(index: number): string {
+    return `${i18n.t('story.brief.title')} ${String(index + 1).padStart(2, '0')}`
+  }
+
   // Queues up the POST-intro (level 0 only, once) and the per-level briefing (once per level),
   // then calls onDone. Progress flags are re-read/saved around each step so a mid-queue reload
   // can't lose the "seen" mark. No-ops straight to onDone once everything for this level is seen.
@@ -549,9 +555,8 @@ async function boot() {
         onDone()
         return
       }
-      const title = `${i18n.t('story.brief.title')} ${String(index + 1).padStart(2, '0')}`
       storyScreen.show(story.brief, {
-        title,
+        title: briefTitle(index),
         onDone: () => {
           const p = loadProgress()
           if (!p.storyBriefSeen) p.storyBriefSeen = {}
@@ -578,6 +583,16 @@ async function boot() {
     }
   }
 
+  // Loads a campaign level and routes through its story briefing before calling onReady —
+  // shared by level-select and the victory screen's "next level" path so neither can skip
+  // the briefing overlay.
+  function goToCampaignLevel(index: number, onReady: () => void): void {
+    activeCampaignLevelIndex = index
+    loadAuthoredOrGenerated(index)
+    setMode('play')
+    showStoryFor(index, onReady)
+  }
+
   campaignMenu = new CampaignMenu({
     onSelectLevel: (index) => {
       audioEngine.init()
@@ -587,13 +602,10 @@ async function boot() {
       audioEngine.playClick()
 
       campaignMenu.hide()
-      activeCampaignLevelIndex = index
-      loadAuthoredOrGenerated(index)
-      setMode('play')
 
       // Tutorial only ever runs for level 0, and must start after the story overlay closes
       // (it points at on-canvas spots, which the fullscreen story overlay would sit on top of).
-      showStoryFor(index, () => {
+      goToCampaignLevel(index, () => {
         if (index === 0) {
           activeTutorial = new TutorialOverlay()
           setTimeout(() => {
@@ -605,6 +617,13 @@ async function boot() {
             activeTutorial = null
           }
         }
+      })
+    },
+    onShowLog: (index) => {
+      audioEngine.playClick()
+      storyScreen.show(CAMPAIGN_STORY.levels[index].brief, {
+        title: briefTitle(index),
+        onDone: () => {},
       })
     }
   })
@@ -922,9 +941,7 @@ async function boot() {
               score,
               hasNext ? () => {
                 ui.closeOverlay()
-                activeCampaignLevelIndex!++
-                loadAuthoredOrGenerated(activeCampaignLevelIndex!)
-                setMode('play')
+                goToCampaignLevel(activeCampaignLevelIndex! + 1, () => {})
               } : null,
               () => {
                 ui.closeOverlay()

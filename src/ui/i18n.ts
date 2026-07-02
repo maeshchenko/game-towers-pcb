@@ -140,6 +140,13 @@ const TRANSLATIONS = {
     'story.brief.title': 'ЖУРНАЛ СМЕНЫ · ЗАПИСЬ',
     'story.final.title': 'ПЕРЕДАЧА ЗАБЛОКИРОВАНА',
 
+    // Campaign map: station header (cleanup %) and per-card status badges.
+    'story.station.title': 'СТАНЦИЯ «ВЕГА-9» · ОЧИСТКА:',
+    'story.status.isolated': 'ИЗОЛИРОВАНО',
+    'story.status.infected': 'ЗАРАЖЕНО',
+    'story.status.nolink': 'НЕТ СВЯЗИ',
+    'story.log.button': 'ЛОГ',
+
     'story.intro.1': 'СДКС «ВЕГА-9» · ПОСТ-ПРОВЕРКА………………… OK',
     'story.intro.2': 'ПРИЁМНЫЙ ТРАКТ………………………………………… OK',
     'story.intro.3': 'ОПОРНЫЙ ГЕНЕРАТОР…………………………………… OK',
@@ -398,6 +405,13 @@ const TRANSLATIONS = {
     'story.intro.title': 'DSCS VEGA-9 · INBOUND CARRIER',
     'story.brief.title': 'SHIFT LOG · ENTRY',
     'story.final.title': 'TRANSMISSION BLOCKED',
+
+    // Campaign map: station header (cleanup %) and per-card status badges.
+    'story.station.title': 'STATION VEGA-9 · CLEANUP:',
+    'story.status.isolated': 'ISOLATED',
+    'story.status.infected': 'INFECTED',
+    'story.status.nolink': 'NO LINK',
+    'story.log.button': 'LOG',
 
     'story.intro.1': 'DSCS VEGA-9 · POWER-ON SELF TEST………… OK',
     'story.intro.2': 'RECEIVER CHAIN……………………………………… OK',

@@ -1,5 +1,6 @@
 // src/ui/CampaignMenu.ts
 import { CAMPAIGN_LEVELS, loadProgress, resetProgress } from '../game/campaign'
+import { cleanupPercent } from '../story/campaignStory'
 import { i18n } from './i18n'
 import { audioEngine } from './AudioEngine'
 
@@ -34,6 +35,7 @@ export class CampaignMenu {
 
   constructor(private opts: {
     onSelectLevel(index: number): void
+    onShowLog(index: number): void
   }) {}
 
   mount(): HTMLElement {
@@ -53,11 +55,14 @@ export class CampaignMenu {
 
     const progress = loadProgress()
     const unlocked = progress.unlockedLevelIndex
+    const completedCount = Math.min(CAMPAIGN_LEVELS.length, Math.max(0, unlocked))
+    const cleanup = cleanupPercent(completedCount)
 
     this.element.innerHTML = `
       <div class="pcb-campaign-header">
         <h1>PCB TD</h1>
         <h2>${i18n.t('campaign.subtitle')}</h2>
+        <div class="pcb-campaign-station">${i18n.t('story.station.title')} ${cleanup}%</div>
       </div>
       <div class="pcb-campaign-levels"></div>
       <div class="pcb-campaign-footer" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
@@ -80,6 +85,14 @@ export class CampaignMenu {
       const diffNameKey = lvl.difficulty >= 7 ? 'difficulty.hard' : lvl.difficulty >= 3 ? 'difficulty.medium' : 'difficulty.easy'
       const diffName = i18n.t(diffNameKey as any)
 
+      // Status badge: completed levels are "isolated" (past threat, dim green), the current
+      // frontier level is "infected" (active threat, red), locked ones show "no link" below.
+      const isCompleted = i < unlocked
+      const statusHtml = isLocked ? '' : isCompleted
+        ? `<div class="pcb-level-status isolated">${i18n.t('story.status.isolated')}</div>`
+        : `<div class="pcb-level-status infected">${i18n.t('story.status.infected')}</div>`
+      const logBtnHtml = isCompleted ? `<button class="pcb-level-log-btn">[${i18n.t('story.log.button')}]</button>` : ''
+
       const card = document.createElement('div')
       card.className = `pcb-level-card ${isLocked ? 'locked' : ''}`
       card.innerHTML = `
@@ -89,13 +102,25 @@ export class CampaignMenu {
           <span class="pcb-hud-badge ${diffClass}">${diffName}</span>
           <span>${lvl.cols}×${lvl.rows}</span>
         </div>
-        <div class="pcb-level-stars">${isLocked ? `🔒 ${i18n.t('campaign.locked').toUpperCase()}` : starsHtml}</div>
+        ${statusHtml}
+        <div class="pcb-level-stars">${isLocked ? `🔒 ${i18n.t('story.status.nolink')}` : starsHtml}</div>
         <div class="pcb-level-score">${isLocked ? '' : highscore}</div>
+        ${logBtnHtml}
       `
 
       if (!isLocked) {
         card.onclick = () => {
           this.opts.onSelectLevel(i)
+        }
+      }
+
+      if (isCompleted) {
+        const logBtn = card.querySelector('.pcb-level-log-btn') as HTMLButtonElement | null
+        if (logBtn) {
+          logBtn.onclick = (e) => {
+            e.stopPropagation()
+            this.opts.onShowLog(i)
+          }
         }
       }
 
