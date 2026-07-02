@@ -22,6 +22,8 @@ import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial, saveP
 import { TutorialOverlay } from './ui/TutorialOverlay'
 import { audioEngine } from './ui/AudioEngine'
 import { i18n } from './ui/i18n'
+import { initGsap } from './render/juice/tweens'
+import { initMotion } from './render/juice/motion'
 
 // Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
@@ -90,6 +92,8 @@ async function boot() {
   window.addEventListener('wheel', wrapEventCoords, { capture: true, passive: false })
 
   const app = await createPixiApp({ width: window.innerWidth, height: window.innerHeight, background: PALETTE.substrate })
+  initGsap(app)
+  initMotion()
   document.getElementById('app')!.appendChild(app.canvas)
 
   // Override canvas.getBoundingClientRect

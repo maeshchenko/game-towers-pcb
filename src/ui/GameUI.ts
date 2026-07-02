@@ -4,6 +4,7 @@ import type { Tower } from '../game/Tower'
 import { TOWER_DEFS, type TowerKind } from '../game/towerTypes'
 import { audioEngine } from './AudioEngine'
 import { i18n } from './i18n'
+import { juice, setReducedFx } from '../render/juice/motion'
 
 export function formatHud(s: { wave: number; waveCount: number; lives: number; gold: number; phase: string }) {
   return { wave: `${i18n.t('hud.wave')} ${s.wave}/${s.waveCount}`, lives: `${i18n.t('hud.lives')} ${s.lives}`, gold: `${i18n.t('hud.gold')} ${s.gold}` }
@@ -264,6 +265,11 @@ export class GameUI {
         </div>
 
         <div class="settings-row select-row">
+          <label>${i18n.t('settings.reduced_fx')}</label>
+          <input type="checkbox" id="reducedFxCheck" ${juice.reducedFx ? 'checked' : ''}>
+        </div>
+
+        <div class="settings-row select-row">
           <label>${i18n.t('settings.lang')}</label>
           <div style="display: flex; gap: 8px;">
             <button class="pcb-hud-btn lang-ru ${i18n.lang === 'ru' ? 'active' : ''}">RU</button>
@@ -292,6 +298,11 @@ export class GameUI {
       if (this.opts.onAutoWaveChanged) {
         this.opts.onAutoWaveChanged(this.autoWaveActive)
       }
+    }
+
+    const reducedFxCheck = this.settingsModal.querySelector('#reducedFxCheck') as HTMLInputElement
+    reducedFxCheck.onchange = () => {
+      setReducedFx(reducedFxCheck.checked)
     }
 
     const btnRu = this.settingsModal.querySelector('.lang-ru') as HTMLButtonElement

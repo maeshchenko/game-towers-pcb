@@ -23,6 +23,7 @@ const TRANSLATIONS = {
     'settings.music_vol': 'Громкость музыки',
     'settings.sfx_vol': 'Громкость эффектов',
     'settings.auto_wave': 'Автоволна',
+    'settings.reduced_fx': 'Сниженные эффекты',
     'settings.lang': 'Язык',
     'settings.close': 'ЗАКРЫТЬ',
     
@@ -150,6 +151,7 @@ const TRANSLATIONS = {
     'settings.music_vol': 'Music Volume',
     'settings.sfx_vol': 'SFX Volume',
     'settings.auto_wave': 'Auto-wave',
+    'settings.reduced_fx': 'Reduced effects',
     'settings.lang': 'Language',
     'settings.close': 'CLOSE',
     
