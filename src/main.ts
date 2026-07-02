@@ -783,25 +783,8 @@ async function boot() {
         // Pause game ticks
         game.speed = 0
         
-        // Focus camera on the new enemy (centered in the visible play area, respecting margins),
-        // remembering the current framing so it can be restored when the popup closes.
-        const savedCam = { x: camera.x, y: camera.y, zoom: camera.zoom }
-        const enemyX = newEnemy.pos.x
-        const enemyY = newEnemy.pos.y
-        const isMobile = view().w < 800
-        const mL = isMobile ? 16 : 156
-        const mR = isMobile ? 16 : 24
-        const mT = isMobile ? 52 : 56
-        const mB = isMobile ? 16 : 64
-        const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
-        const introZoom = Math.max(camera.zoom, 1.2)
-        gsap.killTweensOf(camera)
-        gsap.to(camera, {
-          zoom: introZoom,
-          x: mL + aw / 2 - enemyX * introZoom,
-          y: mT + ah / 2 - enemyY * introZoom,
-          duration: 0.35, ease: 'power2.out',
-        })
+        // NO camera movement: the popup shows the enemy portrait, and new signals always emerge
+        // from the spawn anyway — panning the screen back and forth is just jarring.
 
         // Reset countdown timer
         if (countdownTimer) {
@@ -817,10 +800,6 @@ async function boot() {
           prog.seenIntroductions[kind] = true
           saveProgress(prog)
           introducingEnemies.delete(kind)
-
-          // Restore the framing the player had before the intro zoom-in.
-          gsap.killTweensOf(camera)
-          gsap.to(camera, { ...savedCam, duration: 0.4, ease: 'power2.out' })
 
           if (game) {
             game.speed = selectedSpeed
