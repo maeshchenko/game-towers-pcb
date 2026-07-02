@@ -269,6 +269,7 @@ async function boot() {
     gameView = null
     shake.reset() // drop leftover trauma/freeze so they don't bleed into the next level
     hitStop.reset()
+    audioEngine.setSlowHum(false) // the ticker stops driving it once game=null — kill the drone here
     gsap.killTweensOf(camera) // a mid-flight intro zoom tween must not fight the next level's framing
     renderer.world.rotation = 0 // ticker early-returns without a game, so clear mid-shake tilt here
     editor.enabled = false // freehand trace off — board is generated; canvas drag pans the camera

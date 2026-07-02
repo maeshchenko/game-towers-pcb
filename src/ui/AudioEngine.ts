@@ -69,6 +69,14 @@ export class AudioEngine {
     if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
       window.localStorage.setItem(SFX_VOL_KEY, String(this.sfxVol))
     }
+    // The SLOW-aura drone is continuous — retarget its gain live, or the slider is ignored
+    // until the hum restarts.
+    if (this.slowHumActive && this.slowHumGain && this.ctx) {
+      const t = this.ctx.currentTime
+      this.slowHumGain.gain.cancelScheduledValues(t)
+      this.slowHumGain.gain.setValueAtTime(this.slowHumGain.gain.value, t)
+      this.slowHumGain.gain.linearRampToValueAtTime(0.05 * this.sfxVol, t + 0.05)
+    }
   }
 
   setMute(mute: boolean): void {
@@ -377,7 +385,7 @@ export class AudioEngine {
       thumpOsc.type = 'sine'
       thumpOsc.frequency.setValueAtTime(this.vary(62, 3), t) // ~55-70Hz varied
 
-      thumpGain.gain.setValueAtTime(this.jitterGain(0.5 * this.sfxVol), t)
+      thumpGain.gain.setValueAtTime(this.jitterGain(0.22 * this.sfxVol), t)
       thumpGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15)
 
       thumpOsc.start(t)
@@ -403,7 +411,7 @@ export class AudioEngine {
       thumpOsc.type = 'sine'
       thumpOsc.frequency.setValueAtTime(this.vary(45, 3), t)
 
-      thumpGain.gain.setValueAtTime(this.jitterGain(0.6 * this.sfxVol), t)
+      thumpGain.gain.setValueAtTime(this.jitterGain(0.3 * this.sfxVol), t)
       thumpGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
 
       thumpOsc.start(t)
