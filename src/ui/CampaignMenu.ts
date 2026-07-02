@@ -94,7 +94,8 @@ export class CampaignMenu {
       const statusHtml = isLocked ? '' : isCompleted
         ? `<div class="pcb-level-status isolated">${i18n.t('story.status.isolated')}</div>`
         : `<div class="pcb-level-status infected">${i18n.t('story.status.infected')}</div>`
-      const logBtnHtml = isCompleted ? `<button class="pcb-level-log-btn">[${i18n.t('story.log.button')}]</button>` : ''
+      // Every reachable level exposes its full shift-log (players re-read story at will).
+      const logBtnHtml = !isLocked ? `<button class="pcb-level-log-btn">[${i18n.t('story.log.button')}]</button>` : ''
 
       const card = document.createElement('div')
       card.className = `pcb-level-card ${isLocked ? 'locked' : ''}`

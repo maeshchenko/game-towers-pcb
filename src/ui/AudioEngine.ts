@@ -529,6 +529,44 @@ export class AudioEngine {
     }
   }
 
+  /** DOS-teletype tick for the story terminal: one very short quiet click per typed char. */
+  playTerminalTick(): void {
+    this.init()
+    if (!this.ctx || !this.enabled) return
+    try {
+      const t = this.ctx.currentTime
+      const osc = this.ctx.createOscillator()
+      const gain = this.ctx.createGain()
+      osc.connect(gain)
+      gain.connect(this.ctx.destination)
+      osc.type = 'square'
+      osc.frequency.setValueAtTime(this.vary(1500, 3), t)
+      gain.gain.setValueAtTime(0.012 * this.sfxVol, t)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.012)
+      osc.start(t)
+      osc.stop(t + 0.015)
+    } catch (e) {}
+  }
+
+  /** Soft end-of-line blip for the story terminal (the classic CR "ding", toned down). */
+  playTerminalLine(): void {
+    this.init()
+    if (!this.ctx || !this.enabled) return
+    try {
+      const t = this.ctx.currentTime
+      const osc = this.ctx.createOscillator()
+      const gain = this.ctx.createGain()
+      osc.connect(gain)
+      gain.connect(this.ctx.destination)
+      osc.type = 'sine'
+      osc.frequency.setValueAtTime(this.vary(820, 1), t)
+      gain.gain.setValueAtTime(0.02 * this.sfxVol, t)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05)
+      osc.start(t)
+      osc.stop(t + 0.05)
+    } catch (e) {}
+  }
+
   playVictory(): void {
     this.init()
     if (!this.ctx || !this.enabled) return

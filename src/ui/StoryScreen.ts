@@ -6,6 +6,7 @@
 import type { StoryLine } from '../story/campaignStory'
 import { i18n } from './i18n'
 import { juice } from '../render/juice/motion'
+import { audioEngine } from './AudioEngine'
 
 const CHAR_MS = 28
 const PUNCT_PAUSE_MS = 220
@@ -52,6 +53,9 @@ export class StoryScreen {
   private readonly handleKeydown = (e: KeyboardEvent): void => {
     if (e.ctrlKey || e.metaKey || e.altKey) return
     e.preventDefault()
+    // Enter/Space close once typing is done (keyboard path to the CONTINUE button);
+    // any key fast-forwards while typing.
+    if (this.typingDone && (e.key === 'Enter' || e.key === ' ')) { this.close(); return }
     this.advance()
   }
 
@@ -109,13 +113,13 @@ export class StoryScreen {
     }
   }
 
-  /** First interaction finishes typing instantly; once typing is done, the next one closes. */
+  /** Clicks only fast-forward the typing. Closing is explicit — the [CONTINUE] button (or
+   * Enter/Space once typing is done); "click anywhere to dismiss" felt accidental. */
   private advance(): void {
     if (!this.typingDone) {
       this.finishTyping()
-    } else {
-      this.close()
     }
+    // typing already finished → do nothing; the button handles closing
   }
 
   private typeNext(lineIndex: number, charIndex: number): void {
@@ -126,10 +130,13 @@ export class StoryScreen {
     const line = this.lines[lineIndex]
     if (charIndex >= line.text.length) {
       this.renderLine(line, line.text.length, false)
+      if (line.text.trim().length > 0) audioEngine.playTerminalLine() // CR blip on non-blank lines
       this.typingTimer = window.setTimeout(() => this.typeNext(lineIndex + 1, 0), LINE_PAUSE_MS + line.pauseMs)
       return
     }
     this.renderLine(line, charIndex + 1, true)
+    // DOS-teletype tick per printed glyph (spaces are silent, like a real print head gap)
+    if (line.text[charIndex] !== ' ') audioEngine.playTerminalTick()
     this.scrollToBottom()
     const extra = PUNCT_CHARS.has(line.text[charIndex]) ? PUNCT_PAUSE_MS : 0
     this.typingTimer = window.setTimeout(() => this.typeNext(lineIndex, charIndex + 1), CHAR_MS + extra)

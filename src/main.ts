@@ -621,7 +621,11 @@ async function boot() {
     },
     onShowLog: (index) => {
       audioEngine.playClick()
-      storyScreen.show(CAMPAIGN_STORY.levels[index].brief, {
+      // The FULL log: level 1 includes the station intro before its briefing.
+      const lines = index === 0
+        ? [...CAMPAIGN_STORY.intro, { key: 'story.blank' }, ...CAMPAIGN_STORY.levels[index].brief]
+        : CAMPAIGN_STORY.levels[index].brief
+      storyScreen.show(lines, {
         title: briefTitle(index),
         onDone: () => {},
       })

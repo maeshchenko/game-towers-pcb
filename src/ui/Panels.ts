@@ -38,7 +38,7 @@ export function mountPanels(level: Level | null): HTMLElement {
       <div>${i18n.t('hud.gold')} 650</div>
     </div>
     <div class="pcb-panel pcb-tips">
-      <span class="pcb-tips-close" style="position: absolute; top: 6px; right: 8px; cursor: pointer; color: #6cf2a0; font-size: 12px; padding: 2px 4px;" title="close">✕</span>
+      <span class="pcb-tips-close" style="position: absolute; top: 2px; right: 2px; cursor: pointer; color: #6cf2a0; font-size: 14px; padding: 6px 8px; line-height: 1; z-index: 5;" title="close">✕</span>
       <h3>${i18n.t('tips.title')}</h3>
       <p class="pcb-tip-content" style="min-height: 48px; margin: 0 0 10px 0; line-height: 1.4; font-size: 11px;"></p>
       <div class="pcb-tip-nav" style="display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 10px; color: #6cf2a0; user-select: none;">
@@ -55,9 +55,16 @@ export function mountPanels(level: Level | null): HTMLElement {
   if (tipsPanel) {
     try { if (window.localStorage?.getItem(TIPS_CLOSED_KEY) === '1') tipsPanel.style.display = 'none' } catch {}
     const close = tipsPanel.querySelector('.pcb-tips-close') as HTMLElement
-    if (close) close.onclick = () => {
-      tipsPanel.style.display = 'none'
-      try { window.localStorage?.setItem(TIPS_CLOSED_KEY, '1') } catch {}
+    if (close) {
+      // pointerdown (not click): the canvas drag handlers live on window and a slow press
+      // can swallow the click; stopPropagation keeps the press from starting a camera drag.
+      const dismiss = (e: Event) => {
+        e.stopPropagation()
+        tipsPanel.style.display = 'none'
+        try { window.localStorage?.setItem(TIPS_CLOSED_KEY, '1') } catch {}
+      }
+      close.addEventListener('pointerdown', dismiss)
+      close.addEventListener('click', dismiss)
     }
   }
 
