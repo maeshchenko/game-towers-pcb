@@ -5,7 +5,7 @@
 .pcb-toolbar .pcb-size { width: 46px; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; font: 12px monospace; padding: 5px 4px; }
 .pcb-toolbar { align-items: center; color: #6f8f7e; font: 12px monospace; }
 .pcb-panels { position: fixed; inset: 0; pointer-events: none; }
-.pcb-panel { position: fixed; background: rgba(13,31,23,0.85); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 14px; font: 12px monospace; }
+.pcb-panel { position: fixed; background: rgba(13,31,23,0.85); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 14px; font: 12px monospace; pointer-events: auto; } /* the .pcb-panels wrapper is pointer-events:none — panels must opt back in or nothing in them is clickable */
 .pcb-legend { top: 70px; left: 16px; } .pcb-info { top: 16px; right: 16px; } .pcb-tips { bottom: 16px; left: 16px; max-width: 200px; }
 .pcb-panel h3 { color: #6cf2a0; margin: 0 0 6px; letter-spacing: 2px; }
 .pcb-panel ul { list-style: none; margin: 0; padding: 0; } .pcb-panel li { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
