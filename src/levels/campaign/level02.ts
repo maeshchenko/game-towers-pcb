@@ -14,15 +14,11 @@ export function buildLevel02(board: Board): Level {
       b.block(ledIndicator([1, 16], b.alloc))
   b.block(passiveBank([14, 16], 3, b.alloc))
   // ── Fill the 2-row bands between lanes with short wired fragments ──
-  b.block(passiveBank([6, 3], 0, b.alloc));
-  b.block(passiveBank([12, 3], 2, b.alloc));
-  b.block(ledIndicator([16, 3], b.alloc));
-  b.block(passiveBank([8, 6], 4, b.alloc));
-  b.block(passiveBank([14, 6], 1, b.alloc));
-  b.block(passiveBank([8, 9], 6, b.alloc));
-  b.block(passiveBank([14, 9], 5, b.alloc));
-  b.block(passiveBank([8, 12], 0, b.alloc));
-  b.block(passiveBank([14, 12], 2, b.alloc));
+  b.block(passiveBank([6, 0], 0, b.alloc));
+  b.block(passiveBank([12, 0], 2, b.alloc));
+  b.block(ledIndicator([17, 0], b.alloc));
+  b.block(passiveBank([8, 16], 0, b.alloc));
+  b.block(passiveBank([12, 16], 2, b.alloc));
   // Tower spots from the coverage-greedy placer → always BESIDE the lanes, never on them.
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   b.patrolSpots({ spacing: 5 })

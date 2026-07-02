@@ -67,7 +67,7 @@ export class Renderer {
       this.layers.decor.cacheAsTexture(true)
       // Dim decor/copper relative to gameplay elements (trace/brackets/octagons) — decor is
       // background, not foreground. Container alpha applies on top of the cached texture in pixi v8.
-      this.layers.copper.alpha = 0.9
+      this.layers.copper.alpha = 0.8
       this.layers.decor.alpha = 0.8
     }
     this.drawTrace(level)
@@ -104,12 +104,17 @@ export class Renderer {
   private drawCopper(level: Level): void {
     if (!level.copper || level.copper.length === 0) return
     const pitch = level.board.pitch
-    const traceW = Math.max(2, pitch * 0.18)
+    // Decorative copper stroke: quieter/thinner/straighter than the bright PALETTE.copperTrace used
+    // for gameplay elements — decor copper should read as background, not compete with the trace.
+    const traceColor = 0x25573a
+    const traceAlpha = 0.75
+    const traceW = Math.max(1.5, pitch * 0.12)
     const viaOuterR = Math.max(2, pitch * 0.14)
     const viaInnerR = Math.max(1, pitch * 0.06)
     const padR = pitch * 0.22
     const chamferCut = pitch * 0.4
-    const filletRadius = pitch * 0.22
+    // Halved from pitch*0.22 — runs read as straight lines with crisp 45° corners, not hoses.
+    const filletRadius = pitch * 0.11
 
     // Endpoints landing on a component pad already get pad art from drawVintageItem/drawDecor —
     // giving them a via dot too reads as a fake extra via. Only free-floating endpoints (test
@@ -124,21 +129,21 @@ export class Renderer {
       const g = new Graphics()
       const rawPts = copper.points.map(c => cellToPx(c, pitch))
       const pts = filletPixels(chamfer45(Renderer.simplifyCollinear(rawPts), chamferCut), filletRadius)
-      strokeCopper(g, pts, { core: PALETTE.copperTrace, width: traceW, alpha: 0.85 })
+      strokeCopper(g, pts, { core: traceColor, width: traceW, alpha: traceAlpha })
 
       const firstCell = copper.points[0], lastCell = copper.points[copper.points.length - 1]
       const first = pts[0], last = pts[pts.length - 1]
       if (isPadAnchor(firstCell)) {
-        teardrop(g, first, dirTo(first, pts[1]), padR, traceW, PALETTE.copperTrace, 0.85)
+        teardrop(g, first, dirTo(first, pts[1]), padR, traceW, traceColor, traceAlpha)
       } else {
-        g.circle(first.x, first.y, viaOuterR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+        g.circle(first.x, first.y, viaOuterR).fill({ color: traceColor, alpha: traceAlpha + 0.05 })
         g.circle(first.x, first.y, viaInnerR).fill({ color: PALETTE.substrate, alpha: 1 })
       }
       if (isPadAnchor(lastCell)) {
         const n = pts.length - 1
-        teardrop(g, last, dirTo(last, pts[n - 1]), padR, traceW, PALETTE.copperTrace, 0.85)
+        teardrop(g, last, dirTo(last, pts[n - 1]), padR, traceW, traceColor, traceAlpha)
       } else {
-        g.circle(last.x, last.y, viaOuterR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+        g.circle(last.x, last.y, viaOuterR).fill({ color: traceColor, alpha: traceAlpha + 0.05 })
         g.circle(last.x, last.y, viaInnerR).fill({ color: PALETTE.substrate, alpha: 1 })
       }
       this.layers.copper.addChild(g)

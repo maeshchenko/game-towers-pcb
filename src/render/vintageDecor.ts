@@ -24,11 +24,11 @@ export const VFOOT: Record<VintageKind, { w: number; h: number }> = {
 const C = {
   wire: 0x5f6a66, solder: 0x8b958f, solderMid: 0x4d5652, shadow: 0x000000, white: 0xffffff,
   resTan: 0x8f7d54, disc: 0x8f6a3c, filmRed: 0xb83a2e,
-  elecBlue: 0x2a3a5c, elecTop: 0x14306a, stripe: 0xd8dee0,
-  tantal: 0xd8b13a, to92: 0x1b1b1f, to220: 0x171717, tab: 0xb0b8b4,
-  diodeBody: 0x1b1b1f, diodeBand: 0xcdd2cf, ledRed: 0x6a3838, ledGreen: 0x2f7a4a, trim: 0x2f5fa8, brass: 0xc8a84c,
-  can: 0xaab2ad, dip: 0x18181c, silk: 0xc9d2cc,
-  battBody: 0x1b1b1f, battLabel: 0x2a4a8a, jackBody: 0x26262b, jackRing: 0x8a9290,
+  elecBlue: 0x2a3a5c, elecTop: 0x14306a, stripe: 0x8c9092, // was 0xd8dee0 — darkened ~35% (bright metallic fill)
+  tantal: 0xd8b13a, to92: 0x1b1b1f, to220: 0x171717, tab: 0x727875, // was 0xb0b8b4 — darkened ~35%
+  diodeBody: 0x1b1b1f, diodeBand: 0x858987, ledRed: 0x6a3838, ledGreen: 0x2f7a4a, trim: 0x2f5fa8, brass: 0xc8a84c, // diodeBand was 0xcdd2cf
+  can: 0x6f7470, dip: 0x18181c, silk: 0xc9d2cc, // can was 0xaab2ad — darkened ~35% (silver capsule)
+  battBody: 0x1b1b1f, battLabel: 0x2a4a8a, jackBody: 0x26262b, jackRing: 0x5a5f5e, // jackRing was 0x8a9290
   pad: 0x7d8a82, hole: 0x0a1712, term: 0x2f6fd0,
 }
 // Dim a color's RGB channels toward black (muted band colors — quiet background decor).
@@ -36,7 +36,10 @@ function dim(c: number, f = 0.7): number {
   const r = Math.round(((c >> 16) & 0xff) * f), g = Math.round(((c >> 8) & 0xff) * f), b = Math.round((c & 0xff) * f)
   return (r << 16) | (g << 8) | b
 }
-const BANDS = [0x6b3a12, 0x101010, 0xc23b22, 0xc8a84c].map((c) => dim(c)) // brown,black,red,gold — muted
+// brown,black,red,gold — dim(0.7) toward black, then hand-blended a further ~40% toward the body tone
+// (C.resTan 0x8f7d54) so bands stay quiet against the resistor body: 0x6b3a12->0x664b29,
+// 0x101010->0x403928, 0xc23b22->0x8b4b30, 0xc8a84c->0x8d7941.
+const BANDS = [0x664b29, 0x403928, 0x8b4b30, 0x8d7941]
 
 function r(s: ShapeSpec[], x: number, y: number, w: number, h: number, color: number, alpha = 1): void { s.push({ type: 'rect', x, y, w, h, color, alpha }) }
 function rr(s: ShapeSpec[], x: number, y: number, w: number, h: number, rad: number, color: number, alpha = 1): void { s.push({ type: 'roundRect', x, y, w, h, r: rad, color, alpha }) }
@@ -199,7 +202,7 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       const lfy = cy + rad * 0.15
       r(s, cx - rad * 0.35, lfy - rad * 0.3, rad * 0.3, rad * 0.4, 0x8a9290, 0.8) // cathode
       ln(s, cx + rad * 0.15, lfy + rad * 0.1, cx + rad * 0.15, lfy - rad * 0.2, 1.2, 0x8a9290, 0.8) // anode
-      if (on) ci(s, cx, cy, rad * 1.7, col, 0.18)
+      // no outer glow halo — LED reads as a small dome + darker rim only (no additive ring)
       ci(s, cx + 2, cy + 4, rad, C.shadow, 0.4)
       ci(s, cx, cy, rad, col, on ? 0.92 : 0.5)
       r(s, cx + rad * 0.7, cy - rad * 0.7, rad * 0.4, rad * 1.4, C.shadow, 0.5) // clip shadow
