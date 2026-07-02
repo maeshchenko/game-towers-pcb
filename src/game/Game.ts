@@ -20,6 +20,8 @@ interface Spot { cell: Cell; pos: Pt; tower: Tower | null; special: boolean; sco
 /** A transient fire effect for one shot, drawn as a fading beam. */
 export interface Fx { from: Pt; to: Pt; kind: TowerKind; ttl: number }
 const FX_TTL = 0.14
+/** A pulse bullet whose target died retargets the nearest live enemy within this many cells. */
+const RETARGET_RADIUS_CELLS = 1.5
 
 export class Game {
   readonly state: GameState
@@ -140,24 +142,24 @@ export class Game {
         for (const e of active) if (e.alive && Math.hypot(e.pos.x - t.pos.x, e.pos.y - t.pos.y) <= shot.aura.range) e.applySlow(shot.aura.slow, 0.25)
         continue
       }
+      const target = shot.target
+      if (!target) continue
+      this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: target.pos.x, y: target.pos.y }, towerLevel: t.level })
       const spd = t.stats.projectileSpeed
-      if (spd && shot.target) {
+      if (spd) {
         // projectile weapons (cannon PULSE, mortar MISSILE): damage lands on arrival, not now.
         const speedPx = spd * this.pitch
         if (t.kind === 'mortar') {
           // lead the target: aim where it will be when the shell lands
-          const tgt = shot.target
-          const eta = Math.hypot(tgt.pos.x - t.pos.x, tgt.pos.y - t.pos.y) / speedPx
-          const aim = { x: tgt.pos.x + tgt.vel.x * eta, y: tgt.pos.y + tgt.vel.y * eta }
+          const eta = Math.hypot(target.pos.x - t.pos.x, target.pos.y - t.pos.y) / speedPx
+          const aim = { x: target.pos.x + target.vel.x * eta, y: target.pos.y + target.vel.y * eta }
           this._projectiles.push(new Projectile(t.kind, t.pos, null, shot, speedPx, aim))
         } else {
-          this._projectiles.push(new Projectile(t.kind, t.pos, shot.target, shot, speedPx))
+          this._projectiles.push(new Projectile(t.kind, t.pos, target, shot, speedPx))
         }
-        this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, towerLevel: t.level })
-      } else if (shot.target) {
-        // instant weapons (sniper beam, tesla arc)
-        this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
-        this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, towerLevel: t.level })
+      } else {
+        // instant weapons (sniper beam, tesla arc) — resolve now and draw a beam Fx
+        this._fx.push({ from: t.pos, to: { x: target.pos.x, y: target.pos.y }, kind: t.kind, ttl: FX_TTL })
         applyShot(shot, active, this.pitch, (e) => this.events.emit(e), this.grid)
       }
     }
@@ -180,7 +182,7 @@ export class Game {
         // pulse bullet: hit its target, or retarget the nearest live enemy within 1.5 cells, else fizzle
         let victim = p.target && p.target.alive ? p.target : null
         if (!victim) {
-          const near = this.grid.queryCircle(p.pos, 1.5 * this.pitch).filter((e) => e.alive)
+          const near = this.grid.queryCircle(p.pos, RETARGET_RADIUS_CELLS * this.pitch).filter((e) => e.alive)
           near.sort((a, b) => Math.hypot(a.pos.x - p.pos.x, a.pos.y - p.pos.y) - Math.hypot(b.pos.x - p.pos.x, b.pos.y - p.pos.y))
           victim = near[0] ?? null
         }

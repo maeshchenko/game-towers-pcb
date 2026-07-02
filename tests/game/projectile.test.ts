@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest'
 import { Projectile } from '../../src/game/Projectile'
 import { Game } from '../../src/game/Game'
+import { Enemy } from '../../src/game/Enemy'
+import { ENEMY_DEFS } from '../../src/game/enemyTypes'
 import type { Level } from '../../src/model/level'
 
 const mkEnemy = (x: number, y: number) => ({
@@ -96,5 +98,148 @@ describe('Game projectile integration', () => {
       game.tick(0.016)
       expect(game.projectiles.length).toBe(0)
     }
+  })
+})
+
+// --- binding-behavior pins: deterministic setups with injected enemies -------------------------
+// Tower sits at spot [3,4] → (84, 108). pitch 24: cannon range 144px / speed 432px/s / dmg 10;
+// mortar range 180px / speed 168px/s / dmg 30 / splash 62.4px; pulse retarget radius 36px.
+
+/** Stationary enemy (speed 0) parked at (x, y). */
+const still = (x: number, y: number, hpScale = 1) =>
+  new Enemy(ENEMY_DEFS.normal, [{ x, y }, { x: x + 1, y }], hpScale, 0)
+
+/** Inject a hand-built enemy set and enter wave phase (same pattern as enemy.test.ts). */
+function inject(game: Game, enemies: Enemy[]): void {
+  ;(game as any).wm._active = enemies
+  game.state.startWave()
+}
+
+/** Zero the tower's initial cooldown so it fires on the very first tick. */
+function primeCooldown(game: Game): void {
+  ;(game.towers[0] as any).cooldown = 0
+}
+
+describe('Game projectile bindings', () => {
+  it('mortar shell can be dodged: enemy turning off the led aim point takes no damage', () => {
+    const game = makeTestGame()
+    game.build('mortar', 0)
+    // fast enemy runs +x (lead-aim extrapolates along +x), then turns sharply down right after
+    // the shot — by shell arrival it is far outside splashRadius of the aim point
+    const e = new Enemy(ENEMY_DEFS.normal, [{ x: 60, y: 132 }, { x: 90, y: 132 }, { x: 90, y: 3000 }], 1, 600)
+    inject(game, [e])
+    primeCooldown(game)
+    let impacts = 0
+    game.events.on((ev) => { if (ev.type === 'projectileImpact') impacts++ })
+    let guard = 0
+    while (impacts === 0 && guard++ < 100) game.tick(0.016)
+    expect(impacts).toBe(1)
+    expect(e.hp).toBe(e.maxHp) // dodged: zero damage
+  })
+
+  it('mortar splash damages every enemy near the impact point (bystanders included)', () => {
+    const game = makeTestGame()
+    game.build('mortar', 0)
+    const a = still(84, 132)
+    const b = still(124, 132) // 40px from a — inside the 62.4px splash around either aim point
+    inject(game, [a, b])
+    primeCooldown(game)
+    for (let i = 0; i < 20; i++) game.tick(0.016) // one shell fired and landed; next shot ≫ 20 ticks away
+    expect(a.hp).toBe(a.maxHp - 30)
+    expect(b.hp).toBe(b.maxHp - 30)
+  })
+
+  it('pulse retargets the nearest live enemy within 1.5 cells when its target dies mid-flight', () => {
+    const game = makeTestGame()
+    game.build('cannon', 0)
+    const target = still(84, 240)     // 132px from cannon — in range
+    const bystander = still(114, 252) // 147px from cannon (out of range), 32px from target
+    inject(game, [target, bystander])
+    primeCooldown(game)
+    game.tick(0.016) // fire: pulse spawned, homing on target
+    expect(game.projectiles.length).toBe(1)
+    target.takeDamage(9999) // dies mid-flight → bullet flies to last known position
+    for (let i = 0; i < 40; i++) game.tick(0.016)
+    expect(game.projectiles.length).toBe(0)
+    expect(bystander.hp).toBe(bystander.maxHp - 10) // bystander absorbed the hit
+  })
+
+  it('pulse fizzles when nobody is near the impact: no damage, but projectileImpact is emitted', () => {
+    const game = makeTestGame()
+    game.build('cannon', 0)
+    const target = still(84, 240)
+    const bystander = still(150, 300) // out of cannon range AND out of the 36px retarget radius
+    inject(game, [target, bystander])
+    primeCooldown(game)
+    game.tick(0.016) // fire
+    target.takeDamage(9999)
+    const types: string[] = []
+    game.events.on((ev) => types.push(ev.type))
+    for (let i = 0; i < 40; i++) game.tick(0.016)
+    expect(types).toContain('projectileImpact')
+    expect(types).not.toContain('enemyDamaged')
+    expect(bystander.hp).toBe(bystander.maxHp)
+  })
+
+  it('projectile kill grants bounty and emits enemyDied in the same tick as the impact', () => {
+    const game = makeTestGame()
+    game.build('cannon', 0)
+    const victim = new Enemy(ENEMY_DEFS.normal, [{ x: 84, y: 240 }, { x: 85, y: 240 }], 0.2, 0) // hp 9 < 10 dmg
+    const keeper = still(500, 500) // far away: keeps the wave from clearing (no waveEnd gold noise)
+    inject(game, [victim, keeper])
+    primeCooldown(game)
+    let diedOnImpactTick = false
+    let goldDelta = -1
+    let landed = false
+    for (let i = 0; i < 60 && !landed; i++) {
+      const goldBefore = game.state.gold
+      const types: string[] = []
+      const off = game.events.on((ev) => types.push(ev.type))
+      game.tick(0.016)
+      off()
+      if (types.includes('projectileImpact')) {
+        landed = true
+        diedOnImpactTick = types.includes('enemyDied')
+        goldDelta = game.state.gold - goldBefore
+      }
+    }
+    expect(landed).toBe(true)
+    expect(diedOnImpactTick).toBe(true)
+    expect(goldDelta).toBe(victim.bounty)
+  })
+
+  it('projectile freezes (not dropped) when the wave ends mid-flight', () => {
+    const game = makeTestGame()
+    game.build('cannon', 0)
+    const target = still(84, 240)
+    inject(game, [target])
+    primeCooldown(game)
+    game.tick(0.016) // fire
+    expect(game.projectiles.length).toBe(1)
+    target.takeDamage(9999)
+    game.tick(0.016) // last enemy removed → wave clears this tick
+    expect(game.state.phase).toBe('build')
+    expect(game.projectiles.length).toBe(1) // bullet still in flight, not dropped
+    const p = game.projectiles[0]
+    const frozen = { x: p.pos.x, y: p.pos.y }
+    for (let i = 0; i < 10; i++) game.tick(0.016)
+    expect(game.projectiles.length).toBe(1)
+    expect(p.pos.x).toBe(frozen.x) // frozen between waves — thaws next wave
+    expect(p.pos.y).toBe(frozen.y)
+  })
+
+  it('cannon fire pushes no Fx beam while its projectile flies', () => {
+    const game = makeTestGame()
+    game.build('cannon', 0)
+    const target = still(84, 240)
+    inject(game, [target])
+    primeCooldown(game)
+    let sawProjectile = false
+    for (let i = 0; i < 30; i++) {
+      game.tick(0.016)
+      if (game.projectiles.length > 0) sawProjectile = true
+      expect(game.fx.length).toBe(0)
+    }
+    expect(sawProjectile).toBe(true)
   })
 })
