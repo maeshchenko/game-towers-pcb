@@ -55,7 +55,10 @@ export class CampaignMenu {
 
     const progress = loadProgress()
     const unlocked = progress.unlockedLevelIndex
-    const completedCount = Math.min(CAMPAIGN_LEVELS.length, Math.max(0, unlocked))
+    // A level counts as completed when it has recorded stars — unlockedLevelIndex alone caps at
+    // the last level, so the finale could never reach ISOLATED / 100% cleanup.
+    const isDone = (i: number): boolean => i < unlocked || (progress.stars[i] || 0) > 0
+    const completedCount = CAMPAIGN_LEVELS.reduce((n, _, i) => n + (isDone(i) ? 1 : 0), 0)
     const cleanup = cleanupPercent(completedCount)
 
     this.element.innerHTML = `
@@ -87,7 +90,7 @@ export class CampaignMenu {
 
       // Status badge: completed levels are "isolated" (past threat, dim green), the current
       // frontier level is "infected" (active threat, red), locked ones show "no link" below.
-      const isCompleted = i < unlocked
+      const isCompleted = isDone(i)
       const statusHtml = isLocked ? '' : isCompleted
         ? `<div class="pcb-level-status isolated">${i18n.t('story.status.isolated')}</div>`
         : `<div class="pcb-level-status infected">${i18n.t('story.status.infected')}</div>`
