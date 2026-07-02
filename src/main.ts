@@ -26,6 +26,7 @@ import { initGsap } from './render/juice/tweens'
 import { initMotion } from './render/juice/motion'
 import { ScreenShake } from './render/juice/ScreenShake'
 import { HitStop } from './render/juice/HitStop'
+import { enemyTheme } from './render/theme'
 
 // Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
@@ -322,6 +323,16 @@ async function boot() {
           if (e.kind === 'boss') { shake.add(0.6); hitStop.trigger(0.13) }
           else hitStop.trigger(0.05)
         } else if (e.type === 'projectileImpact' && e.kind === 'mortar') shake.add(0.08)
+      })
+      game.events.on((e) => {
+        if (e.type === 'waveStart') {
+          const entries = game!.peekWave(e.index)
+          const comp = entries.map((entry) => {
+            const theme = enemyTheme(entry.kind)
+            return { name: theme.name, color: theme.color, count: entry.count }
+          })
+          ui.showWaveBanner(e.index + 1, comp)
+        }
       })
       selectedTower = null
       editor.enabled = false
@@ -860,6 +871,7 @@ async function boot() {
         }
       } else {
         audioEngine.playDefeat()
+        shake.add(0.5)
         ui.showDefeatScreen(
           () => {
             ui.closeOverlay()

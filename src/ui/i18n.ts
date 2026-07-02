@@ -18,6 +18,7 @@ const TRANSLATIONS = {
     'hud.gold': 'ЭНЕРГИЯ',
     'hud.start_wave': 'СТАРТ ВОЛНЫ',
     'hud.map': 'КАРТА',
+    'hud.wave_banner': 'ВОЛНА {n}',
     
     'settings.title': 'НАСТРОЙКИ',
     'settings.music_vol': 'Громкость музыки',
@@ -146,6 +147,7 @@ const TRANSLATIONS = {
     'hud.gold': 'ENERGY',
     'hud.start_wave': 'START WAVE',
     'hud.map': 'MAP',
+    'hud.wave_banner': 'WAVE {n}',
     
     'settings.title': 'SETTINGS',
     'settings.music_vol': 'Music Volume',

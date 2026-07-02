@@ -33,6 +33,8 @@ export class GameUI {
   private speedBtns: Record<number, HTMLButtonElement> = {}
   private btnPause!: HTMLButtonElement
   private autoWaveActive = true
+  private waveBanner: HTMLElement | null = null
+  private waveBannerTimer: number | null = null
 
   constructor(private opts: {
     onBuild(kind: TowerKind, spotIndex: number): void; onStartWave(): void; onTogglePlay(): void
@@ -548,15 +550,56 @@ export class GameUI {
     mk(`${targetStr}: ` + t.targetMode, this.opts.onTargetMode, 'click')
   }
 
+  /** Transient top-center banner announcing a new wave: title + a chip row of its enemy composition. */
+  showWaveBanner(waveNumber: number, composition: Array<{ name: string; color: number; count: number }>): void {
+    // A fresh banner replaces any still-fading one so overlapping waveStart events don't stack DOM/timers.
+    if (this.waveBanner) { this.waveBanner.remove(); this.waveBanner = null }
+    if (this.waveBannerTimer !== null) { window.clearTimeout(this.waveBannerTimer); this.waveBannerTimer = null }
+
+    const banner = document.createElement('div')
+    banner.className = 'pcb-wave-banner'
+
+    const title = document.createElement('div')
+    title.className = 'pcb-wave-banner-title'
+    title.textContent = i18n.t('hud.wave_banner').replace('{n}', String(waveNumber))
+    banner.appendChild(title)
+
+    const chips = document.createElement('div')
+    chips.className = 'pcb-wave-banner-chips'
+    composition.forEach((c) => {
+      const hex = `#${c.color.toString(16).padStart(6, '0')}`
+      const chip = document.createElement('span')
+      chip.className = 'pcb-wave-banner-chip'
+      chip.style.color = hex
+      chip.textContent = `${c.name} ×${c.count}`
+      chips.appendChild(chip)
+    })
+    banner.appendChild(chips)
+
+    document.body.appendChild(banner)
+    this.waveBanner = banner
+    this.waveBannerTimer = window.setTimeout(() => {
+      banner.remove()
+      if (this.waveBanner === banner) this.waveBanner = null
+      this.waveBannerTimer = null
+    }, 1600)
+  }
+
   showVictoryScreen(stars: number | null, score: number, onNext: (() => void) | null, onRetry: () => void, onMenu: () => void): void {
     this.overlay.style.display = 'flex'
     this.overlay.className = 'pcb-game-overlay victory'
-    
+
     let starsHtml = ''
     if (stars !== null) {
+      const slots = Array.from({ length: 3 }, (_, i) => {
+        const earned = i < stars
+        const cls = earned ? 'pcb-star pcb-star-earned' : 'pcb-star'
+        const style = earned ? ` style="animation-delay: ${(0.15 * i).toFixed(2)}s"` : ''
+        return `<span class="${cls}"${style}>${earned ? '★' : '☆'}</span>`
+      }).join('')
       starsHtml = `
         <div class="pcb-victory-stars">
-          ${'★'.repeat(stars)}${'☆'.repeat(3 - stars)}
+          ${slots}
         </div>
       `
     }
