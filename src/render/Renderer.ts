@@ -65,6 +65,10 @@ export class Renderer {
       // level, so this trades one re-bake per level load for near-zero draw-call cost per frame.
       this.layers.copper.cacheAsTexture(true)
       this.layers.decor.cacheAsTexture(true)
+      // Dim decor/copper relative to gameplay elements (trace/brackets/octagons) — decor is
+      // background, not foreground. Container alpha applies on top of the cached texture in pixi v8.
+      this.layers.copper.alpha = 0.9
+      this.layers.decor.alpha = 0.8
     }
     this.drawTrace(level)
     this.drawSpots(level)
@@ -181,7 +185,9 @@ export class Renderer {
     const ox = item.cell[0] * pitch + (boxW - vf.w * vp) / 2
     const oy = item.cell[1] * pitch + (boxH - vf.h * vp) / 2
     const g = new Graphics()
-    for (const s of buildVintageShapes(v, vp)) {
+    // LEDs default to a bright red glow — keep decor muted with a dim green/amber pick by variant.
+    const opts = v === 'led5mm' ? { color: item.variant === 1 ? 0x2f7a4a : 0x7d6a2f } : {}
+    for (const s of buildVintageShapes(v, vp, opts)) {
       if (s.type === 'rect') g.rect(s.x + ox, s.y + oy, s.w, s.h).fill({ color: s.color, alpha: s.alpha })
       else if (s.type === 'roundRect') g.roundRect(s.x + ox, s.y + oy, s.w, s.h, s.r).fill({ color: s.color, alpha: s.alpha })
       else if (s.type === 'circle') g.circle(s.x + ox, s.y + oy, s.r).fill({ color: s.color, alpha: s.alpha })
