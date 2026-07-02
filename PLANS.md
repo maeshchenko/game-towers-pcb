@@ -1,13 +1,32 @@
-# PLANS — roadmap (live)
+# PLANS — живой roadmap
 
-> **Keep this file current.** When something is finished, DELETE it from here (its record lives in git + `MEMORY.md`). When new work appears, ADD it. This file = only what is NOT done yet. Done ≠ documented here; done = gone from here.
+Правило: сделано — строку УДАЛИТЬ (история живёт в git и MEMORY.md); новое — добавить.
+Переписан с нуля 2026-07-02.
 
-Order = rough priority, top first. Tick `[x]` only as a momentary marker before deleting the line.
+## В работе
 
-## Next up
-- [ ] **Re-enable campaign decor.** Decor is hidden now (`SHOW_DECOR=false` in `Renderer.ts`) to focus on track+towers. Place it AROUND the tower spots via `LevelBuilder.fillBlocks` (footprint keeps a gap from path AND from spots), then flip `SHOW_DECOR=true` and tune density per level. (`src/levels/`, `src/render/Renderer.ts`.)
-- [ ] **Finish T0 tile track.** Bridge over/under render (crossing visual), tile editor palette in `/editor`, save/load tile grids. (`src/tiles/`, `src/editor/`.)
+- **Этап 0–1: рендер-фундамент + честные снаряды** — исполняется по плану
+  `docs/superpowers/plans/2026-07-02-stage0-1-render-projectiles.md` (11 задач: event bus,
+  spatial grid, снаряды PULSE/MISSILE, pooled views, смерть GameLayers, перф-контроль).
 
-## Polish backlog
-- [ ] **Real enemy art** — enemies are simple neon tokens now; design themed glyphs/sprites per type.
+## Следующее (по порядку)
 
+- **Этап 2: juice-пас** — GSAP-твины (постройка/апгрейд/продажа), хит-фидбек (вспышка,
+  отброс, hit-stop на киллах), смерти с осколками и подпалинами, частицы (muzzle, взрывы,
+  трейлы, tesla-дуга), trauma screen shake + reduce-motion, цифры урона, pixi-filters
+  (bloom на слои, RGBSplit-транзиенты, CRT), живая плата (пульсы по трассам, LED,
+  SHOW_DECOR=true), событийная пунктуация (виньетка базы, баннер волны, slam звёзд).
+  План писать после приземления этапов 0–1. Детали — в спеке.
+- **Этап 3: звук** — pitch-рандом ±3 полутона, бас-слои, звук SLOW, стингеры
+  (волна/босс/звезда/база), адаптивная музыка на босс-волне.
+
+## Бэклог (мета и контент, по анализу 2026-07-02)
+
+- Мета: дерево прокачки за звёзды (4–6 веток, ~60★, бесплатный респек) + драфт-карты
+  1-из-3 каждые 3 волны (loadout-контроль пула).
+- Режимы Heroic/Iron после 3★ уровня (36 испытаний из 12 карт).
+- Тир-визуалы башен (HASL → ENIG → золото+свечение), уникальная способность на L3.
+- Авторские волны уровней 4/8/12; босс с фазами; новые враги (сплиттер, щитовик, стелс).
+- 1–2 глобальные способности с кулдауном («перегрузка», «hotfix»).
+- Победный экран со slam-звёздами; датащит-бестиарий с юмором; пасхалки на платах.
+- Тех-долг: разбить `main.ts`, свести `getEnemyColor` к theme.ts, state machine экранов.
