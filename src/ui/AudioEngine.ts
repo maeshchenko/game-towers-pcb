@@ -19,6 +19,15 @@ export class AudioEngine {
   // Synth melody arpeggios
   private melody = [130.81, 155.56, 196.00, 233.08, 261.63, 233.08, 196.00, 155.56]
 
+  // Throttle for the mortar impact explosion layer (seconds, AudioContext clock)
+  private lastExplosionTime = 0
+
+  // Continuous SLOW-tower aura drone
+  private slowHumOsc1: OscillatorNode | null = null
+  private slowHumOsc2: OscillatorNode | null = null
+  private slowHumGain: GainNode | null = null
+  private slowHumActive = false
+
   constructor() {
     this.loadVolumeSettings()
   }
@@ -147,22 +156,35 @@ export class AudioEngine {
     }
   }
 
+  // Random pitch multiplier within +/- `semitones` around `base` (1.0 = no shift).
+  // Applied to oscillator frequencies so repeated SFX don't sound identical every time.
+  private vary(base: number, semitones = 2): number {
+    const st = (Math.random() * 2 - 1) * semitones
+    return base * Math.pow(2, st / 12)
+  }
+
+  // Random +/-15% loudness jitter around a base gain value, so repeated SFX have some punch variety.
+  private jitterGain(vol: number): number {
+    return Math.max(0, vol * (0.85 + Math.random() * 0.3))
+  }
+
   // --- SFX SYNTHS ---
   playClick(): void {
     this.init()
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
+      const shift = this.vary(1, 1) // clicks get a softer +/-1 semitone variance
       const osc = this.ctx.createOscillator()
       const gain = this.ctx.createGain()
       osc.connect(gain)
       gain.connect(this.ctx.destination)
 
       osc.type = 'sine'
-      osc.frequency.setValueAtTime(800, t)
-      osc.frequency.exponentialRampToValueAtTime(1200, t + 0.04)
+      osc.frequency.setValueAtTime(800 * shift, t)
+      osc.frequency.exponentialRampToValueAtTime(1200 * shift, t + 0.04)
 
-      gain.gain.setValueAtTime(0.08 * this.sfxVol, t)
+      gain.gain.setValueAtTime(this.jitterGain(0.08 * this.sfxVol), t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.04)
 
       osc.start(t)
@@ -175,6 +197,7 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
+      const shift = this.vary(1, 2)
       const playTone = (freq: number, delay: number) => {
         const osc = this.ctx!.createOscillator()
         const gain = this.ctx!.createGain()
@@ -182,9 +205,9 @@ export class AudioEngine {
         gain.connect(this.ctx!.destination)
 
         osc.type = 'square'
-        osc.frequency.setValueAtTime(freq, t + delay)
+        osc.frequency.setValueAtTime(freq * shift, t + delay)
 
-        gain.gain.setValueAtTime(0.05 * this.sfxVol, t + delay)
+        gain.gain.setValueAtTime(this.jitterGain(0.05 * this.sfxVol), t + delay)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.06)
 
         osc.start(t + delay)
@@ -200,6 +223,7 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
+      const shift = this.vary(1, 2)
       const playTone = (freq: number, delay: number) => {
         const osc = this.ctx!.createOscillator()
         const gain = this.ctx!.createGain()
@@ -207,9 +231,9 @@ export class AudioEngine {
         gain.connect(this.ctx!.destination)
 
         osc.type = 'sine'
-        osc.frequency.setValueAtTime(freq, t + delay)
+        osc.frequency.setValueAtTime(freq * shift, t + delay)
 
-        gain.gain.setValueAtTime(0.08 * this.sfxVol, t + delay)
+        gain.gain.setValueAtTime(this.jitterGain(0.08 * this.sfxVol), t + delay)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.08)
 
         osc.start(t + delay)
@@ -226,16 +250,17 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
+      const shift = this.vary(1, 2)
       const osc = this.ctx.createOscillator()
       const gain = this.ctx.createGain()
       osc.connect(gain)
       gain.connect(this.ctx.destination)
 
       osc.type = 'sawtooth'
-      osc.frequency.setValueAtTime(400, t)
-      osc.frequency.exponentialRampToValueAtTime(100, t + 0.18)
+      osc.frequency.setValueAtTime(400 * shift, t)
+      osc.frequency.exponentialRampToValueAtTime(100 * shift, t + 0.18)
 
-      gain.gain.setValueAtTime(0.06 * this.sfxVol, t)
+      gain.gain.setValueAtTime(this.jitterGain(0.06 * this.sfxVol), t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.18)
 
       osc.start(t)
@@ -248,6 +273,7 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
+      const shift = this.vary(1, 2)
       const osc = this.ctx.createOscillator()
       const gain = this.ctx.createGain()
       osc.connect(gain)
@@ -255,41 +281,41 @@ export class AudioEngine {
 
       if (kind === 'cannon') {
         osc.type = 'triangle'
-        osc.frequency.setValueAtTime(450, t)
-        osc.frequency.exponentialRampToValueAtTime(120, t + 0.09)
+        osc.frequency.setValueAtTime(450 * shift, t)
+        osc.frequency.exponentialRampToValueAtTime(120 * shift, t + 0.09)
 
-        gain.gain.setValueAtTime(0.12 * this.sfxVol, t)
+        gain.gain.setValueAtTime(this.jitterGain(0.12 * this.sfxVol), t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.09)
 
         osc.start(t)
         osc.stop(t + 0.09)
       } else if (kind === 'sniper') {
         osc.type = 'sawtooth'
-        osc.frequency.setValueAtTime(800, t)
-        osc.frequency.exponentialRampToValueAtTime(250, t + 0.15)
+        osc.frequency.setValueAtTime(800 * shift, t)
+        osc.frequency.exponentialRampToValueAtTime(250 * shift, t + 0.15)
 
-        gain.gain.setValueAtTime(0.06 * this.sfxVol, t)
+        gain.gain.setValueAtTime(this.jitterGain(0.06 * this.sfxVol), t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15)
 
         osc.start(t)
         osc.stop(t + 0.15)
       } else if (kind === 'mortar') {
         osc.type = 'triangle'
-        osc.frequency.setValueAtTime(110, t)
-        osc.frequency.exponentialRampToValueAtTime(30, t + 0.22)
+        osc.frequency.setValueAtTime(110 * shift, t)
+        osc.frequency.exponentialRampToValueAtTime(30 * shift, t + 0.22)
 
-        gain.gain.setValueAtTime(0.18 * this.sfxVol, t)
+        gain.gain.setValueAtTime(this.jitterGain(0.18 * this.sfxVol), t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
 
         osc.start(t)
         osc.stop(t + 0.22)
       } else if (kind === 'tesla') {
         osc.type = 'sawtooth'
-        osc.frequency.setValueAtTime(500, t)
-        osc.frequency.setValueAtTime(250, t + 0.04)
-        osc.frequency.setValueAtTime(600, t + 0.08)
+        osc.frequency.setValueAtTime(500 * shift, t)
+        osc.frequency.setValueAtTime(250 * shift, t + 0.04)
+        osc.frequency.setValueAtTime(600 * shift, t + 0.08)
 
-        gain.gain.setValueAtTime(0.08 * this.sfxVol, t)
+        gain.gain.setValueAtTime(this.jitterGain(0.08 * this.sfxVol), t)
         gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
 
         osc.start(t)
@@ -303,16 +329,17 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
+      const shift = this.vary(1, 2)
       const osc = this.ctx.createOscillator()
       const gain = this.ctx.createGain()
       osc.connect(gain)
       gain.connect(this.ctx.destination)
 
       osc.type = 'sine'
-      osc.frequency.setValueAtTime(650, t)
-      osc.frequency.setValueAtTime(500, t + 0.1)
+      osc.frequency.setValueAtTime(650 * shift, t)
+      osc.frequency.setValueAtTime(500 * shift, t + 0.1)
 
-      gain.gain.setValueAtTime(0.15 * this.sfxVol, t)
+      gain.gain.setValueAtTime(this.jitterGain(0.15 * this.sfxVol), t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
 
       osc.start(t)
@@ -325,21 +352,146 @@ export class AudioEngine {
     if (!this.ctx || !this.enabled) return
     try {
       const t = this.ctx.currentTime
+      const shift = this.vary(1, 2)
       const osc = this.ctx.createOscillator()
       const gain = this.ctx.createGain()
       osc.connect(gain)
       gain.connect(this.ctx.destination)
 
       osc.type = 'triangle'
-      osc.frequency.setValueAtTime(160, t)
-      osc.frequency.exponentialRampToValueAtTime(70, t + 0.05)
+      osc.frequency.setValueAtTime(160 * shift, t)
+      osc.frequency.exponentialRampToValueAtTime(70 * shift, t + 0.05)
 
-      gain.gain.setValueAtTime(0.07 * this.sfxVol, t)
+      gain.gain.setValueAtTime(this.jitterGain(0.07 * this.sfxVol), t)
       gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.05)
 
       osc.start(t)
       osc.stop(t + 0.05)
+
+      // Low-frequency thump layer under the death sound for extra "kill" weight
+      const thumpOsc = this.ctx.createOscillator()
+      const thumpGain = this.ctx.createGain()
+      thumpOsc.connect(thumpGain)
+      thumpGain.connect(this.ctx.destination)
+
+      thumpOsc.type = 'sine'
+      thumpOsc.frequency.setValueAtTime(this.vary(62, 3), t) // ~55-70Hz varied
+
+      thumpGain.gain.setValueAtTime(this.jitterGain(0.5 * this.sfxVol), t)
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.15)
+
+      thumpOsc.start(t)
+      thumpOsc.stop(t + 0.15)
     } catch (e) {}
+  }
+
+  // Bigger low-end thump + noise burst for mortar/rocket impacts.
+  // Throttled to at most one per 90ms so overlapping mortar impacts don't clip/stack.
+  playExplosion(): void {
+    this.init()
+    if (!this.ctx || !this.enabled) return
+    const t = this.ctx.currentTime
+    if (t - this.lastExplosionTime < 0.09) return
+    this.lastExplosionTime = t
+    try {
+      // Big low thump
+      const thumpOsc = this.ctx.createOscillator()
+      const thumpGain = this.ctx.createGain()
+      thumpOsc.connect(thumpGain)
+      thumpGain.connect(this.ctx.destination)
+
+      thumpOsc.type = 'sine'
+      thumpOsc.frequency.setValueAtTime(this.vary(45, 3), t)
+
+      thumpGain.gain.setValueAtTime(this.jitterGain(0.6 * this.sfxVol), t)
+      thumpGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
+
+      thumpOsc.start(t)
+      thumpOsc.stop(t + 0.25)
+
+      // Noise burst for the crackle/debris on top of the thump
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.2)
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate)
+      const data = buffer.getChannelData(0)
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize)
+      }
+      const noise = this.ctx.createBufferSource()
+      noise.buffer = buffer
+
+      const noiseFilter = this.ctx.createBiquadFilter()
+      noiseFilter.type = 'lowpass'
+      noiseFilter.frequency.setValueAtTime(1200, t)
+
+      const noiseGain = this.ctx.createGain()
+      noise.connect(noiseFilter)
+      noiseFilter.connect(noiseGain)
+      noiseGain.connect(this.ctx.destination)
+
+      noiseGain.gain.setValueAtTime(this.jitterGain(0.25 * this.sfxVol), t)
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.2)
+
+      noise.start(t)
+      noise.stop(t + 0.2)
+    } catch (e) {}
+  }
+
+  // Continuous low drone while a SLOW tower's aura is active during a wave.
+  // Idempotent: safe to call every frame with the same value (no-op if state unchanged).
+  setSlowHum(active: boolean): void {
+    this.init()
+    const shouldPlay = active && this.enabled && !!this.ctx
+    if (shouldPlay === this.slowHumActive) return
+    this.slowHumActive = shouldPlay
+    const ctx = this.ctx
+    if (!ctx) return
+    const t = ctx.currentTime
+
+    if (shouldPlay) {
+      if (!this.slowHumGain) {
+        try {
+          const osc1 = ctx.createOscillator()
+          const osc2 = ctx.createOscillator()
+          const gain = ctx.createGain()
+          osc1.type = 'sine'
+          osc2.type = 'sine'
+          osc1.frequency.setValueAtTime(50, t)
+          osc2.frequency.setValueAtTime(53, t) // slight detune for a beating drone
+          osc1.connect(gain)
+          osc2.connect(gain)
+          gain.connect(ctx.destination)
+          gain.gain.setValueAtTime(0.0001, t)
+          osc1.start(t)
+          osc2.start(t)
+          this.slowHumOsc1 = osc1
+          this.slowHumOsc2 = osc2
+          this.slowHumGain = gain
+        } catch (e) {
+          return
+        }
+      }
+      const gain = this.slowHumGain!
+      const target = 0.05 * this.sfxVol
+      gain.gain.cancelScheduledValues(t)
+      gain.gain.setValueAtTime(gain.gain.value, t)
+      gain.gain.linearRampToValueAtTime(target, t + 0.3)
+    } else {
+      const gain = this.slowHumGain
+      const osc1 = this.slowHumOsc1
+      const osc2 = this.slowHumOsc2
+      if (gain) {
+        gain.gain.cancelScheduledValues(t)
+        gain.gain.setValueAtTime(gain.gain.value, t)
+        gain.gain.linearRampToValueAtTime(0.0001, t + 0.3)
+      }
+      this.slowHumOsc1 = null
+      this.slowHumOsc2 = null
+      this.slowHumGain = null
+      setTimeout(() => {
+        try { osc1?.stop() } catch (e) {}
+        try { osc2?.stop() } catch (e) {}
+      }, 320)
+    }
   }
 
   playVictory(): void {

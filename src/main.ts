@@ -329,7 +329,10 @@ async function boot() {
         else if (e.type === 'enemyDied') {
           if (e.kind === 'boss') { shake.add(0.6); hitStop.trigger(0.13) }
           else hitStop.trigger(0.05)
-        } else if (e.type === 'projectileImpact' && e.kind === 'mortar') shake.add(0.08)
+        } else if (e.type === 'projectileImpact' && e.kind === 'mortar') {
+          shake.add(0.08)
+          audioEngine.playExplosion()
+        }
       })
       game.events.on((e) => {
         if (e.type === 'waveStart') {
@@ -751,6 +754,7 @@ async function boot() {
     const rawDt = ticker.deltaMS / 1000
     const simDt = hitStop.filter(rawDt)
     game.tick(simDt)
+    audioEngine.setSlowHum(game.state.phase === 'wave' && game.towers.some((t) => t.kind === 'slow'))
     gameView?.update(rawDt, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
     camera.apply(renderer.world)
