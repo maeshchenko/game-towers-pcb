@@ -13,6 +13,7 @@ import {
   amplifierStage,
   timer555,
   ledBar,
+  railSpine,
   type RefAlloc,
 } from './circuits'
 
@@ -285,6 +286,7 @@ export function buildDecorWithNets(args: {
     const bigFactories = [
       () => amplifierStage([0, 0], alloc), () => timer555([0, 0], alloc),
       () => ledBar([0, 0], alloc, 4 + Math.floor(rng() * 4)), () => opAmp([0, 0], alloc),
+      () => railSpine([0, 0], alloc, Math.floor(rng() * 9)),
       () => transistorSwitch([0, 0], alloc), () => mcuCore([0, 0], alloc),
     ]
     // big blocks — denser fill

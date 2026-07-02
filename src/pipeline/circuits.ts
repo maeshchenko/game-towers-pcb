@@ -189,6 +189,31 @@ export function ledIndicator(origin: Cell, alloc: RefAlloc): BlockResult {
   return { items, nets }
 }
 
+// ── 4b. Rail spine ────────────────────────────────────────────────────────────
+//  D(protect) → L(filter) → C(bulk) → R(limit) → LED(indicator)
+//  A power rail laid the way a board designer lays one: every part shares the same
+//  2×1 footprint row, so all pads sit on ONE line and every link renders as a
+//  dead-straight etched run (kit2 section-3 look). 14×1 cells.
+export function railSpine(origin: Cell, alloc: RefAlloc, variant = 0): BlockResult {
+  const [ox, oy] = origin
+  const parts: Array<{ kind: string; v: number; ref: string }> = [
+    { kind: 'diode', v: 0, ref: alloc.nextD() },
+    { kind: 'inductor', v: 0, ref: alloc.nextL() },
+    { kind: 'tant', v: 0, ref: alloc.nextC() },
+    { kind: 'res', v: variant % 9, ref: alloc.nextR() },
+    { kind: 'led', v: variant % 2, ref: alloc.nextD() },
+  ]
+  const items: DecorItem[] = []
+  let x = ox
+  for (const p of parts) {
+    items.push(item(p.kind, p.v, [x, oy], 0, p.ref))
+    x += 3 // 2-wide part + 1-cell gap → a short straight run between neighbours
+  }
+  const nets: number[][] = []
+  for (let i = 0; i < items.length - 1; i++) nets.push([i, i + 1])
+  return { items, nets }
+}
+
 // ── 5. Transistor Switch ──────────────────────────────────────────────────────
 //  SOT-23(Q) + base resistor(R) + pull-down resistor(R) + flyback diode(D)
 //

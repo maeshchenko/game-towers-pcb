@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { opAmp, ledIndicator, transistorSwitch, passiveBank } from '../../pipeline/circuits'
+import { opAmp, ledIndicator, transistorSwitch, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 06 «Широкая магистраль» — 44×33, difficulty 5.
 // Long boustrophedon, WIDE lanes (7-row gaps), clear pacing zones (open top → tighter bottom).
@@ -18,6 +18,8 @@ export function buildLevel06(board: Board): Level {
   b.block(ledIndicator([12, 6], b.alloc));
   b.block(opAmp([10, 14], b.alloc));
   b.block(passiveBank([38, 13], 1, b.alloc));
+  b.block(railSpine([23, 13], b.alloc, 1));
+  b.block(railSpine([18, 28], b.alloc, 4));
   b.block(opAmp([10, 21], b.alloc));
   b.block(transistorSwitch([22, 21], b.alloc));
   b.block(passiveBank([30, 19], 4, b.alloc));

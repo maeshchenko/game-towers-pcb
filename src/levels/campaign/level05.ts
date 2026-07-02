@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { ledIndicator, passiveBank } from '../../pipeline/circuits'
+import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 05 «Спиральный мост» — 32×24, difficulty 5.
 // Inward rectangular spiral toward the centre, with ONE self-crossing (a bridge) on the way in. A
@@ -15,6 +15,7 @@ export function buildLevel05(board: Board): Level {
     [20, 10], [20, 13], [16, 13], [16, 23], [31, 23],
   ])
   // ── Fill bands between lanes with wired fragments (auto-added) ──
+  b.block(railSpine([0, 0], b.alloc, 2))
   b.block(passiveBank([0, 21], 7, b.alloc))
   b.block(ledIndicator([19, 4], b.alloc))
   b.block(passiveBank([12, 12], 0, b.alloc))

@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { ledIndicator, passiveBank } from '../../pipeline/circuits'
+import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 09 «Частотный разделитель» — 60×45, difficulty 7.
 // Long 6-lane serpentine (frequency-divider theme: the path "steps down" repeatedly). Many turns +
@@ -14,6 +14,8 @@ export function buildLevel09(board: Board): Level {
   b.block(passiveBank([24, 35], 5, b.alloc))
   // ── Fill bands between lanes with wired fragments (auto-added) ──
   b.block(passiveBank([22, 5], 7, b.alloc));
+  b.block(railSpine([8, 6], b.alloc, 0)); b.block(railSpine([10, 12], b.alloc, 5));
+  b.block(railSpine([40, 24], b.alloc, 7)); b.block(railSpine([8, 36], b.alloc, 2));
   b.block(passiveBank([48, 5], 1, b.alloc));
   b.block(passiveBank([30, 11], 5, b.alloc));
   b.block(passiveBank([30, 17], 0, b.alloc));

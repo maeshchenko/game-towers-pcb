@@ -1,6 +1,6 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { opAmp, ledIndicator, passiveBank } from '../../pipeline/circuits'
+import { opAmp, ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 07 «Сетка контактов» — 44×33, difficulty 6.
 // Dense 5-lane serpentine (a "grid of contacts") with many turns — long time-under-fire keeps it fair
@@ -15,6 +15,7 @@ export function buildLevel07(board: Board): Level {
   b.block(passiveBank([8, 5], 0, b.alloc)); b.block(passiveBank([16, 5], 2, b.alloc))
   b.block(passiveBank([32, 5], 7, b.alloc))
   b.block(passiveBank([30, 11], 5, b.alloc)); b.block(passiveBank([36, 12], 1, b.alloc))
+  b.block(railSpine([6, 30], b.alloc, 6)); b.block(railSpine([19, 31], b.alloc, 3))
   b.block(opAmp([2, 18], b.alloc)); b.block(passiveBank([18, 17], 4, b.alloc))
   b.block(ledIndicator([34, 18], b.alloc))
   b.block(passiveBank([8, 23], 6, b.alloc)); b.block(passiveBank([16, 24], 3, b.alloc))
