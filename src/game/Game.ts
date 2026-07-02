@@ -12,6 +12,7 @@ import { WaveManager, mapWaves } from './WaveManager'
 import { GameState } from './GameState'
 import { hpScale, SPEED_SCALE } from './difficulty'
 import { EventBus } from './events'
+import { SpatialGrid } from './SpatialGrid'
 
 interface Spot { cell: Cell; pos: Pt; tower: Tower | null; special: boolean; score: number }
 
@@ -30,9 +31,11 @@ export class Game {
   private spent = new Map<Tower, number>()
   private _fx: Fx[] = []
   get fx(): Fx[] { return this._fx }
+  private grid: SpatialGrid<Enemy>
 
   constructor(level: Level, seed = 1) {
     this.pitch = level.board.pitch
+    this.grid = new SpatialGrid<Enemy>(this.pitch)
     const paths = levelPaths(level).map((t: Trace) => filletPath(t.waypoints, t.cornerRadius, this.pitch))
     const diff = level.meta.difficulty
     const waves = mapWaves(diff)
@@ -101,16 +104,16 @@ export class Game {
     for (const e of spawned) this.events.emit({ type: 'enemySpawned', kind: e.kind, pos: { x: e.pos.x, y: e.pos.y } })
     const active = this.wm.active
     for (const e of active) e.update(step)
+    this.grid.rebuild(active)
 
     // healer healing logic
     for (const healer of active) {
       if (healer.kind === 'healer' && healer.alive) {
         const healRadius = 2.5 * this.pitch
-        for (const target of active) {
+        const near = this.grid.queryCircle(healer.pos, healRadius)
+        for (const target of near) {
           if (target === healer || !target.alive) continue
-          if (Math.hypot(target.pos.x - healer.pos.x, target.pos.y - healer.pos.y) <= healRadius) {
-            target.hp = Math.min(target.maxHp, target.hp + (15 + target.maxHp * 0.03) * step)
-          }
+          target.hp = Math.min(target.maxHp, target.hp + (15 + target.maxHp * 0.03) * step)
         }
       }
     }
@@ -128,7 +131,7 @@ export class Game {
 
     // towers fire
     for (const t of this.towers) {
-      const shot = t.update(step, active)
+      const shot = t.update(step, active, this.grid)
       if (!shot) continue
       if (shot.aura) {
         for (const e of active) if (e.alive && Math.hypot(e.pos.x - t.pos.x, e.pos.y - t.pos.y) <= shot.aura.range) e.applySlow(shot.aura.slow, 0.25)
@@ -137,7 +140,7 @@ export class Game {
           this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
           this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, towerLevel: t.level })
         }
-        applyShot(shot, active, this.pitch, (e) => this.events.emit(e))
+        applyShot(shot, active, this.pitch, (e) => this.events.emit(e), this.grid)
       }
     }
 

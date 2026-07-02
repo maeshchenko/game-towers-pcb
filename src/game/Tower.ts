@@ -3,6 +3,7 @@ import { dist } from '../geom/grid'
 import type { Enemy } from './Enemy'
 import type { TowerKind, TowerLevel } from './towerTypes'
 import { TOWER_DEFS } from './towerTypes'
+import type { SpatialGrid } from './SpatialGrid'
 
 export type TargetMode = 'first' | 'last' | 'strong' | 'weak'
 export interface ShotResult {
@@ -28,14 +29,15 @@ export class Tower {
   }
   upgrade(): boolean { if (this.lvl >= this.maxLevel) return false; this.lvl += 1; return true }
 
-  update(dt: number, enemies: Enemy[]): ShotResult | null {
+  update(dt: number, enemies: Enemy[], grid?: SpatialGrid<Enemy>): ShotResult | null {
     const s = this.stats
     const k = this.special ? 1.35 : 1 // special-spot boost
     const rangePx = s.range * this.pitch * k
     if (s.aura) return { aura: { slow: (s.slow ?? 0) * k, range: rangePx }, from: this.pos }
     this.cooldown -= dt
+    const candidates = grid ? grid.queryCircle(this.pos, rangePx) : enemies
     let target: Enemy | undefined
-    for (const e of enemies) {
+    for (const e of candidates) {
       if (!e.alive || dist(e.pos, this.pos) > rangePx) continue
       if (!target) { target = e; continue }
       const better =
