@@ -297,14 +297,11 @@ async function boot() {
   function ensureGame() {
     if (!game && editor.state.level) {
       game = new Game(editor.state.level, ++seedCounter)
-      game.onSfx = (type) => {
-        if (type === 'leak') audioEngine.playLeak()
-        else if (type === 'kill') audioEngine.playEnemyDeath()
-        else if (type.startsWith('shoot_')) {
-          const kind = type.substring(6) as any
-          audioEngine.playShot(kind)
-        }
-      }
+      game.events.on((e) => {
+        if (e.type === 'leak') audioEngine.playLeak()
+        else if (e.type === 'enemyDied') audioEngine.playEnemyDeath()
+        else if (e.type === 'shotFired') audioEngine.playShot(e.kind as any)
+      })
       selectedTower = null
       editor.enabled = false
       const ip = infoPanel(); if (ip) ip.style.display = 'none' // live game-bar HUD replaces the static panel

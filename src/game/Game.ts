@@ -11,6 +11,7 @@ import { applyShot } from './combat'
 import { WaveManager, mapWaves } from './WaveManager'
 import { GameState } from './GameState'
 import { hpScale, SPEED_SCALE } from './difficulty'
+import { EventBus } from './events'
 
 interface Spot { cell: Cell; pos: Pt; tower: Tower | null; special: boolean; score: number }
 
@@ -22,7 +23,7 @@ export class Game {
   readonly state: GameState
   readonly towers: Tower[] = []
   speed = 1
-  public onSfx?: (type: string) => void
+  readonly events = new EventBus()
   private wm: WaveManager
   private spots: Spot[]
   readonly pitch: number
@@ -59,6 +60,7 @@ export class Game {
     this.spots[i].tower = t
     this.towers.push(t)
     this.spent.set(t, cost)
+    this.events.emit({ type: 'towerBuilt', kind, pos: t.pos })
     return true
   }
   upgrade(t: Tower): boolean {
@@ -66,6 +68,7 @@ export class Game {
     const cost = TOWER_DEFS[t.kind][t.level + 1].cost
     if (!this.state.spend(cost)) return false
     t.upgrade(); this.spent.set(t, (this.spent.get(t) ?? 0) + cost)
+    this.events.emit({ type: 'towerUpgraded', kind: t.kind, pos: t.pos, level: t.level })
     return true
   }
   sellValue(t: Tower): number { return Math.floor((this.spent.get(t) ?? 0) * 0.6) }
@@ -74,12 +77,15 @@ export class Game {
     this.spent.delete(t)
     const idx = this.towers.indexOf(t); if (idx >= 0) this.towers.splice(idx, 1)
     const spot = this.spots.find((s) => s.tower === t); if (spot) spot.tower = null
+    this.events.emit({ type: 'towerSold', kind: t.kind, pos: t.pos })
   }
 
   startWave(): void {
     if (this.state.phase !== 'build') return
+    const index = this.state.wave
     this.wm.startWave(this.state.wave)
     this.state.startWave()
+    this.events.emit({ type: 'waveStart', index })
   }
 
   peekWave(waveIndex: number): import('./WaveManager').WaveEntry[] {
@@ -91,7 +97,8 @@ export class Game {
     this._fx = this._fx.filter((f) => (f.ttl -= step) > 0)
 
     if (this.state.phase !== 'wave') return
-    this.wm.update(step)
+    const spawned = this.wm.update(step)
+    for (const e of spawned) this.events.emit({ type: 'enemySpawned', kind: e.kind, pos: { x: e.pos.x, y: e.pos.y } })
     const active = this.wm.active
     for (const e of active) e.update(step)
 
@@ -113,7 +120,8 @@ export class Game {
       if (e.reachedBase) {
         this.state.damageBase(e.leak)
         this.wm.remove(e)
-        if (this.onSfx) this.onSfx('leak')
+        this.events.emit({ type: 'leak', kind: e.kind, livesLost: e.leak })
+        this.events.emit({ type: 'baseHit', livesLost: e.leak })
       }
     }
     if (this.state.phase !== 'wave') return
@@ -127,9 +135,9 @@ export class Game {
       } else {
         if (shot.target) {
           this._fx.push({ from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, kind: t.kind, ttl: FX_TTL })
-          if (this.onSfx) this.onSfx('shoot_' + t.kind)
+          this.events.emit({ type: 'shotFired', kind: t.kind, from: t.pos, to: { x: shot.target.pos.x, y: shot.target.pos.y }, towerLevel: t.level })
         }
-        applyShot(shot, active, this.pitch)
+        applyShot(shot, active, this.pitch, (e) => this.events.emit(e))
       }
     }
 
@@ -138,10 +146,14 @@ export class Game {
       if (e.hp <= 0) {
         this.state.add(e.bounty)
         this.wm.remove(e)
-        if (this.onSfx) this.onSfx('kill')
+        this.events.emit({ type: 'enemyDied', kind: e.kind, pos: { x: e.pos.x, y: e.pos.y }, bounty: e.bounty })
       }
     }
 
-    if (this.wm.cleared()) this.state.endWave()
+    if (this.wm.cleared()) {
+      const index = this.state.wave
+      this.state.endWave()
+      this.events.emit({ type: 'waveEnd', index })
+    }
   }
 }
