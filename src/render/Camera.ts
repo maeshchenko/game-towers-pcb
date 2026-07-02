@@ -3,11 +3,15 @@ import type { Container } from 'pixi.js'
 
 export class Camera {
   x = 0; y = 0; zoom = 1
+  // Zoom-out is capped near the level's start framing (set per level via frameLevel);
+  // zoom-in cap keeps the board from degenerating into a handful of giant cells.
+  minZoom = 0.1
+  maxZoom = 4
   panBy(dx: number, dy: number): void { this.x += dx; this.y += dy }
   zoomAt(px: number, py: number, factor: number): void {
     const worldX = (px - this.x) / this.zoom
     const worldY = (py - this.y) / this.zoom
-    this.zoom = Math.max(0.1, Math.min(4, this.zoom * factor))
+    this.zoom = Math.max(this.minZoom, Math.min(this.maxZoom, this.zoom * factor))
     this.x = px - worldX * this.zoom
     this.y = py - worldY * this.zoom
   }

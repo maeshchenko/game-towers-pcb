@@ -22,6 +22,7 @@ import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial, saveP
 import { TutorialOverlay } from './ui/TutorialOverlay'
 import { audioEngine } from './ui/AudioEngine'
 import { i18n } from './ui/i18n'
+import { gsap } from 'gsap'
 import { initGsap } from './render/juice/tweens'
 import { initMotion } from './render/juice/motion'
 import { ScreenShake } from './render/juice/ScreenShake'
@@ -178,6 +179,8 @@ async function boot() {
     const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
     const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY)
     camera.zoom = Math.max(0.1, Math.min(4, Math.min(aw / bw, ah / bh) * 0.99))
+    // cap zoom-out slightly beyond the start framing — zooming further out loses the board
+    camera.minZoom = camera.zoom * 0.9
     camera.x = mL + aw / 2 - ((minX + maxX) / 2) * camera.zoom
     camera.y = mT + ah / 2 - ((minY + maxY) / 2) * camera.zoom
     camera.apply(renderer.world)
@@ -263,6 +266,7 @@ async function boot() {
     gameView = null
     shake.reset() // drop leftover trauma/freeze so they don't bleed into the next level
     hitStop.reset()
+    gsap.killTweensOf(camera) // a mid-flight intro zoom tween must not fight the next level's framing
     renderer.world.rotation = 0 // ticker early-returns without a game, so clear mid-shake tilt here
     editor.enabled = false // freehand trace off — board is generated; canvas drag pans the camera
     const ip = infoPanel(); if (ip) ip.style.display = '' // show static panel back in edit mode
@@ -772,7 +776,9 @@ async function boot() {
         // Pause game ticks
         game.speed = 0
         
-        // Focus camera on the new enemy (centered in the visible play area, respecting margins)
+        // Focus camera on the new enemy (centered in the visible play area, respecting margins),
+        // remembering the current framing so it can be restored when the popup closes.
+        const savedCam = { x: camera.x, y: camera.y, zoom: camera.zoom }
         const enemyX = newEnemy.pos.x
         const enemyY = newEnemy.pos.y
         const isMobile = view().w < 800
@@ -781,10 +787,14 @@ async function boot() {
         const mT = isMobile ? 52 : 56
         const mB = isMobile ? 16 : 64
         const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
-        camera.zoom = 1.2
-        camera.x = mL + aw / 2 - enemyX * camera.zoom
-        camera.y = mT + ah / 2 - enemyY * camera.zoom
-        camera.apply(renderer.world)
+        const introZoom = Math.max(camera.zoom, 1.2)
+        gsap.killTweensOf(camera)
+        gsap.to(camera, {
+          zoom: introZoom,
+          x: mL + aw / 2 - enemyX * introZoom,
+          y: mT + ah / 2 - enemyY * introZoom,
+          duration: 0.35, ease: 'power2.out',
+        })
 
         // Reset countdown timer
         if (countdownTimer) {
@@ -800,7 +810,11 @@ async function boot() {
           prog.seenIntroductions[kind] = true
           saveProgress(prog)
           introducingEnemies.delete(kind)
-          
+
+          // Restore the framing the player had before the intro zoom-in.
+          gsap.killTweensOf(camera)
+          gsap.to(camera, { ...savedCam, duration: 0.4, ease: 'power2.out' })
+
           if (game) {
             game.speed = selectedSpeed
             ui.selectSpeed(selectedSpeed)
