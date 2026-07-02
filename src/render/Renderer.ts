@@ -4,10 +4,11 @@ import type { Level } from '../model/level'
 import { levelPaths } from '../model/level'
 import { PALETTE, RENDER } from '../style/palette'
 import { buildTraceStrokes, buildChevrons } from './traceBuilder'
-import { buildDecorShapes, footprintCells } from './decorBuilder'
+import { buildDecorShapes, footprintCells, padAnchors } from './decorBuilder'
 import { buildVintageShapes, VFOOT, type VintageKind } from './vintageDecor'
 import { cellToPx } from '../geom/grid'
-import { makeRng } from '../pipeline/rng'
+import { chamfer45, filletPixels, strokeCopper, teardrop, dirTo } from './copperStyle'
+import type { Pt } from '../geom/types'
 
 // map the generator's (SMD) decor kinds → vintage through-hole parts (top-down) for the game board
 const VINTAGE_MAP: Record<string, VintageKind> = {
@@ -85,50 +86,57 @@ export class Renderer {
       g.moveTo(0, y * level.board.pitch).lineTo(bw, y * level.board.pitch)
     g.stroke({ color: PALETTE.silk, width: 1, alpha: 0.4 })
     this.layers.board.addChild(g)
-    this.drawRoutingWeb(level)
   }
 
-  // Faint background copper-routing web (thin teal stubs + sparse via field) for authentic PCB
-  // texture. Seeded by the level so it stays stable across re-renders; sits under copper/decor/path.
-  private drawRoutingWeb(level: Level): void {
-    const { cols, rows, pitch } = level.board
-    const rng = makeRng((level.seed ?? 1) ^ 0x5eed)
-    const g = new Graphics()
-    const stubs = Math.floor((cols * rows) / 22)
-    const dirs = [[1, 0], [0, 1], [1, 1], [1, -1]] as const
-    for (let i = 0; i < stubs; i++) {
-      const cx = Math.floor(rng() * cols), cy = Math.floor(rng() * rows)
-      const [dx, dy] = dirs[Math.floor(rng() * dirs.length)]
-      const len = 2 + Math.floor(rng() * 5)
-      const x0 = cx * pitch + pitch / 2, y0 = cy * pitch + pitch / 2
-      g.moveTo(x0, y0).lineTo(x0 + dx * len * pitch, y0 + dy * len * pitch)
-    }
-    g.stroke({ color: PALETTE.routing, width: Math.max(1, pitch * 0.08), alpha: 0.5 })
-    const vias = Math.floor((cols * rows) / 30)
-    for (let i = 0; i < vias; i++) {
-      const x = (Math.floor(rng() * cols) + 0.5) * pitch, y = (Math.floor(rng() * rows) + 0.5) * pitch
-      g.circle(x, y, Math.max(1, pitch * 0.1)).fill({ color: PALETTE.routing, alpha: 0.6 })
-    }
-    this.layers.board.addChild(g)
+  // Drop points that don't change direction — keeps chamfer45's corner detection working on real
+  // corners only and avoids feeding filletPixels a long run of near-duplicate bezier arcs along
+  // straight runs (the A* route emits one point per fine-grid step).
+  private static simplifyCollinear(pts: Pt[]): Pt[] {
+    return pts.filter((p, i) => i === 0 || i === pts.length - 1 ||
+      Math.sign(p.x - pts[i - 1].x) !== Math.sign(pts[i + 1].x - p.x) ||
+      Math.sign(p.y - pts[i - 1].y) !== Math.sign(pts[i + 1].y - p.y))
   }
 
   private drawCopper(level: Level): void {
     if (!level.copper || level.copper.length === 0) return
     const pitch = level.board.pitch
     const traceW = Math.max(2, pitch * 0.18)
-    const viaR = Math.max(2, pitch * 0.12)
+    const viaOuterR = Math.max(2, pitch * 0.14)
+    const viaInnerR = Math.max(1, pitch * 0.06)
+    const padR = pitch * 0.22
+    const chamferCut = pitch * 0.4
+    const filletRadius = pitch * 0.22
+
+    // Endpoints landing on a component pad already get pad art from drawVintageItem/drawDecor —
+    // giving them a via dot too reads as a fake extra via. Only free-floating endpoints (test
+    // points, mid-route vias) get the via dot; pad endpoints get a teardrop fillet instead.
+    const padAnchorList: [number, number][] = []
+    for (const item of level.decor) padAnchorList.push(...padAnchors(item))
+    const isPadAnchor = (c: [number, number]): boolean =>
+      padAnchorList.some(([ax, ay]) => Math.hypot(c[0] - ax, c[1] - ay) < 0.7)
 
     for (const copper of level.copper) {
       if (copper.points.length < 2) continue
       const g = new Graphics()
-      const pts = copper.points.map(c => cellToPx(c, pitch))
-      g.moveTo(pts[0].x, pts[0].y)
-      for (let i = 1; i < pts.length; i++) g.lineTo(pts[i].x, pts[i].y)
-      g.stroke({ color: PALETTE.copperTrace, width: traceW, alpha: 0.85, cap: 'round', join: 'round' })
-      // Tiny via dot at each endpoint
+      const rawPts = copper.points.map(c => cellToPx(c, pitch))
+      const pts = filletPixels(chamfer45(Renderer.simplifyCollinear(rawPts), chamferCut), filletRadius)
+      strokeCopper(g, pts, { core: PALETTE.copperTrace, width: traceW, alpha: 0.85 })
+
+      const firstCell = copper.points[0], lastCell = copper.points[copper.points.length - 1]
       const first = pts[0], last = pts[pts.length - 1]
-      g.circle(first.x, first.y, viaR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
-      g.circle(last.x, last.y, viaR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+      if (isPadAnchor(firstCell)) {
+        teardrop(g, first, dirTo(first, pts[1]), padR, traceW, PALETTE.copperTrace, 0.85)
+      } else {
+        g.circle(first.x, first.y, viaOuterR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+        g.circle(first.x, first.y, viaInnerR).fill({ color: PALETTE.substrate, alpha: 1 })
+      }
+      if (isPadAnchor(lastCell)) {
+        const n = pts.length - 1
+        teardrop(g, last, dirTo(last, pts[n - 1]), padR, traceW, PALETTE.copperTrace, 0.85)
+      } else {
+        g.circle(last.x, last.y, viaOuterR).fill({ color: PALETTE.copperTrace, alpha: 0.9 })
+        g.circle(last.x, last.y, viaInnerR).fill({ color: PALETTE.substrate, alpha: 1 })
+      }
       this.layers.copper.addChild(g)
     }
   }

@@ -220,7 +220,7 @@ export function routeCopper(
         start: escA,
         goal: escB,
         blocked,
-        turnPenalty: 2.0,
+        turnPenalty: 3.5,
       })
 
       // Restore blocked obstacles

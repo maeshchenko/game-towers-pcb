@@ -16,6 +16,9 @@ function dedupe(pts: Pt[]): Pt[] {
   return pts.filter((p, i) => i === 0 || Math.abs(p.x - pts[i - 1].x) > 0.01 || Math.abs(p.y - pts[i - 1].y) > 0.01)
 }
 
+/** Unit vector pointing from `from` to `to` — for callers positioning a teardrop at a trace endpoint. */
+export function dirTo(from: Pt, to: Pt): Pt { return norm(sub(to, from)) }
+
 /**
  * Replace each ~90° axis-aligned corner with a 45° chamfer of up to `cut` px (pixel port of
  * geom/pathStyle.chamferCorners). Diagonal/obtuse corners are left untouched. Endpoints fixed.
