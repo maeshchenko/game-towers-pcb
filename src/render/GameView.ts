@@ -43,6 +43,7 @@ export class GameView {
     this.particles = new ParticleSystem(app, layers.particles)
     this.decals = new Decals(layers.decals)
     this.floating = new FloatingText(layers.floatingText)
+    this.towers.bind(game.events) // build/upgrade/recoil scale tweens — owned by TowerViews itself
     this.unsubs.push(game.events.on((e) => {
       if (e.type === 'enemyDamaged') {
         this.enemies.onDamaged(e.enemy, e.from)
@@ -50,6 +51,21 @@ export class GameView {
       } else if (e.type === 'enemyDied') {
         this.onEnemyDied(e.kind, e.pos)
         this.floating.spawn('+' + e.bounty, e.pos.x, e.pos.y - FLOAT_TEXT_OFFSET_Y, PALETTE.padGold)
+      } else if (e.type === 'towerBuilt') {
+        this.particles.burst({
+          x: e.pos.x, y: e.pos.y, count: 10,
+          speed: [40, 90], life: [0.25, 0.5], color: PALETTE.padGold, size: [1.5, 3], shape: 'dot',
+        })
+      } else if (e.type === 'towerUpgraded') {
+        this.particles.burst({ // transient white flash — simpler than a bespoke Graphics overlay
+          x: e.pos.x, y: e.pos.y, count: 8,
+          speed: [30, 60], life: [0.15, 0.3], color: 0xffffff, size: [2, 3], shape: 'dot',
+        })
+      } else if (e.type === 'towerSold') {
+        this.particles.burst({
+          x: e.pos.x, y: e.pos.y, count: 6,
+          speed: [80, 160], life: [0.2, 0.4], color: PALETTE.padGold, size: [1, 2], shape: 'spark',
+        })
       }
     }))
   }
@@ -73,7 +89,7 @@ export class GameView {
 
   update(dtSec: number, selected: Tower | null): void {
     this.time += dtSec
-    this.towers.sync(this.game, selected)
+    this.towers.sync(this.game, selected, dtSec)
     this.enemies.sync(this.game.enemies(), this.time, dtSec)
     this.projectiles.sync(this.game.projectiles)
     this.beams.update(dtSec)

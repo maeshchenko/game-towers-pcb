@@ -2,11 +2,22 @@
 // One persistent Graphics per tower, redrawn only when its (level, special) state changes (or it's
 // newly built). A shared overlayG carries slow-tower aura fills + the selected tower's range ring,
 // redrawn only when `selected` or the tower set/levels change (aura radius grows on upgrade).
+// Each tower's Graphics is drawn in LOCAL coordinates (centered at 0,0) and positioned via
+// g.position — this lets built/upgraded/shot feedback drive g.scale as a juice tween without
+// fighting the draw geometry (overlayG stays in world coordinates).
 import { Container, Graphics } from 'pixi.js'
+import { gsap } from 'gsap'
 import type { Game } from '../../game/Game'
 import type { Tower } from '../../game/Tower'
+import type { EventBus } from '../../game/events'
+import type { Pt } from '../../geom/types'
 import { PALETTE } from '../../style/palette'
 import { TOWER_THEME } from '../theme'
+import { EASE, DUR } from '../juice/tweens'
+
+// Minimum time between recoil tweens on the same tower (tesla fires ~2.6/s — throttle so rapid
+// fire doesn't restart the recoil tween mid-flight and look jittery).
+const RECOIL_THROTTLE = 0.1
 
 function poly(g: Graphics, cx: number, cy: number, r: number, sides: number, rot = 0): void {
   for (let i = 0; i <= sides; i++) {
@@ -17,9 +28,10 @@ function poly(g: Graphics, cx: number, cy: number, r: number, sides: number, rot
 }
 
 // Tower = dark IC chip + gold pin rows + neon icon. Transplanted 1:1 from GameLayers.ts:23-48 —
-// drawn in world coordinates directly into the tower's own Graphics (position property unused).
+// drawn centered at local (0,0); the Graphics is positioned at t.pos via g.position.set once,
+// on creation (see sync()), so scale tweens pivot around the chip's own center.
 function drawTower(g: Graphics, t: Tower, pitch: number): void {
-  const { x, y } = t.pos
+  const x = 0, y = 0
   const th = TOWER_THEME[t.kind], c = th.color
   const s = Math.max(11, pitch * 0.55), ic = s * 0.5, pinW = Math.max(2, s * 0.18)
   g.roundRect(x - s - 3, y - s - 3, (s + 3) * 2, (s + 3) * 2, 4).fill({ color: PALETTE.substrate, alpha: 0.9 }) // small mask: hide the bracket under the chip (don't cover the path)
@@ -53,15 +65,51 @@ export class TowerViews {
   private overlayG = new Graphics()
   private lastSelected: Tower | null = null
   private lastTowersSig = ''
+  // Internal clock advanced by sync()'s dt param, used only to throttle recoil tweens — avoids
+  // depending on performance.now() so this stays deterministic/testable in principle.
+  private clock = 0
+  private lastRecoil = new WeakMap<Graphics, number>()
+  private unsubs: (() => void)[] = []
 
   constructor(private layer: Container) { this.layer.addChild(this.overlayG) }
 
-  sync(game: Game, selected: Tower | null): void {
+  // Wires build/upgrade/shot juice tweens to sim events. Call once, after construction. TowerViews
+  // owns these subscriptions (unlike particles, which GameView wires separately) because they need
+  // direct access to the per-tower Graphics map for pos-ref lookup.
+  bind(events: EventBus): void {
+    this.unsubs.push(events.on((e) => {
+      if (e.type === 'towerBuilt') {
+        const g = this.findGraphics(e.pos)
+        if (g) gsap.fromTo(g.scale, { x: 1.3, y: 0.7 }, { x: 1, y: 1, duration: DUR.pop, ease: EASE.settle })
+      } else if (e.type === 'towerUpgraded') {
+        const g = this.findGraphics(e.pos)
+        if (g) gsap.from(g.scale, { x: 1.25, y: 1.25, duration: 0.25, ease: EASE.pop })
+      } else if (e.type === 'shotFired') {
+        const g = this.findGraphics(e.from)
+        if (!g) return
+        const last = this.lastRecoil.get(g) ?? -Infinity
+        if (this.clock - last < RECOIL_THROTTLE) return
+        this.lastRecoil.set(g, this.clock)
+        gsap.fromTo(g.scale, { x: 0.92, y: 1.06 }, { x: 1, y: 1, duration: 0.12, ease: EASE.ui })
+      }
+    }))
+  }
+
+  // Sim events carry t.pos by reference (see Game.ts emits), so a reference lookup identifies the
+  // tower without needing an id on Tower itself.
+  private findGraphics(pos: Pt): Graphics | undefined {
+    for (const [t, g] of this.views) if (t.pos === pos) return g
+    return undefined
+  }
+
+  sync(game: Game, selected: Tower | null, dt: number): void {
+    this.clock += dt
     const live = new Set(game.towers)
     for (const t of game.towers) {
       let g = this.views.get(t)
       if (!g) {
         g = new Graphics()
+        g.position.set(t.pos.x, t.pos.y)
         this.layer.addChild(g)
         this.views.set(t, g)
         this.keys.set(t, '')
@@ -77,6 +125,7 @@ export class TowerViews {
       if (live.has(t)) continue
       this.views.delete(t)
       this.keys.delete(t)
+      gsap.killTweensOf(g.scale)
       this.layer.removeChild(g)
       g.destroy()
     }
@@ -105,7 +154,9 @@ export class TowerViews {
   }
 
   destroy(): void {
-    for (const g of this.views.values()) { this.layer.removeChild(g); g.destroy() }
+    for (const off of this.unsubs) off()
+    this.unsubs = []
+    for (const g of this.views.values()) { gsap.killTweensOf(g.scale); this.layer.removeChild(g); g.destroy() }
     this.views.clear()
     this.keys.clear()
     this.layer.removeChild(this.overlayG)
