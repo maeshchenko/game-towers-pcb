@@ -23,7 +23,7 @@ export function buildLevel09(board: Board): Level {
   b.block(passiveBank([12, 23], 6, b.alloc));
   b.block(passiveBank([28, 24], 2, b.alloc));
   b.block(passiveBank([34, 29], 4, b.alloc));
-  b.block(ledIndicator([50, 29], b.alloc));
+  b.block(ledIndicator([49, 29], b.alloc));
   b.block(passiveBank([36, 35], 7, b.alloc));
   b.block(passiveBank([46, 35], 1, b.alloc));
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).

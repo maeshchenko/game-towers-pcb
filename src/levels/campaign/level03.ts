@@ -17,7 +17,7 @@ export function buildLevel03(board: Board): Level {
   b.path([start, split, [6, 20], [16, 20], [16, 12], [25, 20], [25, 12], merge, finish])
       b.block(passiveBank([1, 1], 4, b.alloc))
   // ── Fill the big empty pockets inside the loop and the triangle ──
-  b.block(ledIndicator([11, 11], b.alloc));
+  b.block(ledIndicator([10, 11], b.alloc));
   b.block(passiveBank([8, 17], 5, b.alloc));
   b.block(passiveBank([9, 14], 7, b.alloc));
   b.block(passiveBank([27, 14], 1, b.alloc));

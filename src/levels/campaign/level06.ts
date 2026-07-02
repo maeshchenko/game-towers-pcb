@@ -23,7 +23,7 @@ export function buildLevel06(board: Board): Level {
   b.block(opAmp([10, 21], b.alloc));
   b.block(transistorSwitch([22, 21], b.alloc));
   b.block(passiveBank([30, 19], 4, b.alloc));
-  b.block(ledIndicator([35, 20], b.alloc));
+  b.block(ledIndicator([34, 20], b.alloc));
   b.block(passiveBank([10, 26], 6, b.alloc));
   b.block(passiveBank([36, 26], 0, b.alloc));
   // Tower spots from the coverage-greedy placer → always BESIDE the lanes, never on them.

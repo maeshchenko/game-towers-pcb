@@ -165,7 +165,7 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       leadWire(s, bx + bw, cy, cx + dx, cy, pitch); padHole(s, cx + dx, cy, pitch)
       topBox(s, bx, by, bw, bh, kind === 'tantalum' ? C.tantal : C.disc, bh / 2, 2)
       if (kind === 'tantalum') r(s, bx + bw * 0.7, by + bh * 0.2, bw * 0.1, bh * 0.6, C.shadow, 0.4)
-      s.push({ type: 'text', x: cx, y: by + bh * 0.15, text: kind === 'tantalum' ? '+' : '104', size: Math.max(4, bh * 0.45), color: 0x4a3212, align: 'center' })
+      s.push({ type: 'text', x: kind === 'tantalum' ? bx + bw * 0.18 : cx, y: by + bh * 0.15, text: kind === 'tantalum' ? '+' : '104', size: Math.max(4, bh * 0.45), color: 0x4a3212, align: 'center' }) // '+' sits by the positive (left) lead
       return s
     }
 
@@ -200,8 +200,8 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       silkLabel(s, opts.ref, cx, cy - rad, pitch)
       padHole(s, cx - dx, cy, pitch); padHole(s, cx + dx, cy, pitch)
       const lfy = cy + rad * 0.15
-      r(s, cx - rad * 0.35, lfy - rad * 0.3, rad * 0.3, rad * 0.4, 0x8a9290, 0.8) // cathode
-      ln(s, cx + rad * 0.15, lfy + rad * 0.1, cx + rad * 0.15, lfy - rad * 0.2, 1.2, 0x8a9290, 0.8) // anode
+      r(s, cx + rad * 0.05, lfy - rad * 0.3, rad * 0.3, rad * 0.4, 0x8a9290, 0.8) // cathode flag = RIGHT lead (pad idx1)
+      ln(s, cx - rad * 0.15, lfy + rad * 0.1, cx - rad * 0.15, lfy - rad * 0.2, 1.2, 0x8a9290, 0.8) // anode post = LEFT lead (pad idx0)
       // no outer glow halo — LED reads as a small dome + darker rim only (no additive ring)
       ci(s, cx + 2, cy + 4, rad, C.shadow, 0.4)
       ci(s, cx, cy, rad, col, on ? 0.92 : 0.5)

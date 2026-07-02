@@ -14,7 +14,7 @@ export function buildLevel04(board: Board): Level {
       b.block(powerSupply([2, 21], b.alloc))
   b.block(passiveBank([14, 21], 4, b.alloc))
   // ── Fill bands between lanes with wired fragments (auto-added) ──
-  b.block(ledIndicator([23, 5], b.alloc));
+  b.block(ledIndicator([22, 5], b.alloc));
   b.block(passiveBank([18, 10], 0, b.alloc));
   b.block(railSpine([0, 5], b.alloc, 2)); b.block(railSpine([16, 0], b.alloc, 7));
   b.block(passiveBank([24, 10], 5, b.alloc));

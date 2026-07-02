@@ -21,6 +21,6 @@ export function buildLevel07(board: Board): Level {
   b.block(ledIndicator([34, 18], b.alloc))
   b.block(passiveBank([8, 23], 6, b.alloc)); b.block(passiveBank([16, 24], 3, b.alloc))
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
-  b.patrolSpots({ spacing: 4.5 })
+  b.patrolSpots({ spacing: 5 })
   return b.build()
 }

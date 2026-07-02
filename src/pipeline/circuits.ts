@@ -175,14 +175,16 @@ export function ledIndicator(origin: Cell, alloc: RefAlloc): BlockResult {
   const dRef = alloc.nextD()
   const rRef = alloc.nextR()
 
-  const led = item('led', 0, [ox,     oy], 0, dRef)
-  const res = item('res', 1, [ox + 2, oy], 0, rRef)
+  // series R feeds the LED anode: R on the left, LED on the right → the link lands on the
+  // LED's LEFT pad, which is the anode (matches the drawn anode post / cathode flag)
+  const res = item('res', 1, [ox,     oy], 0, rRef)
+  const led = item('led', 0, [ox + 3, oy], 0, dRef)
 
-  const items = [led, res]
+  const items = [res, led]
   const nets: number[][] = [
-    [0, 1],  // LED anode ↔ resistor series
-    [0],     // LED cathode (GND)
-    [1],     // resistor other end (VCC/signal)
+    [0, 1],  // resistor tail → LED anode
+    [1],     // LED cathode (GND)
+    [0],     // resistor head (VCC/signal)
   ]
 
   return { items, nets }
@@ -198,7 +200,7 @@ export function railSpine(origin: Cell, alloc: RefAlloc, variant = 0, count = 5)
   const parts: Array<{ kind: string; v: number; ref: string }> = [
     { kind: 'diode', v: 0, ref: alloc.nextD() },
     { kind: 'inductor', v: 0, ref: alloc.nextL() },
-    { kind: 'tant', v: 0, ref: alloc.nextC() },
+    { kind: 'mlcc', v: 0, ref: alloc.nextC() }, // non-polar coupling cap — a polarised part in-line would read miswired
     { kind: 'res', v: variant % 9, ref: alloc.nextR() },
     { kind: 'led', v: variant % 2, ref: alloc.nextD() },
   ].slice(0, Math.max(2, count))
@@ -206,7 +208,7 @@ export function railSpine(origin: Cell, alloc: RefAlloc, variant = 0, count = 5)
   let x = ox
   for (const p of parts) {
     items.push(item(p.kind, p.v, [x, oy], 0, p.ref))
-    x += 3 // 2-wide part + 1-cell gap → a short straight run between neighbours
+    x += (p.kind === 'mlcc' ? 1 : 2) + 1 // part width + 1-cell gap → a short straight run between neighbours
   }
   const nets: number[][] = []
   for (let i = 0; i < items.length - 1; i++) nets.push([i, i + 1])
