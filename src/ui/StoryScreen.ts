@@ -82,7 +82,13 @@ export class StoryScreen {
       column.appendChild(titleEl)
     }
 
-    this.lines = lines.map((line) => {
+    // If the first content line repeats the overlay title (brief texts embed their own
+    // «ЖУРНАЛ СМЕНЫ · ЗАПИСЬ NN» header), drop it — a doubled header reads like a bug.
+    const titleText = opts.title ?? ''
+    const deduped = titleText && lines.length > 0 && tKey(lines[0].key).trim() === titleText.trim()
+      ? lines.slice(1)
+      : lines
+    this.lines = deduped.map((line) => {
       const el = document.createElement('div')
       el.className = 'pcb-story-line'
       column.appendChild(el)
