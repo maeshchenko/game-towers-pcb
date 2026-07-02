@@ -1023,7 +1023,23 @@ async function boot() {
 
   function onStartWaveClick() {
     ensureGame()
-    if (!game || game.state.phase !== 'build') return
+    if (!game) return
+
+    // Mid-wave early call: as soon as the spawner is done, the NEXT wave can be summoned onto
+    // the tail of the current one — for the FULL early bonus (the countdown after a wave ends
+    // only decays it). Big maps stop being a waiting game.
+    if (game.state.phase === 'wave') {
+      if (!game.canCallNextWave()) return
+      const bonus = 5 * (6 + game.state.waveNumber)
+      if (game.callNextWave()) {
+        game.state.add(bonus)
+        audioEngine.playUpgrade()
+        showFloatingBonusText(bonus)
+        ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+      }
+      return
+    }
+    if (game.state.phase !== 'build') return
 
     // Calculate early start bonus: scales with wave number so the risk/reward stays
     // meaningful late game (up to ~5s × (6+wave) energy for an instant restart).
@@ -1097,6 +1113,13 @@ async function boot() {
   function updateStartWaveButtonText() {
     const startBtn = document.querySelector('.next-wave-btn') as HTMLElement
     if (!startBtn) return
+    // Mid-wave: the button becomes the early "summon next wave" call with its bonus preview.
+    if (game && game.state.phase === 'wave') {
+      startBtn.textContent = game.canCallNextWave()
+        ? `${i18n.t('hud.next_wave')} +${5 * (6 + game.state.waveNumber)}⚡`
+        : i18n.t('hud.start_wave')
+      return
+    }
     if (waveCountdown > 0) {
       startBtn.textContent = `${i18n.t('hud.start_wave')} (${Math.ceil(waveCountdown)})`
     } else {

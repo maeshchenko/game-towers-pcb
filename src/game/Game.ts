@@ -92,6 +92,21 @@ export class Game {
     this.events.emit({ type: 'towerSold', kind: t.kind, pos: t.pos })
   }
 
+  /** Next wave may be CALLED early while the current one still has live enemies — as soon as
+   * the spawner is done (all forms have left the entry). Classic KR-style overlap. */
+  canCallNextWave(): boolean {
+    return this.state.phase === 'wave' && !this.wm.spawning && this.state.wave + 1 < this.state.waveCount
+  }
+
+  callNextWave(): boolean {
+    if (!this.canCallNextWave()) return false
+    this.state.advanceWaveEarly()               // banks the running wave's clear reward + advances counter
+    const index = this.state.wave
+    this.wm.startWave(index)                    // spawner queue is empty (guarded) → safe to load next wave
+    this.events.emit({ type: 'waveStart', index })
+    return true
+  }
+
   startWave(): void {
     if (this.state.phase !== 'build') return
     const index = this.state.wave

@@ -11,14 +11,12 @@ export interface Copper {
   labelB?: string
 }
 
-// Pin names worth printing on the silkscreen — functional names read "engineer-stylish";
-// generic terminal names (t1/x1/end1/A/B of passives, IO of ICs) would just be noise.
-const LABELED_PINS = new Set(['anode', 'cathode', '+', '-', 'IN', 'OUT', 'GND', 'VCC', 'OSC', 'E', 'B', 'C', 'tip+', 'sleeve-'])
-const UNLABELED_KINDS = new Set<VintageKind>(['resAxial', 'inductorAxial', 'ceramicDisc', 'filmCap', 'crystalHC49', 'trimpot'])
+// Every CONNECTED pad prints its pin function on the silkscreen (kit2 look): anode/cathode,
+// +/-, IN/OUT/GND/VCC/OSC, x1/x2, t1/t2, A/B, E/B/C… — the dense technical annotation is the
+// aesthetic. Unrouted pads stay silent, so boards don't drown in text.
 function padLabel(kind: VintageKind, padIdx: number): string | undefined {
-  if (UNLABELED_KINDS.has(kind)) return undefined
   const name = vintagePins(kind)[padIdx]
-  return name && LABELED_PINS.has(name) ? name : undefined
+  return name || undefined
 }
 
 const VINTAGE_MAP: Record<string, VintageKind> = {

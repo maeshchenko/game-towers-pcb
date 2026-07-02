@@ -17,6 +17,7 @@ const TRANSLATIONS = {
     'hud.lives': 'ЖИЗНИ',
     'hud.gold': 'ЭНЕРГИЯ',
     'hud.start_wave': 'СТАРТ ВОЛНЫ',
+    'hud.next_wave': 'СЛЕД. ВОЛНА',
     'hud.map': 'КАРТА',
     'hud.wave_banner': 'ВОЛНА {n}',
     
@@ -291,6 +292,7 @@ const TRANSLATIONS = {
     'hud.lives': 'LIVES',
     'hud.gold': 'ENERGY',
     'hud.start_wave': 'START WAVE',
+    'hud.next_wave': 'NEXT WAVE',
     'hud.map': 'MAP',
     'hud.wave_banner': 'WAVE {n}',
     

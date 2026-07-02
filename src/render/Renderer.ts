@@ -209,14 +209,28 @@ export class Renderer {
     const oy = item.cell[1] * pitch + (boxH - vf.h * vp) / 2
     const g = new Graphics()
     // LEDs default to a bright red glow — keep decor muted with a dim green/amber pick by variant.
-    const opts = v === 'led5mm' ? { color: item.variant === 1 ? 0x2f7a4a : 0x7d6a2f } : {}
+    // Silkscreen designators (R1, C4, U2…) come from the generator's ref allocator — printing
+    // them is what makes the board read as a real engineering document (kit2 look).
+    const opts: import('./vintageDecor').VintageOpts = v === 'led5mm' ? { color: item.variant === 1 ? 0x2f7a4a : 0x7d6a2f } : {}
+    if (item.ref) opts.ref = item.ref
+    const texts: Array<{ x: number; y: number; text: string; size: number; color: number; align?: string }> = []
     for (const s of buildVintageShapes(v, vp, opts)) {
       if (s.type === 'rect') g.rect(s.x + ox, s.y + oy, s.w, s.h).fill({ color: s.color, alpha: s.alpha })
       else if (s.type === 'roundRect') g.roundRect(s.x + ox, s.y + oy, s.w, s.h, s.r).fill({ color: s.color, alpha: s.alpha })
       else if (s.type === 'circle') g.circle(s.x + ox, s.y + oy, s.r).fill({ color: s.color, alpha: s.alpha })
       else if (s.type === 'line') g.moveTo(s.x1 + ox, s.y1 + oy).lineTo(s.x2 + ox, s.y2 + oy).stroke({ color: s.color, width: s.width, alpha: s.alpha })
+      else if (s.type === 'text') texts.push(s)
     }
     this.layers.decor.addChild(g)
+    // Silkscreen designators / part markings (R1, C4, '+', '104'…) — drawVintageItem used to
+    // silently drop text specs, which is why boards looked less "engineering-document" than kit2.
+    for (const ts of texts) {
+      const t = new Text({ text: ts.text, style: { fontFamily: 'monospace', fontSize: ts.size, fill: ts.color } })
+      if (ts.align === 'center') t.anchor.set(0.5, 0)
+      t.alpha = 0.85
+      t.position.set(ts.x + ox, ts.y + oy)
+      this.layers.decor.addChild(t)
+    }
   }
 
   private drawTrace(level: Level): void {

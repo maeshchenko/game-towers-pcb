@@ -67,3 +67,33 @@ describe('Game events', () => {
     }
   })
 })
+
+describe('early next-wave call', () => {
+  it('callNextWave overlaps waves: reward banked, counter advanced, new spawns join live enemies', () => {
+    const game = makeTestGame()
+    game.startWave()
+    // run until the first wave's spawner is done but enemies are still alive
+    let guard = 0
+    while (!game.canCallNextWave() && game.state.phase === 'wave' && guard++ < 20000) game.tick(0.05)
+    expect(game.canCallNextWave()).toBe(true)
+    const goldBefore = game.state.gold
+    const waveBefore = game.state.wave
+    const aliveBefore = game.enemies().length
+    expect(game.callNextWave()).toBe(true)
+    expect(game.state.wave).toBe(waveBefore + 1)          // counter advanced
+    expect(game.state.gold).toBeGreaterThan(goldBefore)   // clear reward banked immediately
+    expect(game.state.phase).toBe('wave')                 // no phase flip
+    // spawner reloaded: new enemies join the still-alive old ones
+    let spawnedMore = false
+    for (let i = 0; i < 200 && !spawnedMore; i++) { game.tick(0.05); if (game.enemies().length > aliveBefore) spawnedMore = true }
+    expect(spawnedMore).toBe(true)
+  })
+
+  it('cannot call while the current wave is still spawning', () => {
+    const game = makeTestGame()
+    game.startWave()
+    game.tick(0.05)
+    expect(game.canCallNextWave()).toBe(false)
+    expect(game.callNextWave()).toBe(false)
+  })
+})

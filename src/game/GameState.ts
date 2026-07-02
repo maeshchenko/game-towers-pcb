@@ -16,6 +16,13 @@ export class GameState {
     if (this.lives <= 0) this.phase = 'lose'
   }
   startWave(): void { if (this.phase === 'build') this.phase = 'wave' }
+  /** Early next-wave call: bank the running wave's clear reward and advance the counter
+   * WITHOUT leaving the 'wave' phase — the new wave overlaps the tail of the old one. */
+  advanceWaveEarly(): void {
+    if (this.phase !== 'wave' || this.wave + 1 >= this.waveCount) return
+    this.add(waveClearGold(this.waveNumber))
+    this.wave += 1
+  }
   endWave(): void {
     if (this.phase !== 'wave') return
     this.add(waveClearGold(this.waveNumber))
