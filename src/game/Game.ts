@@ -32,11 +32,15 @@ export class Game {
   private _projectiles: Projectile[] = []
   get projectiles(): Projectile[] { return this._projectiles }
   private grid: SpatialGrid<Enemy>
+  private _paths: Pt[][]
+  /** World-space (px) filleted polylines — same recipe WaveManager uses, exposed for view-layer juice (Task 10 TracePulse). */
+  get paths(): Pt[][] { return this._paths }
 
   constructor(level: Level, seed = 1) {
     this.pitch = level.board.pitch
     this.grid = new SpatialGrid<Enemy>(this.pitch)
     const paths = levelPaths(level).map((t: Trace) => filletPath(t.waypoints, t.cornerRadius, this.pitch))
+    this._paths = paths
     const diff = level.meta.difficulty
     const waves = mapWaves(diff)
     this.state = new GameState(diff, waves.length)

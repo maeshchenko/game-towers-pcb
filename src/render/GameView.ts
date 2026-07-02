@@ -13,6 +13,7 @@ import { ParticleSystem } from './juice/Particles'
 import { Decals } from './juice/Decals'
 import { FloatingText } from './juice/FloatingText'
 import { Vfx } from './juice/Vfx'
+import { TracePulse } from './juice/TracePulse'
 import { DamageAggregator } from './juice/floatingLogic'
 import { ENEMY_RADIUS } from './views/textures'
 import { enemyTheme } from './theme'
@@ -34,6 +35,7 @@ export class GameView {
   private decals: Decals
   private floating: FloatingText
   private vfx: Vfx
+  private tracePulse: TracePulse
   private damageAgg = new DamageAggregator()
   private unsubs: (() => void)[] = []
 
@@ -47,6 +49,7 @@ export class GameView {
     this.decals = new Decals(layers.decals)
     this.floating = new FloatingText(layers.floatingText)
     this.vfx = new Vfx(app, renderer.world, renderer.vfxOverlay, [layers.projectiles, layers.particles])
+    this.tracePulse = new TracePulse(app, layers.trace, game.paths)
     this.towers.bind(game.events) // build/upgrade/recoil scale tweens — owned by TowerViews itself
     this.unsubs.push(game.events.on((e) => {
       if (e.type === 'enemyDamaged') {
@@ -109,6 +112,7 @@ export class GameView {
     }
     this.floating.update(dtSec)
     this.vfx.update(dtSec)
+    this.tracePulse.update(dtSec)
   }
 
   destroy(): void {
@@ -122,5 +126,6 @@ export class GameView {
     this.decals.destroy()
     this.vfx.destroy()
     this.floating.destroy()
+    this.tracePulse.destroy()
   }
 }

@@ -19,8 +19,9 @@ const VINTAGE_MAP: Record<string, VintageKind> = {
   pwrind: 'to220', header: 'batteryClip',
 }
 
-// Decor is hidden for now — focus is on the trace + tower spots (primary). Flip to re-enable parts.
-const SHOW_DECOR = false
+// Decor (copper web + vintage parts) is drawn and cached as a texture (Task 10) — cheap after
+// the first bake since copper/decor are static per level.
+const SHOW_DECOR = true
 
 // Layers that hold live gameplay state (owned by GameLayers or Task 8-10 view modules) — never
 // cleared on level re-render, or a level re-render would destroy the running game's graphics.
@@ -46,12 +47,24 @@ export class Renderer {
   }
 
   render(level: Level): void {
+    // copper/decor are cached as a texture below (static per level, cheap to keep cached across
+    // frames). Uncache BEFORE clearing children — destroying children of a cached render group is
+    // unsafe in pixi v8; the correct order is uncache → clear → redraw → recache.
+    this.layers.copper.cacheAsTexture(false)
+    this.layers.decor.cacheAsTexture(false)
     for (const [name, c] of Object.entries(this.layers)) {
       if (PERSISTENT_LAYERS.has(name)) continue
       for (const child of c.removeChildren()) child.destroy()
     }
     this.drawBoard(level)
-    if (SHOW_DECOR) { this.drawCopper(level); this.drawDecor(level) }
+    if (SHOW_DECOR) {
+      this.drawCopper(level)
+      this.drawDecor(level)
+      // Bake to a single texture each — copper/decor never change between renders of the same
+      // level, so this trades one re-bake per level load for near-zero draw-call cost per frame.
+      this.layers.copper.cacheAsTexture(true)
+      this.layers.decor.cacheAsTexture(true)
+    }
     this.drawTrace(level)
     this.drawSpots(level)
   }
