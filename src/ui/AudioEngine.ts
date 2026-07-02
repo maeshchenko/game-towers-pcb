@@ -22,6 +22,12 @@ export class AudioEngine {
   // Throttle for the mortar impact explosion layer (seconds, AudioContext clock)
   private lastExplosionTime = 0
 
+  // Throttle for the base-hit alarm (seconds, AudioContext clock)
+  private lastBaseAlarmTime = 0
+
+  // Adaptive music tension: 0 = normal, 1 = boss wave active, 2 = final wave
+  private musicTension: 0 | 1 | 2 = 0
+
   // Continuous SLOW-tower aura drone
   private slowHumOsc1: OscillatorNode | null = null
   private slowHumOsc2: OscillatorNode | null = null
@@ -127,9 +133,16 @@ export class AudioEngine {
     }
   }
 
+  // Idempotent: level 0 = normal, 1 = boss wave active (tension drone), 2 = final wave
+  // (tension drone + denser arpeggio). Read per-step inside scheduleNextNote — no extra timers.
+  setMusicTension(level: 0 | 1 | 2): void {
+    if (this.musicTension === level) return
+    this.musicTension = level
+  }
+
   private scheduleNextNote(step: number, time: number): void {
     if (!this.ctx || !this.enabled) return
-    
+
     // Play bass line notes
     if (step % 2 === 0) {
       const bassFreq = this.bassline[(step / 2) % this.bassline.length]
@@ -140,6 +153,20 @@ export class AudioEngine {
     if (step % 4 === 1 || step % 4 === 3) {
       const melFreq = this.melody[step % this.melody.length]
       this.playSynthNode(melFreq, 'triangle', 0.02, 0.12, time)
+    }
+
+    // Adaptive tension layer: boss wave (and final wave) add an off-beat low-fifth
+    // drone stab under the bassline for persistent unease.
+    if (this.musicTension >= 1 && step % 2 === 1) {
+      const root = this.bassline[Math.floor(step / 2) % this.bassline.length]
+      this.playSynthNode(root * 1.5, 'sawtooth', 0.02, 0.15, time)
+    }
+
+    // Final wave only: double the arpeggio into every step (16ths instead of 8ths)
+    // for a denser, more urgent pulse.
+    if (this.musicTension === 2) {
+      const melFreq = this.melody[(step + 2) % this.melody.length]
+      this.playSynthNode(melFreq, 'triangle', 0.015, 0.08, time)
     }
   }
 
@@ -547,6 +574,135 @@ export class AudioEngine {
         osc.start(t + idx * 0.1)
         osc.stop(t + idx * 0.1 + 0.4)
       })
+    } catch (e) {}
+  }
+
+  // Short two-note rising motif marking the start of a wave.
+  playWaveStart(): void {
+    this.init()
+    if (!this.ctx || !this.enabled) return
+    try {
+      const t = this.ctx.currentTime
+      const shift = this.vary(1, 2)
+      const playTone = (freq: number, delay: number) => {
+        const osc = this.ctx!.createOscillator()
+        const gain = this.ctx!.createGain()
+        osc.connect(gain)
+        gain.connect(this.ctx!.destination)
+
+        osc.type = 'square'
+        osc.frequency.setValueAtTime(freq * shift, t + delay)
+
+        gain.gain.setValueAtTime(this.jitterGain(0.12 * this.sfxVol), t + delay)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.1)
+
+        osc.start(t + delay)
+        osc.stop(t + delay + 0.1)
+      }
+      playTone(220.00, 0)   // A3
+      playTone(293.66, 0.1) // D4
+    } catch (e) {}
+  }
+
+  // Menacing stinger for boss spawn: a descending low sweep plus a dissonant
+  // minor-second pair for extra unease.
+  playBossSpawn(): void {
+    this.init()
+    if (!this.ctx || !this.enabled) return
+    try {
+      const t = this.ctx.currentTime
+      const shift = this.vary(1, 1)
+
+      const sweep = this.ctx.createOscillator()
+      const sweepGain = this.ctx.createGain()
+      sweep.connect(sweepGain)
+      sweepGain.connect(this.ctx.destination)
+
+      sweep.type = 'sawtooth'
+      sweep.frequency.setValueAtTime(110 * shift, t)
+      sweep.frequency.exponentialRampToValueAtTime(55 * shift, t + 0.6)
+
+      sweepGain.gain.setValueAtTime(this.jitterGain(0.25 * this.sfxVol), t)
+      sweepGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.6)
+
+      sweep.start(t)
+      sweep.stop(t + 0.6)
+
+      const playDissonant = (freq: number) => {
+        const osc = this.ctx!.createOscillator()
+        const gain = this.ctx!.createGain()
+        osc.connect(gain)
+        gain.connect(this.ctx!.destination)
+
+        osc.type = 'sawtooth'
+        osc.frequency.setValueAtTime(freq * shift, t)
+
+        gain.gain.setValueAtTime(this.jitterGain(0.12 * this.sfxVol), t)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4)
+
+        osc.start(t)
+        osc.stop(t + 0.4)
+      }
+      playDissonant(233.08) // Bb3
+      playDissonant(246.94) // B3 — a minor second above, deliberately dissonant
+    } catch (e) {}
+  }
+
+  // Bright victory-star chime. Call once per earned star, staggered by the caller
+  // to match the star-slam animation delay.
+  playStar(): void {
+    this.init()
+    if (!this.ctx || !this.enabled) return
+    try {
+      const t = this.ctx.currentTime
+      const shift = this.vary(1, 1)
+      const playTone = (freq: number, vol: number) => {
+        const osc = this.ctx!.createOscillator()
+        const gain = this.ctx!.createGain()
+        osc.connect(gain)
+        gain.connect(this.ctx!.destination)
+
+        osc.type = 'sine'
+        osc.frequency.setValueAtTime(freq * shift, t)
+
+        gain.gain.setValueAtTime(this.jitterGain(vol * this.sfxVol), t)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3)
+
+        osc.start(t)
+        osc.stop(t + 0.3)
+      }
+      playTone(880, 0.15)
+      playTone(1320, 0.08) // overtone
+    } catch (e) {}
+  }
+
+  // Urgent two-beep alarm for a base hit. Throttled to at most one per 400ms
+  // so a burst of leaks doesn't spam beeps on top of each other.
+  playBaseAlarm(): void {
+    this.init()
+    if (!this.ctx || !this.enabled) return
+    const t = this.ctx.currentTime
+    if (t - this.lastBaseAlarmTime < 0.4) return
+    this.lastBaseAlarmTime = t
+    try {
+      const shift = this.vary(1, 1)
+      const playBeep = (delay: number) => {
+        const osc = this.ctx!.createOscillator()
+        const gain = this.ctx!.createGain()
+        osc.connect(gain)
+        gain.connect(this.ctx!.destination)
+
+        osc.type = 'square'
+        osc.frequency.setValueAtTime(660 * shift, t + delay)
+
+        gain.gain.setValueAtTime(this.jitterGain(0.2 * this.sfxVol), t + delay)
+        gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.08)
+
+        osc.start(t + delay)
+        osc.stop(t + delay + 0.08)
+      }
+      playBeep(0)
+      playBeep(0.1)
     } catch (e) {}
   }
 }

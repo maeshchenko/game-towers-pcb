@@ -270,6 +270,7 @@ async function boot() {
     shake.reset() // drop leftover trauma/freeze so they don't bleed into the next level
     hitStop.reset()
     audioEngine.setSlowHum(false) // the ticker stops driving it once game=null — kill the drone here
+    audioEngine.setMusicTension(0) // don't let boss/final-wave tension bleed into the next level
     gsap.killTweensOf(camera) // a mid-flight intro zoom tween must not fight the next level's framing
     renderer.world.rotation = 0 // ticker early-returns without a game, so clear mid-shake tilt here
     editor.enabled = false // freehand trace off — board is generated; canvas drag pans the camera
@@ -324,6 +325,11 @@ async function boot() {
         if (e.type === 'leak') audioEngine.playLeak()
         else if (e.type === 'enemyDied') audioEngine.playEnemyDeath()
         else if (e.type === 'shotFired') audioEngine.playShot(e.kind as any)
+        else if (e.type === 'enemySpawned' && e.kind === 'boss') {
+          // Boss only appears on the final wave in this game, so tension jumps straight to max.
+          audioEngine.playBossSpawn()
+          audioEngine.setMusicTension(2)
+        } else if (e.type === 'baseHit') audioEngine.playBaseAlarm()
       })
       game.events.on((e) => {
         if (e.type === 'baseHit') shake.add(0.35)
@@ -343,6 +349,12 @@ async function boot() {
             return { name: theme.name, color: theme.color, count: entry.count }
           })
           ui.showWaveBanner(e.index + 1, comp)
+          audioEngine.playWaveStart()
+          // Final wave (index 9, i.e. wave 10) carries the boss and ramps tension straight up;
+          // any other wave start resets to normal.
+          audioEngine.setMusicTension(e.index === 9 ? 2 : 0)
+        } else if (e.type === 'waveEnd') {
+          audioEngine.setMusicTension(0)
         }
       })
       selectedTower = null
@@ -831,6 +843,10 @@ async function boot() {
         if (activeCampaignLevelIndex !== null) {
           const res = registerVictory(activeCampaignLevelIndex, score)
           const hasNext = activeCampaignLevelIndex + 1 < CAMPAIGN_LEVELS.length
+          // Chime each earned star in sync with the pcb-star-earned CSS slam delay (0.15s * i).
+          for (let i = 0; i < res.stars; i++) {
+            setTimeout(() => audioEngine.playStar(), i * 150 + 200)
+          }
           ui.showVictoryScreen(
             res.stars,
             score,
