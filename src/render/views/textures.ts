@@ -1,7 +1,7 @@
 // src/render/views/textures.ts
-// Bake each enemy kind's glow+glyph+core into a texture once; sprites batch, Graphics don't.
+// Bake each enemy/projectile kind's visual into a texture once; sprites batch, Graphics don't.
 import { Application, Graphics, Texture } from 'pixi.js'
-import { enemyTheme } from '../theme'
+import { enemyTheme, TOWER_THEME } from '../theme'
 
 // NOTE: duplicated from GameLayers.ts (ENEMY_RADIUS / poly) on purpose — GameLayers dies in
 // Task 10, at which point this becomes the sole owner instead of a copy.
@@ -46,5 +46,31 @@ export function bakeEnemyTexture(app: Application, kind: string): Texture {
   const tex = app.renderer.generateTexture({ target: g, resolution: 2 })
   g.destroy()
   cache.set(kind, tex)
+  return tex
+}
+
+export type ProjectileTexKind = 'cannon' | 'mortar'
+const projectileCache = new Map<ProjectileTexKind, Texture>()
+export function clearProjectileTextureCache(): void { for (const t of projectileCache.values()) t.destroy(true); projectileCache.clear() }
+
+/** Bake a projectile sprite once per kind. Drawn at a positive-offset center (cx,cy) so a
+ * Sprite with anchor(0.5) lands exactly on the drawn center — same convention as bakeEnemyTexture. */
+export function bakeProjectileTexture(app: Application, kind: ProjectileTexKind): Texture {
+  const hit = projectileCache.get(kind)
+  if (hit) return hit
+  const g = new Graphics()
+  if (kind === 'mortar') {
+    const c = TOWER_THEME.mortar.color, w = 8, h = 4, pad = 2
+    const cx = w / 2 + pad, cy = h / 2 + pad
+    g.roundRect(cx - w / 2, cy - h / 2, w, h, h / 2).fill({ color: c }) // 8x4 capsule, points along +x
+  } else {
+    const c = TOWER_THEME.cannon.color, r = 4, pad = 2
+    const cx = r + pad, cy = r + pad
+    g.circle(cx, cy, r).fill({ color: c })
+    g.circle(cx, cy, 1.5).fill({ color: 0xffffff, alpha: 0.9 }) // white core
+  }
+  const tex = app.renderer.generateTexture({ target: g, resolution: 2 })
+  g.destroy()
+  projectileCache.set(kind, tex)
   return tex
 }
