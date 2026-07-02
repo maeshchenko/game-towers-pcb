@@ -7,7 +7,8 @@
     "build": "tsc && vite build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "balance:optimize": "vitest run --config vitest.scripts.config.ts"
+    "balance:optimize": "vitest run scripts/balance-optimize.ts --config vitest.scripts.config.ts",
+    "balance:waves": "vitest run scripts/wave-telemetry.ts --config vitest.scripts.config.ts"
   },
   "dependencies": {
     "gsap": "^3.15.0",

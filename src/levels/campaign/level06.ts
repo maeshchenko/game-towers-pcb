@@ -6,7 +6,7 @@ import { opAmp, ledIndicator, transistorSwitch, passiveBank, railSpine } from '.
 // Long boustrophedon, WIDE lanes (7-row gaps), clear pacing zones (open top → tighter bottom).
 // 2 specials + several builds. Decor fills the wide lane-gaps with op-amps, LEDs and passive banks.
 export function buildLevel06(board: Board): Level {
-  const b = new LevelBuilder(board, 106, { name: 'campaign.level5.name', difficulty: 5, archetype: 'serpentine', tune: { hpMul: 1.00 } })
+  const b = new LevelBuilder(board, 106, { name: 'campaign.level5.name', difficulty: 5, archetype: 'serpentine', tune: { hpMul: 1.20 } })
   b.path([
     [0, 3], [40, 3], [40, 10], [4, 10], [4, 17], [40, 17], [40, 24], [4, 24], [4, 30], [43, 30],
   ])

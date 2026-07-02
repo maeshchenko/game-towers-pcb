@@ -7,7 +7,7 @@ describe('stat tables', () => {
     const kinds = ['normal','fast','tank','rogue','brute','healer','boss'] as const
     for (const k of kinds) { expect(ENEMY_DEFS[k].hp).toBeGreaterThan(0); expect(ENEMY_DEFS[k].speed).toBeGreaterThan(0) }
     expect(ENEMY_DEFS.tank.armor).toBe(6)
-    expect(ENEMY_DEFS.boss.leak).toBe(8)
+    expect(ENEMY_DEFS.boss.leak).toBe(6)
   })
   it('has 5 tower kinds each with 3 levels and ascending cost-effect', () => {
     const kinds = ['cannon','slow','sniper','mortar','tesla'] as const

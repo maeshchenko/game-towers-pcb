@@ -7,5 +7,5 @@ export const ENEMY_DEFS: Record<EnemyKind, EnemyDef> = {
   rogue: { kind: 'rogue', hp: 15, speed: 6.0, bounty: 3, armor: 0, leak: 1 },
   brute: { kind: 'brute', hp: 400, speed: 1.3, bounty: 22, armor: 0, leak: 3 },
   healer: { kind: 'healer', hp: 90, speed: 1.8, bounty: 20, armor: 0, leak: 2 },
-  boss: { kind: 'boss', hp: 2600, speed: 0.9, bounty: 140, armor: 6, leak: 8 },
+  boss: { kind: 'boss', hp: 1800, speed: 1.1, bounty: 140, armor: 4, leak: 6 },
 }
