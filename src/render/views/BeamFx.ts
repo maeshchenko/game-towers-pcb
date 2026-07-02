@@ -20,7 +20,7 @@ export class BeamFx {
   private g = new Graphics()
   private unsub: () => void
 
-  constructor(layer: Container, events: EventBus) {
+  constructor(layer: Container, events: EventBus, private pitch: number) {
     layer.addChild(this.g)
     this.unsub = events.on((e) => this.onEvent(e))
   }
@@ -71,8 +71,7 @@ export class BeamFx {
   private drawImpact(g: Graphics, f: ImpactRecord): void {
     const a = Math.min(1, f.ttl / FX_TTL)
     const col = TOWER_THEME[f.kind].color
-    const pitch = 30 // world pitch px (see healer rangePx comment convention)
-    const r = (f.splashRadius ?? 0) * pitch * (1 - a) // ring grows outward as the FX fades
+    const r = (f.splashRadius ?? 0) * this.pitch * (1 - a) // ring grows outward as the FX fades
     g.circle(f.pos.x, f.pos.y, r).stroke({ color: col, width: 2, alpha: a })
   }
 

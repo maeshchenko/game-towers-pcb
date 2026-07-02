@@ -9,6 +9,7 @@ import { EnemyViews } from './views/EnemyViews'
 import { TowerViews } from './views/TowerViews'
 import { ProjectileViews } from './views/ProjectileViews'
 import { BeamFx } from './views/BeamFx'
+import { ParticleSystem } from './juice/Particles'
 
 export class GameView {
   private enemies: EnemyViews
@@ -16,12 +17,15 @@ export class GameView {
   private projectiles: ProjectileViews
   private beams: BeamFx
   private time = 0
+  // Public so later tasks (4/6/8) can subscribe sim events to bursts through GameView.
+  readonly particles: ParticleSystem
 
   constructor(app: Application, layers: Renderer['layers'], private game: Game) {
     this.enemies = new EnemyViews(app, layers.game)
     this.towers = new TowerViews(layers.game)
-    this.projectiles = new ProjectileViews(app, layers.projectiles)
-    this.beams = new BeamFx(layers.projectiles, game.events)
+    this.projectiles = new ProjectileViews(app, layers.projectiles, game.pitch)
+    this.beams = new BeamFx(layers.projectiles, game.events, game.pitch)
+    this.particles = new ParticleSystem(app, layers.particles)
   }
 
   update(dtSec: number, selected: Tower | null): void {
@@ -30,6 +34,7 @@ export class GameView {
     this.enemies.sync(this.game.enemies(), this.time)
     this.projectiles.sync(this.game.projectiles)
     this.beams.update(dtSec)
+    this.particles.update(dtSec)
   }
 
   destroy(): void {
@@ -37,5 +42,6 @@ export class GameView {
     this.towers.destroy()
     this.projectiles.destroy()
     this.beams.destroy()
+    this.particles.destroy()
   }
 }

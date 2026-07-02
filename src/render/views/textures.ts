@@ -53,6 +53,34 @@ export type ProjectileTexKind = 'cannon' | 'mortar'
 const projectileCache = new Map<ProjectileTexKind, Texture>()
 export function clearProjectileTextureCache(): void { for (const t of projectileCache.values()) t.destroy(true); projectileCache.clear() }
 
+// Particle shapes are baked WHITE and colored later via per-particle tint — this way all
+// particles of a given shape share one texture (and thus one ParticleContainer, required by
+// pixi v8's "single TextureSource per container" constraint) regardless of burst color.
+export type ParticleShape = 'dot' | 'spark' | 'shard'
+const particleCache = new Map<ParticleShape, Texture>()
+export function clearParticleTextureCache(): void { for (const t of particleCache.values()) t.destroy(true); particleCache.clear() }
+
+export function bakeParticleTexture(app: Application, shape: ParticleShape): Texture {
+  const hit = particleCache.get(shape)
+  if (hit) return hit
+  const g = new Graphics()
+  switch (shape) {
+    case 'dot':
+      g.circle(4, 4, 4).fill({ color: 0xffffff })
+      break
+    case 'spark':
+      g.roundRect(0, 1, 6, 2, 1).fill({ color: 0xffffff })
+      break
+    case 'shard':
+      g.poly([4, 0, 8, 8, 0, 8]).fill({ color: 0xffffff })
+      break
+  }
+  const tex = app.renderer.generateTexture({ target: g, resolution: 2 })
+  g.destroy()
+  particleCache.set(shape, tex)
+  return tex
+}
+
 /** Bake a projectile sprite once per kind. Drawn at a positive-offset center (cx,cy) so a
  * Sprite with anchor(0.5) lands exactly on the drawn center — same convention as bakeEnemyTexture. */
 export function bakeProjectileTexture(app: Application, kind: ProjectileTexKind): Texture {

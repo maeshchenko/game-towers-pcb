@@ -23,7 +23,7 @@ export class ProjectileViews {
   // Pooled per kind: a pooled view holds a kind-specific baked texture that is never
   // reassigned, so views must only be reused for a projectile of the same kind.
   private poolByKind = new Map<string, ProjectileView[]>()
-  constructor(private app: Application, private layer: Container) {}
+  constructor(private app: Application, private layer: Container, private pitch: number) {}
 
   sync(projectiles: Projectile[]): void {
     const live = new Set<Projectile>()
@@ -42,8 +42,7 @@ export class ProjectileViews {
       v.lastPos.x = p.pos.x; v.lastPos.y = p.pos.y
       if (p.kind === 'mortar') {
         const t = p.progress
-        const pitch = 30 // world pitch px (see healer rangePx comment convention); arc visual only
-        const arcH = 0.35 * pitch * 4 * t * (1 - t)
+        const arcH = 0.35 * this.pitch * 4 * t * (1 - t) // arc visual only, sim stays flat/2D
         v.sprite.position.set(p.pos.x, p.pos.y - arcH)
       } else {
         v.sprite.position.set(p.pos.x, p.pos.y)
