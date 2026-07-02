@@ -31,7 +31,7 @@ describe('campaign', () => {
   })
 
   it('saves and loads progress', () => {
-    const custom = { unlockedLevelIndex: 3, stars: { 0: 3, 1: 2 }, highscores: { 0: 20, 1: 12 }, tutorialCompleted: true, seenIntroductions: {} }
+    const custom = { unlockedLevelIndex: 3, stars: { 0: 3, 1: 2 }, highscores: { 0: 20, 1: 12 }, tutorialCompleted: true, seenIntroductions: {}, storyIntroSeen: false, storyBriefSeen: {} }
     saveProgress(custom)
     const loaded = loadProgress()
     expect(loaded).toEqual(custom)

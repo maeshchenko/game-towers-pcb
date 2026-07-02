@@ -20,6 +20,10 @@ export interface PlayerProgress {
   highscores: Record<number, number>  // levelIndex -> highscore (remaining lives)
   tutorialCompleted?: boolean
   seenIntroductions?: Record<string, boolean>
+  /** POST-intro terminal log shown before the first campaign level (index 0). */
+  storyIntroSeen?: boolean
+  /** Per-level pre-level briefing, keyed by campaign level index. */
+  storyBriefSeen?: Record<number, boolean>
 }
 
 export const CAMPAIGN_LEVELS: CampaignLevelDef[] = [
@@ -55,6 +59,8 @@ export function loadProgress(): PlayerProgress {
             highscores: parsed.highscores || {},
             tutorialCompleted: parsed.tutorialCompleted || false,
             seenIntroductions: parsed.seenIntroductions || {},
+            storyIntroSeen: parsed.storyIntroSeen || false,
+            storyBriefSeen: parsed.storyBriefSeen || {},
           }
         }
       }
@@ -62,7 +68,7 @@ export function loadProgress(): PlayerProgress {
   } catch (err) {
     console.error('Failed to load campaign progress:', err)
   }
-  return { unlockedLevelIndex: 0, stars: {}, highscores: {}, tutorialCompleted: false, seenIntroductions: {} }
+  return { unlockedLevelIndex: 0, stars: {}, highscores: {}, tutorialCompleted: false, seenIntroductions: {}, storyIntroSeen: false, storyBriefSeen: {} }
 }
 
 export function saveProgress(progress: PlayerProgress): void {

@@ -585,7 +585,7 @@ export class GameUI {
     }, 1600)
   }
 
-  showVictoryScreen(stars: number | null, score: number, onNext: (() => void) | null, onRetry: () => void, onMenu: () => void): void {
+  showVictoryScreen(stars: number | null, score: number, onNext: (() => void) | null, onRetry: () => void, onMenu: () => void, debrief?: string): void {
     this.overlay.style.display = 'flex'
     this.overlay.className = 'pcb-game-overlay victory'
 
@@ -603,6 +603,7 @@ export class GameUI {
         </div>
       `
     }
+    const debriefHtml = debrief ? `<div class="pcb-victory-debrief">${debrief}</div>` : ''
 
     this.overlay.innerHTML = `
       <div class="pcb-overlay-card">
@@ -610,6 +611,7 @@ export class GameUI {
         <h3 class="status-glow">${i18n.t('result.victory_subtitle')}</h3>
         ${starsHtml}
         <div class="pcb-overlay-score">${i18n.t('result.saved_lives')}: ❤${score}</div>
+        ${debriefHtml}
         <div class="pcb-overlay-actions">
           ${onNext ? `<button class="pcb-hud-btn active next-btn">${i18n.t('result.next_level')}</button>` : ''}
           <button class="pcb-hud-btn retry-btn">${i18n.t('result.retry')}</button>

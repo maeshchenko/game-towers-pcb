@@ -19,6 +19,8 @@ import { levelPaths } from './model/level'
 import type { Tower } from './game/Tower'
 import { CampaignMenu } from './ui/CampaignMenu'
 import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial, saveProgress } from './game/campaign'
+import { StoryScreen } from './ui/StoryScreen'
+import { CAMPAIGN_STORY } from './story/campaignStory'
 import { TutorialOverlay } from './ui/TutorialOverlay'
 import { audioEngine } from './ui/AudioEngine'
 import { i18n } from './ui/i18n'
@@ -528,6 +530,54 @@ async function boot() {
   const gameBar = ui.mountHud()
   ui.setAutoWave(autoWaveEnabled)
 
+  // Shared campaign-story overlay (POST-intro, per-level briefings, final log). One instance
+  // reused across the whole session — show() tears down any previous run before mounting.
+  const storyScreen = new StoryScreen()
+
+  // Queues up the POST-intro (level 0 only, once) and the per-level briefing (once per level),
+  // then calls onDone. Progress flags are re-read/saved around each step so a mid-queue reload
+  // can't lose the "seen" mark. No-ops straight to onDone once everything for this level is seen.
+  function showStoryFor(index: number, onDone: () => void): void {
+    const showBrief = () => {
+      const progress = loadProgress()
+      if (progress.storyBriefSeen?.[index]) {
+        onDone()
+        return
+      }
+      const story = CAMPAIGN_STORY.levels[index]
+      if (!story) {
+        onDone()
+        return
+      }
+      const title = `${i18n.t('story.brief.title')} ${String(index + 1).padStart(2, '0')}`
+      storyScreen.show(story.brief, {
+        title,
+        onDone: () => {
+          const p = loadProgress()
+          if (!p.storyBriefSeen) p.storyBriefSeen = {}
+          p.storyBriefSeen[index] = true
+          saveProgress(p)
+          onDone()
+        },
+      })
+    }
+
+    const progress = loadProgress()
+    if (index === 0 && !progress.storyIntroSeen) {
+      storyScreen.show(CAMPAIGN_STORY.intro, {
+        title: i18n.t('story.intro.title'),
+        onDone: () => {
+          const p = loadProgress()
+          p.storyIntroSeen = true
+          saveProgress(p)
+          showBrief()
+        },
+      })
+    } else {
+      showBrief()
+    }
+  }
+
   campaignMenu = new CampaignMenu({
     onSelectLevel: (index) => {
       audioEngine.init()
@@ -541,17 +591,21 @@ async function boot() {
       loadAuthoredOrGenerated(index)
       setMode('play')
 
-      if (index === 0) {
-        activeTutorial = new TutorialOverlay()
-        setTimeout(() => {
-          runTutorialStep(0)
-        }, 100)
-      } else {
-        if (activeTutorial) {
-          activeTutorial.destroy()
-          activeTutorial = null
+      // Tutorial only ever runs for level 0, and must start after the story overlay closes
+      // (it points at on-canvas spots, which the fullscreen story overlay would sit on top of).
+      showStoryFor(index, () => {
+        if (index === 0) {
+          activeTutorial = new TutorialOverlay()
+          setTimeout(() => {
+            runTutorialStep(0)
+          }, 100)
+        } else {
+          if (activeTutorial) {
+            activeTutorial.destroy()
+            activeTutorial = null
+          }
         }
-      }
+      })
     }
   })
 
@@ -858,27 +912,45 @@ async function boot() {
           for (let i = 0; i < res.stars; i++) {
             setTimeout(() => audioEngine.playStar(), i * 150 + 200)
           }
-          ui.showVictoryScreen(
-            res.stars,
-            score,
-            hasNext ? () => {
-              ui.closeOverlay()
-              activeCampaignLevelIndex!++
-              loadAuthoredOrGenerated(activeCampaignLevelIndex!)
-              setMode('play')
-            } : null,
-            () => {
-              ui.closeOverlay()
-              loadAuthoredOrGenerated(activeCampaignLevelIndex!)
-              setMode('play')
-            },
-            () => {
-              ui.closeOverlay()
-              resetPlay()
-              activeCampaignLevelIndex = null
-              campaignMenu.show()
-            }
-          )
+          const st = CAMPAIGN_STORY.levels[activeCampaignLevelIndex] ?? null
+          const debrief = st ? i18n.t(st.debriefKey as any) : undefined
+          const isFinalLevel = activeCampaignLevelIndex === 11
+
+          const openVictoryScreen = () => {
+            ui.showVictoryScreen(
+              res.stars,
+              score,
+              hasNext ? () => {
+                ui.closeOverlay()
+                activeCampaignLevelIndex!++
+                loadAuthoredOrGenerated(activeCampaignLevelIndex!)
+                setMode('play')
+              } : null,
+              () => {
+                ui.closeOverlay()
+                loadAuthoredOrGenerated(activeCampaignLevelIndex!)
+                setMode('play')
+              },
+              () => {
+                ui.closeOverlay()
+                resetPlay()
+                activeCampaignLevelIndex = null
+                campaignMenu.show()
+              },
+              debrief
+            )
+          }
+
+          if (isFinalLevel) {
+            // The finale replaces the usual per-level debrief with the full-screen final log
+            // (twist reveal) — the ordinary victory screen only appears once it's closed.
+            storyScreen.show(CAMPAIGN_STORY.final, {
+              title: i18n.t('story.final.title'),
+              onDone: openVictoryScreen,
+            })
+          } else {
+            openVictoryScreen()
+          }
         } else {
           ui.showVictoryScreen(
             null,

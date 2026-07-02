@@ -123,6 +123,7 @@
   100% { transform: translateX(-50%) translateY(-10px); opacity: 0; }
 }
 .pcb-overlay-score { color: #6f8f7e; font-size: 13px; margin-bottom: 30px; }
+.pcb-victory-debrief { color: #4a7a5e; font-size: 11px; font-family: monospace; letter-spacing: 0.5px; line-height: 1.5em; margin: -20px 0 22px; }
 .pcb-overlay-actions { display: flex; flex-direction: column; gap: 10px; }
 .pcb-overlay-actions button { width: 100%; font-size: 13px; padding: 10px; font-weight: bold; }
 

@@ -136,6 +136,9 @@ const TRANSLATIONS = {
     // (a single space, rendered as an empty terminal line between paragraphs).
     'story.blank': ' ',
     'story.continue': 'ПРОДОЛЖИТЬ',
+    'story.intro.title': 'СДКС «ВЕГА-9» · ВХОДЯЩАЯ НЕСУЩАЯ',
+    'story.brief.title': 'ЖУРНАЛ СМЕНЫ · ЗАПИСЬ',
+    'story.final.title': 'ПЕРЕДАЧА ЗАБЛОКИРОВАНА',
 
     'story.intro.1': 'СДКС «ВЕГА-9» · ПОСТ-ПРОВЕРКА………………… OK',
     'story.intro.2': 'ПРИЁМНЫЙ ТРАКТ………………………………………… OK',
@@ -392,6 +395,9 @@ const TRANSLATIONS = {
     // (a single space, rendered as an empty terminal line between paragraphs).
     'story.blank': ' ',
     'story.continue': 'CONTINUE',
+    'story.intro.title': 'DSCS VEGA-9 · INBOUND CARRIER',
+    'story.brief.title': 'SHIFT LOG · ENTRY',
+    'story.final.title': 'TRANSMISSION BLOCKED',
 
     'story.intro.1': 'DSCS VEGA-9 · POWER-ON SELF TEST………… OK',
     'story.intro.2': 'RECEIVER CHAIN……………………………………… OK',
