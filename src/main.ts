@@ -9,7 +9,7 @@ import { MAP_PRESETS } from './app/viewport'
 
 const PITCH_PX = 30 // fixed cell size → bigger board = bigger track on screen (pan to navigate)
 import { mountToolbar, levelToBlobUrl, readLevelFile, retranslateToolbar } from './ui/Toolbar'
-import { mountPanels, updateLevelName, retranslatePanels } from './ui/Panels'
+import { mountPanels, updateLevelName, retranslatePanels, showTipsPanel } from './ui/Panels'
 import { Game } from './game/Game'
 import { generateBalancedLevel } from './game/balance'
 import { GameView } from './render/GameView'
@@ -330,6 +330,7 @@ async function boot() {
 
   function ensureGame() {
     if (!game && editor.state.level) {
+      showTipsPanel() // tips dismissal is per-level: they return on every new level entry
       game = new Game(editor.state.level, ++seedCounter)
       gameView?.destroy() // defensive: resetPlay normally clears it, this guards any future path that skips it
       gameView = new GameView(app, renderer, game)
