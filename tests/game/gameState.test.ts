@@ -1,5 +1,43 @@
 import { describe, it, expect } from 'vitest'
 import { GameState } from '../../src/game/GameState'
+import { WaveManager } from '../../src/game/WaveManager'
+
+describe('endless mode', () => {
+  it('never transitions to win; waves keep counting past waveCount', () => {
+    const s = new GameState(1, 2)
+    s.endless = true
+    for (let w = 0; w < 5; w++) { s.startWave(); s.endWave() }
+    expect(s.phase).toBe('build')
+    expect(s.wave).toBe(5) // far past waveCount=2, still going
+  })
+  it('endless waves synthesize HARDER: counts grow, elites join, bosses every 5th', () => {
+    const p = [{ x: 0, y: 0 }, { x: 500, y: 0 }]
+    const script = [[{ kind: 'normal' as const, count: 6, interval: 1 }]]
+    const wm = new WaveManager([p], script, 1, 50, 1, 9)
+    const w12 = wm.peek(12)  // over = 12
+    const w20 = wm.peek(20)  // over = 20
+    const total = (w: typeof w12) => w.filter((g) => !g.mix).reduce((s2, g) => s2 + g.count, 0)
+    expect(total(w12)).toBeGreaterThan(6)          // template counts scaled up
+    expect(total(w20)).toBeGreaterThan(total(w12)) // and keep growing
+    expect(w12.some((g) => g.mix)).toBe(true)      // elite mixed squad joined
+    expect(wm.peek(14).some((g) => g.kind === 'boss')).toBe(true) // i%5===4 → boss
+    expect(wm.peek(0)).toEqual(script[0])          // scripted waves untouched
+  })
+
+  it('WaveManager wraps the script while the hp ramp compounds from the real index', () => {
+    const p = [{ x: 0, y: 0 }, { x: 500, y: 0 }]
+    const wm = new WaveManager([p], [[{ kind: 'normal', count: 1, interval: 0.1 }]], 1, 50, 1, 5)
+    wm.startWave(0)
+    let guard = 0
+    while (wm.active.length === 0 && guard++ < 100) wm.update(0.1)
+    const hpWave0 = wm.active[0].maxHp
+    wm.startWave(10) // wraps to the same script entry…
+    guard = 0
+    while (wm.active.length < 2 && guard++ < 100) wm.update(0.1)
+    const hpWave10 = wm.active[1].maxHp
+    expect(hpWave10).toBeGreaterThan(hpWave0) // …but the ramp kept compounding
+  })
+})
 
 describe('GameState', () => {
   it('starts in build with gold/lives', () => {

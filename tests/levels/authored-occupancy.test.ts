@@ -121,5 +121,24 @@ describe('authored levels: copper and decor stay off tower spots', () => {
         }
       }
     })
+
+    it(`level ${n}: no two decor footprints overlap (user rule: no part stamped on another)`, () => {
+      const lvl = build(boards[i])
+      const seen = new Map<string, string>()
+      for (const it2 of lvl.decor) {
+        const fp = footprintCells(it2.kind, it2.variant, it2.rot)
+        for (let dx = 0; dx < fp.w; dx++) {
+          for (let dy = 0; dy < fp.h; dy++) {
+            const key = `${it2.cell[0] + dx},${it2.cell[1] + dy}`
+            const owner = seen.get(key)
+            expect(
+              owner,
+              `level ${n}: decor ${it2.kind}@${it2.cell[0]},${it2.cell[1]} overlaps ${owner} at cell ${key}`,
+            ).toBeUndefined()
+            seen.set(key, `${it2.kind}@${it2.cell[0]},${it2.cell[1]}`)
+          }
+        }
+      }
+    })
   })
 })

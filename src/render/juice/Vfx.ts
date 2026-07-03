@@ -3,32 +3,55 @@
 // overlay on the whole stage (gated by reducedFx — cheap flag flip in update()), and two transient
 // hit-feedback effects: a red edge-vignette flash (drawn into the screen-space vfxOverlay so camera
 // shake/zoom never distorts it) and a brief RGB-split pulse on the world container. Transients are
-// no-ops when reducedFx is on; the bloom stays (it's static, not motion-sensitive).
-import { Application, Container, Graphics } from 'pixi.js'
+// no-ops when reducedFx is on; bloom is gated too (it's the single most expensive filter on
+// mobile GPUs — two render-to-texture passes per frame).
+import { Application, Container, Sprite, Texture } from 'pixi.js'
 import { AdvancedBloomFilter, CRTFilter, RGBSplitFilter } from 'pixi-filters'
 import { juice } from './motion'
 
-const VIGNETTE_DURATION = 0.15 // s, alpha 0.5 -> 0
-const VIGNETTE_THICKNESS = 60 // px, edge-band width
-const VIGNETTE_COLOR = 0xff2020
-const VIGNETTE_ALPHA = 0.5
+const VIGNETTE_DURATION = 0.25 // s, alpha 0.6 -> 0
+const VIGNETTE_ALPHA = 0.6
 
 const RGB_SPLIT_DURATION = 0.12 // s, offset 3px -> 0
 const RGB_SPLIT_OFFSET = 3
 
+/** Radial hurt-gradient baked once into a canvas texture: soft red bleeding in from the
+ * edges instead of four flat debug-looking bars. Falls back to a 1px texture when no 2D
+ * context exists (headless tests). */
+function makeVignetteTexture(): Texture {
+  const c = document.createElement('canvas')
+  c.width = c.height = 256
+  const ctx = c.getContext('2d')
+  if (!ctx) return Texture.WHITE
+  const g = ctx.createRadialGradient(128, 128, 64, 128, 128, 132)
+  g.addColorStop(0, 'rgba(255,32,32,0)')
+  g.addColorStop(0.65, 'rgba(255,32,32,0.25)')
+  g.addColorStop(1, 'rgba(255,32,32,0.9)')
+  ctx.fillStyle = g
+  ctx.fillRect(0, 0, 256, 256)
+  return Texture.from(c)
+}
+
 export class Vfx {
-  private readonly bloom = new AdvancedBloomFilter({ threshold: 0.5, bloomScale: 0.8, quality: 4 })
+  // resolution 0.5 (set post-construction — not in the options type): bloom is a blur,
+  // half-res is visually identical and ~4× cheaper.
+  private readonly bloom = (() => {
+    const f = new AdvancedBloomFilter({ threshold: 0.5, bloomScale: 0.8, quality: 3 })
+    f.resolution = 0.5
+    return f
+  })()
   private readonly crt = new CRTFilter({ lineWidth: 1, lineContrast: 0.08, vignetting: 0.25 })
   private readonly rgbSplit = new RGBSplitFilter()
-  private readonly vignette = new Graphics()
+  private readonly vignette: Sprite
 
   private crtActive = false
+  private bloomActive = false
   private crtTime = 0
   // Both timers start "finished" so the effects are inert until a transient method fires them.
   private vignetteT = VIGNETTE_DURATION
   private rgbSplitT = RGB_SPLIT_DURATION
 
-  private readonly onResize = () => this.drawVignette()
+  private readonly onResize = () => this.layoutVignette()
 
   constructor(
     private readonly app: Application,
@@ -36,21 +59,20 @@ export class Vfx {
     private readonly overlay: Container,
     private readonly bloomLayers: Container[],
   ) {
-    for (const layer of bloomLayers) layer.filters = [this.bloom]
-
+    this.vignette = new Sprite(makeVignetteTexture())
     this.vignette.visible = false
     this.overlay.addChild(this.vignette)
-    this.drawVignette()
+    this.layoutVignette()
     this.app.renderer.on('resize', this.onResize)
   }
 
   update(dt: number): void {
-    this.updateCrtGate(dt)
+    this.updateFilterGates(dt)
     this.updateVignette(dt)
     this.updateRgbSplit(dt)
   }
 
-  /** Red edge-vignette flash: alpha 0.5 -> 0 over VIGNETTE_DURATION. No-op when reducedFx. */
+  /** Red edge-vignette flash: alpha 0.6 -> 0 over VIGNETTE_DURATION. No-op when reducedFx. */
   flashVignette(): void {
     if (juice.reducedFx) return
     this.vignetteT = 0
@@ -73,13 +95,21 @@ export class Vfx {
     this.vignette.destroy()
   }
 
-  private updateCrtGate(dt: number): void {
+  private updateFilterGates(dt: number): void {
+    // CRT + bloom follow the reducedFx flag live (settings toggle mid-game must apply).
     if (juice.reducedFx && this.crtActive) {
       this.app.stage.filters = null
       this.crtActive = false
     } else if (!juice.reducedFx && !this.crtActive) {
       this.app.stage.filters = [this.crt]
       this.crtActive = true
+    }
+    if (juice.reducedFx && this.bloomActive) {
+      for (const layer of this.bloomLayers) layer.filters = null
+      this.bloomActive = false
+    } else if (!juice.reducedFx && !this.bloomActive) {
+      for (const layer of this.bloomLayers) layer.filters = [this.bloom]
+      this.bloomActive = true
     }
     if (this.crtActive) {
       this.crtTime += dt
@@ -90,8 +120,8 @@ export class Vfx {
   private updateVignette(dt: number): void {
     if (this.vignetteT >= VIGNETTE_DURATION) return
     this.vignetteT = Math.min(VIGNETTE_DURATION, this.vignetteT + dt)
-    const alpha = VIGNETTE_ALPHA * (1 - this.vignetteT / VIGNETTE_DURATION)
-    this.vignette.alpha = alpha
+    const k = 1 - this.vignetteT / VIGNETTE_DURATION
+    this.vignette.alpha = VIGNETTE_ALPHA * k * k // ease-out: linger then fade
     if (this.vignetteT >= VIGNETTE_DURATION) this.vignette.visible = false
   }
 
@@ -104,15 +134,8 @@ export class Vfx {
     if (this.rgbSplitT >= RGB_SPLIT_DURATION) this.world.filters = null
   }
 
-  // Redrawn on resize (app.renderer 'resize' event) so the edge band always matches the screen.
-  private drawVignette(): void {
-    const w = this.app.screen.width
-    const h = this.app.screen.height
-    const t = VIGNETTE_THICKNESS
-    this.vignette.clear()
-    this.vignette.rect(0, 0, w, t).fill(VIGNETTE_COLOR)
-    this.vignette.rect(0, h - t, w, t).fill(VIGNETTE_COLOR)
-    this.vignette.rect(0, t, t, h - t * 2).fill(VIGNETTE_COLOR)
-    this.vignette.rect(w - t, t, t, h - t * 2).fill(VIGNETTE_COLOR)
+  private layoutVignette(): void {
+    this.vignette.width = this.app.screen.width
+    this.vignette.height = this.app.screen.height
   }
 }

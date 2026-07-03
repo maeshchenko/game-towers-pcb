@@ -205,11 +205,39 @@ export class WaveManager {
   get active(): Enemy[] { return this._active }
   get spawning(): boolean { return this.queue.length > 0 }
   get waveCount(): number { return this.waves.length }
-  peek(i: number): WaveEntry[] { return this.waves[i] ?? [] }
+  /** Endless support: past the scripted waves each round is SYNTHESIZED from its template —
+   * counts grow, spawn gaps shrink, an elite mixed squad joins from +2, an extra boss every
+   * 5th wave — on top of the HP ramp that keeps compounding from the real index. Endless must
+   * demand real tactics, not replay the same soft waves forever (user requirement). */
+  private resolveWave(i: number): WaveEntry[] {
+    const base = this.waves[i % this.waves.length] ?? []
+    if (i < this.waves.length) return base
+    const over = i - this.waves.length + 1 // 1, 2, 3, …
+    const countMul = 1 + over * 0.18
+    const squeeze = Math.pow(0.96, over)
+    const out: WaveEntry[] = base.map((g) => ({
+      ...g,
+      count: Math.max(1, Math.round(g.count * countMul)),
+      interval: Math.max(0.2, g.interval * squeeze),
+      delay: g.delay !== undefined ? Math.max(2, Math.round(g.delay * squeeze)) : undefined,
+    }))
+    if (over >= 2) {
+      out.push({
+        kind: 'tank', count: Math.min(14, 2 + over), interval: 1.1, delay: 6, jitter: 0.4,
+        mix: { tank: 3, brute: 2, shielded: 2, carrier: 1 },
+      })
+    }
+    if (i % 5 === 4) {
+      out.push({ kind: 'boss', count: 1 + Math.floor(over / 8), interval: 5, delay: 10 })
+    }
+    return out
+  }
+
+  peek(i: number): WaveEntry[] { return this.resolveWave(i) }
 
   startWave(i: number): void {
     this.currentWave = i
-    const w = this.waves[i] ?? []
+    const w = this.resolveWave(i)
     // timer starts at the group's phase delay; the first enemy spawns the moment it hits 0.
     this.queue = w.map((g) => ({ kind: g.kind, interval: g.interval, remaining: g.count, timer: g.delay ?? 0, pathIndex: g.pathIndex, mix: g.mix, jitter: g.jitter }))
   }

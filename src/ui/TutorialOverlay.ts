@@ -5,6 +5,8 @@ import { mountUi } from './uiRoot'
 export class TutorialOverlay {
   private bubble: HTMLElement | null = null
   private spotlight: HTMLElement | null = null
+  /** Wired by main.ts: a veteran must be able to bail out of the guided intro at any step. */
+  onSkip: (() => void) | null = null
 
   constructor() {}
 
@@ -40,11 +42,16 @@ export class TutorialOverlay {
 
     this.bubble!.innerHTML = `
       <p style="margin: 0 0 10px 0; line-height: 1.4;">${text}</p>
-      ${onNext ? `<div style="display: flex; justify-content: flex-end;"><button class="pcb-hud-btn active">${i18n.t('tutorial.next')}</button></div>` : ''}
+      <div style="display: flex; justify-content: space-between; align-items: center;">
+        <button class="pcb-tutorial-skip">${i18n.t('tutorial.skip')}</button>
+        ${onNext ? `<button class="pcb-hud-btn active tutorial-next">${i18n.t('tutorial.next')}</button>` : '<span></span>'}
+      </div>
     `
     if (onNext) {
-      (this.bubble!.querySelector('button') as HTMLButtonElement).onclick = onNext
+      (this.bubble!.querySelector('.tutorial-next') as HTMLButtonElement).onclick = onNext
     }
+    const skip = this.bubble!.querySelector('.pcb-tutorial-skip') as HTMLButtonElement
+    skip.onclick = () => this.onSkip?.()
 
     // Position spotlight
     this.spotlight!.style.display = 'block'

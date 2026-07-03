@@ -33,15 +33,23 @@ function poly(g: Graphics, cx: number, cy: number, r: number, sides: number, rot
 function drawTower(g: Graphics, t: Tower, pitch: number): void {
   const x = 0, y = 0
   const th = TOWER_THEME[t.kind], c = th.color
-  const s = Math.max(11, pitch * 0.55), ic = s * 0.5, pinW = Math.max(2, s * 0.18)
+  const maxed = t.level >= t.maxLevel
+  // Tier is readable at a glance: the chip grows ~7% per level and the top tier goes white-gold.
+  const s = Math.max(11, pitch * 0.55) * (1 + t.level * 0.07)
+  const ic = s * 0.5, pinW = Math.max(2, s * 0.18)
+  const pinColor = maxed ? 0xfff2c9 : PALETTE.padGold // white-gold pins on the specialized tier
   g.roundRect(x - s - 3, y - s - 3, (s + 3) * 2, (s + 3) * 2, 4).fill({ color: PALETTE.substrate, alpha: 0.9 }) // small mask: hide the bracket under the chip (don't cover the path)
-  g.circle(x, y, s + 5).fill({ color: c, alpha: 0.14 })                          // soft glow
+  g.circle(x, y, s + 5).fill({ color: c, alpha: maxed ? 0.22 : 0.14 })           // soft glow
   g.roundRect(x - s + 1, y - s + 2, s * 2, s * 2, 3).fill({ color: 0x000000, alpha: 0.5 }) // shadow
   g.roundRect(x - s, y - s, s * 2, s * 2, 3).fill({ color: 0x16202b })           // navy IC body
   g.roundRect(x - s, y - s, s * 2, s * 0.4, 3).fill({ color: 0xffffff, alpha: 0.06 })
+  // Tier rings: one neon outline from L2, a second at L3, gold accents at the branch tier.
+  if (t.level >= 1) g.roundRect(x - s - 1.5, y - s - 1.5, s * 2 + 3, s * 2 + 3, 4).stroke({ color: c, width: 1, alpha: 0.4 })
+  if (t.level >= 2) g.roundRect(x - s - 3.5, y - s - 3.5, s * 2 + 7, s * 2 + 7, 5).stroke({ color: c, width: 1, alpha: 0.25 })
+  if (maxed) g.roundRect(x - s - 5.5, y - s - 5.5, s * 2 + 11, s * 2 + 11, 6).stroke({ color: 0xf0c43a, width: 1.2, alpha: 0.5 })
   for (let i = 0; i < 4; i++) {                                                  // gold pin rows (top+bottom)
     const px = x - s + s * 0.4 + i * (s * 0.5)
-    g.rect(px, y - s - pinW, pinW, pinW).fill({ color: PALETTE.padGold }); g.rect(px, y + s, pinW, pinW).fill({ color: PALETTE.padGold })
+    g.rect(px, y - s - pinW, pinW, pinW).fill({ color: pinColor }); g.rect(px, y + s, pinW, pinW).fill({ color: pinColor })
   }
   // neon function icon (sized to the chip)
   if (th.icon === 'rings') { g.circle(x, y, ic).stroke({ color: c, width: 2 }); g.circle(x, y, ic * 0.4).fill({ color: c }) }
@@ -50,19 +58,25 @@ function drawTower(g: Graphics, t: Tower, pitch: number): void {
   else if (th.icon === 'triangle') { poly(g, x, y, ic * 1.15, 3, -Math.PI / 2); g.fill({ color: c }) }
   else { const u = ic / 6; g.moveTo(x - 2 * u, y - 6 * u).lineTo(x + 3 * u, y - u).lineTo(x - u, y).lineTo(x + 2 * u, y + 6 * u).lineTo(x - 4 * u, y - u).lineTo(x, y).closePath().fill({ color: c }) } // bolt
   g.circle(x, y, Math.max(1.5, s * 0.13)).fill({ color: 0xffffff, alpha: 0.9 })  // hot core
-  for (let i = 0; i <= t.level; i++) g.rect(x - s + 3 + i * (s * 0.35), y - s - pinW * 2.5, s * 0.22, 2).fill({ color: c }) // level pips
+  for (let i = 0; i <= Math.min(t.level, 2); i++) g.rect(x - s + 3 + i * (s * 0.35), y - s - pinW * 2.5, s * 0.22, 2).fill({ color: c }) // level pips
+  if (maxed) g.rect(x - s + 3 + 3 * (s * 0.35), y - s - pinW * 2.5, s * 0.22, 2).fill({ color: 0xf0c43a }) // branch pip in gold
   if (t.special) {                                                              // special-spot boost → cyan octagon badge
     g.circle(x, y, s + 7).fill({ color: PALETTE.specialCyan, alpha: 0.1 })
     poly(g, x, y, s + 6, 8, Math.PI / 8); g.stroke({ color: PALETTE.specialCyan, width: 2, alpha: 0.9 })
   }
 }
 
-function towerKey(t: Tower): string { return `${t.level}:${t.special}` }
+function towerKey(t: Tower): string { return `${t.level}:${t.special}:${t.branch}` }
 
 export class TowerViews {
   private views = new Map<Tower, Graphics>()
   private keys = new Map<Tower, string>()
   private overlayG = new Graphics()
+  // Aim tick (a small arrow orbiting the chip) — PCB chips don't rotate (style!), the pointer does.
+  private aims = new Map<Tower, Graphics>()
+  private desiredAim = new Map<Tower, number>()
+  // Pulsing gold halo on specialized (branch-tier) towers.
+  private halos = new Map<Tower, Graphics>()
   private lastSelected: Tower | null = null
   private lastTowersSig = ''
   // Internal clock advanced by sync()'s dt param, used only to throttle recoil tweens — avoids
@@ -87,6 +101,8 @@ export class TowerViews {
       } else if (e.type === 'shotFired') {
         const g = this.findGraphics(e.from)
         if (!g) return
+        // remember where this tower is shooting — sync() eases the aim tick towards it
+        for (const [t] of this.views) if (t.pos === e.from) { this.desiredAim.set(t, Math.atan2(e.to.y - e.from.y, e.to.x - e.from.x)); break }
         const last = this.lastRecoil.get(g) ?? -Infinity
         if (this.clock - last < RECOIL_THROTTLE) return
         this.lastRecoil.set(g, this.clock)
@@ -119,16 +135,47 @@ export class TowerViews {
         this.keys.set(t, k)
         g.clear()
         drawTower(g, t, game.pitch)
+        // Gold halo appears once the tower reaches its branch tier (child scales with juice tweens).
+        if (t.level >= t.maxLevel && !this.halos.has(t)) {
+          const halo = new Graphics()
+          halo.circle(0, 0, game.pitch * 0.88).stroke({ color: 0xf0c43a, width: 1.5 })
+          g.addChildAt(halo, 0)
+          this.halos.set(t, halo)
+        }
+      }
+      // Aim tick: non-aura towers show a tiny arrow orbiting the chip, eased toward the last target.
+      if (!t.stats.aura) {
+        let aim = this.aims.get(t)
+        if (!aim) {
+          aim = new Graphics()
+          const r = game.pitch * 0.72
+          aim.moveTo(r, -3).lineTo(r + 6, 0).lineTo(r, 3).closePath().fill({ color: TOWER_THEME[t.kind].color, alpha: 0.85 })
+          g.addChild(aim)
+          this.aims.set(t, aim)
+        }
+        const want = this.desiredAim.get(t)
+        if (want !== undefined) {
+          // shortest-arc ease so the tick never spins the long way round
+          let d = want - aim.rotation
+          while (d > Math.PI) d -= Math.PI * 2
+          while (d < -Math.PI) d += Math.PI * 2
+          aim.rotation += d * Math.min(1, dt * 12)
+        }
       }
     }
     for (const [t, g] of this.views) {
       if (live.has(t)) continue
       this.views.delete(t)
       this.keys.delete(t)
+      this.aims.delete(t)
+      this.desiredAim.delete(t)
+      this.halos.delete(t)
       gsap.killTweensOf(g.scale)
       this.layer.removeChild(g)
-      g.destroy()
+      g.destroy() // destroys aim/halo children with it
     }
+    // Branch-tier halos breathe: phase-shifted by position so a maxed grid doesn't blink in unison.
+    for (const [t, halo] of this.halos) halo.alpha = 0.22 + 0.16 * Math.sin(this.clock * 2.5 + t.pos.x * 0.013 + t.pos.y * 0.007)
 
     // overlayG: slow-tower aura fills + selected tower's range ring — redraw only when the
     // selection or the tower set/levels changes (aura/range radius grows on upgrade).

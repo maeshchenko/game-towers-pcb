@@ -4,6 +4,13 @@ import { cleanupPercent } from '../story/campaignStory'
 import { i18n } from './i18n'
 import { audioEngine } from './AudioEngine'
 import { mountUi } from './uiRoot'
+import { storageGet } from '../util/safeStorage'
+
+/** Local-date stamp YYYYMMDD — one shared daily board per calendar day. */
+export function dailyStamp(): string {
+  const d = new Date()
+  return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
+}
 
 function getEnemyColor(kind: string): string {
   const map: Record<string, string> = {
@@ -43,6 +50,8 @@ export class CampaignMenu {
   constructor(private opts: {
     onSelectLevel(index: number): void
     onShowLog(index: number): void
+    onEndless?(): void
+    onDaily?(): void
   }) {}
 
   mount(): HTMLElement {
@@ -68,6 +77,14 @@ export class CampaignMenu {
     const completedCount = CAMPAIGN_LEVELS.reduce((n, _, i) => n + (isDone(i) ? 1 : 0), 0)
     const cleanup = cleanupPercent(completedCount)
 
+    const dailyDone = storageGet(`pcb_td_daily_${dailyStamp()}`)
+    const dailyLabel = dailyDone !== null
+      ? `${i18n.t('mode.daily')} · ❤${dailyDone}`
+      : i18n.t('mode.daily')
+    const endlessBest = storageGet('pcb_td_endless_best_v1')
+    const endlessLabel = endlessBest !== null
+      ? `${i18n.t('mode.endless')} · ${i18n.t('mode.endless_best')} ${endlessBest}`
+      : i18n.t('mode.endless')
     this.element.innerHTML = `
       <div class="pcb-campaign-header">
         <h1>PCB TD</h1>
@@ -76,8 +93,10 @@ export class CampaignMenu {
       </div>
       <div class="pcb-campaign-levels"></div>
       <div class="pcb-campaign-footer" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-        <button class="pcb-campaign-reset">${i18n.t('campaign.reset')}</button>
+        <button class="pcb-campaign-daily pcb-campaign-reset" style="background: rgba(240,196,58,0.1); border-color: #f0c43a; color: #f0c43a; box-shadow: 0 0 10px rgba(240,196,58,0.15);">${dailyLabel}</button>
+        ${(progress.stars[11] || 0) > 0 ? `<button class="pcb-campaign-endless pcb-campaign-reset" style="background: rgba(194,59,255,0.1); border-color: #c23bff; color: #c23bff; box-shadow: 0 0 10px rgba(194,59,255,0.15);">${endlessLabel}</button>` : ''}
         <button class="pcb-campaign-bestiary pcb-campaign-reset" style="background: rgba(54,224,224,0.1); border-color: #36e0e0; color: #36e0e0; box-shadow: 0 0 10px rgba(54,224,224,0.15);">${i18n.t('bestiary.btn')}</button>
+        <button class="pcb-campaign-reset">${i18n.t('campaign.reset')}</button>
       </div>
     `
 
@@ -148,6 +167,10 @@ export class CampaignMenu {
       }
     }
 
+    const btnDaily = this.element.querySelector('.pcb-campaign-daily') as HTMLButtonElement | null
+    if (btnDaily) btnDaily.onclick = () => { audioEngine.playClick(); this.opts.onDaily?.() }
+    const btnEndless = this.element.querySelector('.pcb-campaign-endless') as HTMLButtonElement | null
+    if (btnEndless) btnEndless.onclick = () => { audioEngine.playClick(); this.opts.onEndless?.() }
     const btnBestiary = this.element.querySelector('.pcb-campaign-bestiary') as HTMLButtonElement
     btnBestiary.onclick = () => {
       audioEngine.playClick()
@@ -155,7 +178,7 @@ export class CampaignMenu {
     }
   }
 
-  showBestiary(unlockedLevelIndex: number): void {
+  showBestiary(unlockedLevelIndex: number, onClose?: () => void): void {
     const modal = document.createElement('div')
     modal.className = 'pcb-settings-modal'
     modal.style.zIndex = '300'
@@ -204,10 +227,13 @@ export class CampaignMenu {
     `
     mountUi(modal);
 
-    (modal.querySelector('.close-bestiary-btn') as HTMLElement).onclick = () => {
+    const closeBestiary = () => {
       audioEngine.playClick()
       modal.parentNode?.removeChild(modal)
+      onClose?.()
     }
+    ;(modal.querySelector('.close-bestiary-btn') as HTMLElement).onclick = closeBestiary
+    modal.onclick = (e) => { if (e.target === modal) closeBestiary() }
   }
 
   show(): void {

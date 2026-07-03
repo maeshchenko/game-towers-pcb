@@ -16,6 +16,7 @@ interface LiveParticle {
   p: P
   particle: Particle
   container: ParticleContainer
+  shape: ParticleShape
   gravity: number
   drag: number
 }
@@ -25,6 +26,9 @@ export class ParticleSystem {
   // Flat pool of all live particles across every shape container — reused array, swap-removed
   // in place so update() never allocates beyond the particle objects spawnFrom hands out.
   private live: LiveParticle[] = []
+  // Free-lists per shape: dead Particle objects (and their wrappers) are recycled instead of
+  // re-allocated — peak combat at 4× used to churn hundreds of allocations per second.
+  private freeByShape: Record<ParticleShape, LiveParticle[]> = { dot: [], spark: [], shard: [] }
 
   constructor(app: Application, layer: Container) {
     this.containers = {} as Record<ParticleShape, ParticleContainer>
@@ -51,16 +55,31 @@ export class ParticleSystem {
     const spawned = spawnFrom({ ...spec, count }, Math.random)
     for (const p of spawned) {
       const scale = p.size / scaleBase
-      const particle = new Particle({
-        texture: container.texture,
-        x: p.x, y: p.y,
-        anchorX: 0.5, anchorY: 0.5,
-        scaleX: scale, scaleY: scale,
-        rotation: p.rotation,
-        tint: spec.color,
-      })
-      container.addParticle(particle)
-      this.live.push({ p, particle, container, gravity: spec.gravity ?? 0, drag: spec.drag ?? 0 })
+      const recycled = this.freeByShape[shape].pop()
+      if (recycled) {
+        const particle = recycled.particle
+        particle.x = p.x; particle.y = p.y
+        particle.scaleX = scale; particle.scaleY = scale
+        particle.rotation = p.rotation
+        particle.tint = spec.color
+        particle.alpha = 1
+        container.addParticle(particle)
+        recycled.p = p
+        recycled.gravity = spec.gravity ?? 0
+        recycled.drag = spec.drag ?? 0
+        this.live.push(recycled)
+      } else {
+        const particle = new Particle({
+          texture: container.texture,
+          x: p.x, y: p.y,
+          anchorX: 0.5, anchorY: 0.5,
+          scaleX: scale, scaleY: scale,
+          rotation: p.rotation,
+          tint: spec.color,
+        })
+        container.addParticle(particle)
+        this.live.push({ p, particle, container, shape, gravity: spec.gravity ?? 0, drag: spec.drag ?? 0 })
+      }
     }
   }
 
@@ -71,6 +90,7 @@ export class ParticleSystem {
       const alive = advance(lp.p, dt, lp.gravity, lp.drag)
       if (!alive) {
         lp.container.removeParticle(lp.particle)
+        this.freeByShape[lp.shape].push(lp) // recycle the pixi object + wrapper
         const last = this.live.length - 1
         this.live[i] = this.live[last]
         this.live.pop()

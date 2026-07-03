@@ -27,6 +27,21 @@ export function buildLevel04(board: Board): Level {
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   // spacing tightened: decor now correctly excludes spots from its footprint (occupancy fix), so the
   // default spacing left too few legal slots in this decor-dense level.
+  // Authored wave script — this level's own dramaturgy (see W4 design notes).
+  b.waves([
+    // «Шунт питания»: VIRUS (brute) debuts — raw HP walls between speed pulses.
+    [{ kind: 'normal', count: 7, interval: 0.8 }],
+    [{ kind: 'fast', count: 7, interval: 0.45 }, { kind: 'normal', count: 5, interval: 0.9, delay: 7 }],
+    [{ kind: 'brute', count: 1, interval: 3.0 }, { kind: 'normal', count: 6, interval: 0.8, delay: 2 }],
+    [{ kind: 'brute', count: 2, interval: 2.5 }, { kind: 'fast', count: 8, interval: 0.4, delay: 6 }],
+    [{ kind: 'normal', count: 12, interval: 0.55, jitter: 0.5, mix: { normal: 2, fast: 2 } }],
+    [{ kind: 'brute', count: 2, interval: 2.4 }, { kind: 'healer', count: 1, interval: 4.0, delay: 2 }, { kind: 'normal', count: 8, interval: 0.7, delay: 6 }],
+    [{ kind: 'fast', count: 12, interval: 0.3 }, { kind: 'brute', count: 1, interval: 3.0, delay: 10 }],
+    [{ kind: 'brute', count: 3, interval: 2.2, jitter: 0.3 }, { kind: 'healer', count: 1, interval: 4.0, delay: 3 }, { kind: 'fast', count: 6, interval: 0.4, delay: 12 }],
+    [{ kind: 'normal', count: 14, interval: 0.6, jitter: 0.5, mix: { normal: 2, fast: 2, brute: 1 } }],
+    [{ kind: 'brute', count: 4, interval: 2.0 }, { kind: 'healer', count: 2, interval: 3.0, delay: 2 }, { kind: 'fast', count: 14, interval: 0.25, delay: 12 }],
+  ])
+
   b.patrolSpots({ spacing: 2 })
   return b.build()
 }

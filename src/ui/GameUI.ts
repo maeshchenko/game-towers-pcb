@@ -9,9 +9,11 @@ import { exportProgressCode, importProgressCode } from '../game/campaign'
 import { waveComposition } from '../game/WaveManager'
 import { loadPlayerDifficulty, savePlayerDifficulty } from '../game/playerPrefs'
 import { mountUi } from './uiRoot'
+import { icon } from './icons'
 
 export function formatHud(s: { wave: number; waveCount: number; lives: number; gold: number; phase: string }) {
-  return { wave: `${i18n.t('hud.wave')} ${s.wave}/${s.waveCount}`, lives: `${i18n.t('hud.lives')} ${s.lives}`, gold: `${i18n.t('hud.gold')} ${s.gold}` }
+  const total = Number.isFinite(s.waveCount) ? String(s.waveCount) : '∞'
+  return { wave: `${i18n.t('hud.wave')} ${s.wave}/${total}`, lives: `${i18n.t('hud.lives')} ${s.lives}`, gold: `${i18n.t('hud.gold')} ${s.gold}` }
 }
 
 const KINDS: TowerKind[] = ['cannon', 'slow', 'sniper', 'mortar', 'tesla']
@@ -51,6 +53,10 @@ export class GameUI {
     onAutoWaveChanged?(val: boolean): void
     onOpenBestiary?(): void
     onProgressImported?(): void
+    onModalOpen?(): void
+    onModalClose?(): void
+    /** Range-circle preview while choosing in the radial (kind=null clears). */
+    onPreviewRange?(kind: TowerKind | null, spotIndex: number): void
   }) {}
 
   selectedBuildKind(): TowerKind | null { return null } // Legacy placeholder
@@ -87,7 +93,7 @@ export class GameUI {
 
     const btnMap = document.createElement('button')
     btnMap.className = 'pcb-hud-btn map-btn'
-    btnMap.textContent = i18n.t('hud.map')
+    btnMap.textContent = i18n.t('hud.menu')
     btnMap.style.marginLeft = '12px'
     btnMap.onclick = () => { audioEngine.playClick(); if (this.opts.onMenu) this.opts.onMenu() }
 
@@ -115,7 +121,8 @@ export class GameUI {
 
     const btnPause = document.createElement('button')
     btnPause.className = 'pcb-hud-btn'
-    btnPause.textContent = '⏸'
+    btnPause.innerHTML = icon('pause')
+    btnPause.setAttribute('aria-label', i18n.t('pause.title'))
     btnPause.onclick = () => { audioEngine.playClick(); this.opts.onTogglePlay() }
     this.btnPause = btnPause
 
@@ -140,15 +147,17 @@ export class GameUI {
     // Active ability: capacitor discharge (armed → next board click detonates).
     const btnAbility = document.createElement('button')
     btnAbility.className = 'pcb-hud-btn ability-btn'
-    btnAbility.textContent = '⚡'
+    btnAbility.innerHTML = icon('bolt')
     btnAbility.title = i18n.t('ability.discharge.hint')
+    btnAbility.setAttribute('aria-label', 'discharge')
     btnAbility.onclick = () => { audioEngine.playClick(); this.opts.onAbility?.() }
     this.btnAbility = btnAbility
 
     const btnBestiary = document.createElement('button')
     btnBestiary.className = 'pcb-hud-btn'
-    btnBestiary.textContent = '📖'
-    btnBestiary.title = 'Бестиарий / Bestiary'
+    btnBestiary.innerHTML = icon('book')
+    btnBestiary.title = i18n.t('hud.bestiary')
+    btnBestiary.setAttribute('aria-label', i18n.t('hud.bestiary'))
     btnBestiary.onclick = () => {
       audioEngine.playClick()
       if (this.opts.onOpenBestiary) this.opts.onOpenBestiary()
@@ -156,7 +165,8 @@ export class GameUI {
 
     const btnSettings = document.createElement('button')
     btnSettings.className = 'pcb-hud-btn'
-    btnSettings.textContent = '⚙️'
+    btnSettings.innerHTML = icon('gear')
+    btnSettings.setAttribute('aria-label', i18n.t('settings.title'))
     btnSettings.onclick = () => {
       audioEngine.playClick()
       this.showSettings()
@@ -235,7 +245,7 @@ export class GameUI {
     if (startBtn) startBtn.textContent = i18n.t('hud.start_wave')
     
     const mapBtn = document.querySelector('.map-btn') as HTMLElement
-    if (mapBtn) mapBtn.textContent = i18n.t('hud.map')
+    if (mapBtn) mapBtn.textContent = i18n.t('hud.menu')
 
     const lvlNum = String(this.levelNumber).padStart(2, '0')
     const lvlEl = document.querySelector('.level-num')
@@ -260,6 +270,11 @@ export class GameUI {
   showSettings(): void {
     this.settingsModal.style.display = 'flex'
     this.renderSettings()
+    // Click on the dark backdrop (not the card) dismisses — standard modal behaviour.
+    this.settingsModal.onclick = (e) => {
+      if (e.target === this.settingsModal) { audioEngine.playClick(); this.closeSettings() }
+    }
+    this.opts.onModalOpen?.()
   }
 
   renderSettings(): void {
@@ -370,6 +385,7 @@ export class GameUI {
     btnClose.onclick = () => {
       audioEngine.playClick()
       this.settingsModal.style.display = 'none'
+      this.opts.onModalClose?.()
     }
 
     // Global difficulty: persists immediately, applies from the next level start.
@@ -420,14 +436,22 @@ export class GameUI {
     }
   }
 
-  /** Ability button state: cooldown countdown, armed highlight, disabled while recharging. */
-  setAbilityState(cooldownSec: number, armed: boolean): void {
+  /** Ability button state: hidden until unlocked, cooldown countdown, armed highlight. */
+  setAbilityState(cooldownSec: number, armed: boolean, unlocked = true): void {
     if (!this.btnAbility) return
-    const label = cooldownSec > 0 ? `⚡${Math.ceil(cooldownSec)}` : '⚡'
-    if (this.btnAbility.textContent !== label) this.btnAbility.textContent = label
+    this.btnAbility.style.display = unlocked ? '' : 'none'
+    if (!unlocked) return
+    const label = cooldownSec > 0 ? `${icon('bolt')}${Math.ceil(cooldownSec)}` : icon('bolt')
+    if (this.btnAbility.dataset.label !== label) { this.btnAbility.dataset.label = label; this.btnAbility.innerHTML = label }
     this.btnAbility.disabled = cooldownSec > 0
     this.btnAbility.classList.toggle('active', armed)
     this.btnAbility.style.opacity = cooldownSec > 0 ? '0.5' : ''
+  }
+
+  /** One-shot attention pulse on the ability button (first unlock). */
+  pulseAbilityButton(): void {
+    this.btnAbility?.classList.add('fresh')
+    window.setTimeout(() => this.btnAbility?.classList.remove('fresh'), 6000)
   }
 
   public selectSpeed(mult: number): void {
@@ -451,7 +475,7 @@ export class GameUI {
 
   update(game: Game, difficulty = 1): void {
     const s = game.state
-    const h = formatHud({ wave: s.waveNumber, waveCount: s.waveCount, lives: s.lives, gold: s.gold, phase: s.phase })
+    const h = formatHud({ wave: s.waveNumber, waveCount: s.endless ? Infinity : s.waveCount, lives: s.lives, gold: s.gold, phase: s.phase })
     
     this.elWave.textContent = h.wave
     this.elLives.textContent = `❤ ${s.lives}`
@@ -526,13 +550,25 @@ export class GameUI {
 
       btn.onclick = (e) => {
         e.stopPropagation()
+        // Touch two-step: first tap arms the item (tooltip + range preview — phones have no
+        // hover, players were buying blind), second tap builds. Mouse keeps one-click flow.
+        const isTouch = (e as PointerEvent).pointerType === 'touch'
+        if (isTouch && btn.dataset.armed !== '1') {
+          for (const other of Array.from(this.radial.children)) (other as HTMLElement).dataset.armed = '0'
+          btn.dataset.armed = '1'
+          btn.style.boxShadow = `0 0 20px ${theme.color}`
+          showInfo()
+          return
+        }
         audioEngine.playBuild()
+        this.opts.onPreviewRange?.(null, spotIndex)
+        this.radialTooltip.style.display = 'none'
         this.opts.onBuild(k, spotIndex)
         this.closeRadialMenu()
       }
 
-      // Add tooltip hover events
-      btn.onmouseenter = () => {
+      const showInfo = () => {
+        this.opts.onPreviewRange?.(k, spotIndex)
         if (!showTooltips) return
         const def = TOWER_DEFS[k][0]
         const descKey = `tower.${k}.desc` as any
@@ -568,8 +604,10 @@ export class GameUI {
         `
       }
 
+      btn.onmouseenter = () => showInfo()
       btn.onmouseleave = () => {
         this.radialTooltip.style.display = 'none'
+        this.opts.onPreviewRange?.(null, spotIndex)
       }
 
       this.radial.appendChild(btn)
@@ -582,6 +620,7 @@ export class GameUI {
   }
 
   closeRadialMenu(): void {
+    this.opts.onPreviewRange?.(null, 0)
     if (!this.radial.classList.contains('open')) return
     this.radial.classList.remove('open')
     this.radialBackdrop.classList.remove('show')
@@ -598,9 +637,13 @@ export class GameUI {
     const s = t.stats
     this.panel.style.display = 'block'
     const branchName = t.branch !== null ? ` · ${i18n.tk(`branch.${TOWER_BRANCHES[t.kind][t.branch].id}.name`)}` : ''
+    // Upgrade preview: show the stat DELTA so the player never pays blind.
+    const next = !t.canBranch && t.level < t.maxLevel ? TOWER_DEFS[t.kind][t.level + 1] : null
+    const delta = (cur: number, nxt: number | undefined) =>
+      nxt !== undefined && nxt !== cur ? ` <span style="color:#f0c43a">→${nxt}</span>` : ''
     this.panel.innerHTML = `<h3>${TOWER_THEMES[t.kind].name} L${t.level + 1}${branchName}</h3>
-      <div style="margin-bottom: 8px;">DMG ${s.damage} · RATE ${s.fireRate} · RANGE ${s.range}</div>
-      <div style="margin-bottom: 8px;">MODE ${t.targetMode}</div>`
+      <div style="margin-bottom: 8px;">DMG ${s.damage}${delta(s.damage, next?.damage)} · RATE ${s.fireRate}${delta(s.fireRate, next?.fireRate)} · RNG ${s.range}${delta(s.range, next?.range)}</div>
+      <div style="margin-bottom: 8px;">MODE ${i18n.tk(`target.${t.targetMode}`)}</div>`
     const mk = (label: string, fn: () => void, sfxType: 'click' | 'upgrade' | 'sell') => {
       const b = document.createElement('button')
       b.textContent = label
@@ -612,9 +655,9 @@ export class GameUI {
       }
       this.panel.appendChild(b)
     }
-    const upgradeStr = i18n.lang === 'ru' ? 'Улучшить' : 'Upgrade'
-    const sellStr = i18n.lang === 'ru' ? 'Продать' : 'Sell'
-    const targetStr = i18n.lang === 'ru' ? 'Приоритет' : 'Target'
+    const upgradeStr = i18n.t('tower.upgrade')
+    const sellStr = i18n.t('tower.sell')
+    const targetStr = i18n.t('tower.target')
 
     // Upgrade slot is ALWAYS present (disabled "MAX" when maxed) so the Sell button never jumps up
     // into the spot the cursor just clicked — prevents accidental sells right after a max upgrade.
@@ -634,7 +677,7 @@ export class GameUI {
       mk(`${upgradeStr} $${TOWER_DEFS[t.kind][t.level + 1].cost}`, this.opts.onUpgrade, 'upgrade')
     } else {
       const maxBtn = document.createElement('button')
-      maxBtn.textContent = i18n.lang === 'ru' ? 'МАКС. УРОВЕНЬ' : 'MAX LEVEL'
+      maxBtn.textContent = i18n.t('tower.max')
       maxBtn.disabled = true
       maxBtn.style.opacity = '0.5'
       this.panel.appendChild(maxBtn)
@@ -642,7 +685,7 @@ export class GameUI {
     // Sell requires a two-click confirm (destructive + irreversible) so it is never a single misclick.
     const sellBtn = document.createElement('button')
     let armed = false
-    const confirmStr = i18n.lang === 'ru' ? 'Точно продать?' : 'Confirm sell?'
+    const confirmStr = i18n.t('tower.sell_confirm')
     const paint = () => {
       sellBtn.textContent = armed ? `${confirmStr} $${sellValue}` : `${sellStr} $${sellValue}`
       sellBtn.style.background = armed ? '#7a2030' : ''
@@ -654,7 +697,7 @@ export class GameUI {
       audioEngine.playSell(); this.opts.onSell()
     }
     this.panel.appendChild(sellBtn)
-    mk(`${targetStr}: ` + t.targetMode, this.opts.onTargetMode, 'click')
+    mk(`${targetStr}: ` + i18n.tk(`target.${t.targetMode}`), this.opts.onTargetMode, 'click')
   }
 
   /** Transient top-center banner announcing a new wave: title + a chip row of its enemy composition. */
@@ -718,6 +761,7 @@ export class GameUI {
         <h3 class="status-glow">${i18n.t('result.victory_subtitle')}</h3>
         ${starsHtml}
         <div class="pcb-overlay-score">${i18n.t('result.saved_lives')}: ❤${score}</div>
+        ${this.statsHtml()}
         ${debriefHtml}
         <div class="pcb-overlay-actions">
           ${onNext ? `<button class="pcb-hud-btn active next-btn">${i18n.t('result.next_level')}</button>` : ''}
@@ -727,35 +771,98 @@ export class GameUI {
       </div>
     `
 
+    const withClick = (cb: () => void) => () => { audioEngine.playClick(); cb() }
     if (onNext) {
-      (this.overlay.querySelector('.next-btn') as HTMLElement).onclick = onNext
+      (this.overlay.querySelector('.next-btn') as HTMLElement).onclick = withClick(onNext)
     }
-    (this.overlay.querySelector('.retry-btn') as HTMLElement).onclick = onRetry;
-    (this.overlay.querySelector('.menu-btn') as HTMLElement).onclick = onMenu
+    (this.overlay.querySelector('.retry-btn') as HTMLElement).onclick = withClick(onRetry);
+    (this.overlay.querySelector('.menu-btn') as HTMLElement).onclick = withClick(onMenu)
   }
 
   showDefeatScreen(onRetry: () => void, onMenu: () => void): void {
     this.overlay.style.display = 'flex'
     this.overlay.className = 'pcb-game-overlay defeat'
+    // "Reached wave N of M" is the single most useful defeat fact — it shows progress, not just failure.
+    const waveLine = this.lastStats
+      ? `<div class="pcb-overlay-score">${i18n.t('result.reached_wave').replace('{n}', String(this.lastStats.wave)).replace('{m}', Number.isFinite(this.lastStats.waveCount) ? String(this.lastStats.waveCount) : '∞')}</div>`
+      : `<div class="pcb-overlay-score">${i18n.t('result.lost_lives')}</div>`
     this.overlay.innerHTML = `
       <div class="pcb-overlay-card">
         <h2>${i18n.t('result.defeat_title')}</h2>
         <h3 class="status-glow">${i18n.t('result.defeat_subtitle')}</h3>
-        <div class="pcb-overlay-score">${i18n.t('result.lost_lives')}</div>
+        ${waveLine}
+        ${this.statsHtml()}
         <div class="pcb-overlay-actions">
           <button class="pcb-hud-btn active retry-btn">${i18n.t('result.retry')}</button>
           <button class="pcb-hud-btn menu-btn">${i18n.t('result.campaign_map')}</button>
         </div>
       </div>
     `;
-    (this.overlay.querySelector('.retry-btn') as HTMLElement).onclick = onRetry;
-    (this.overlay.querySelector('.menu-btn') as HTMLElement).onclick = onMenu
+    (this.overlay.querySelector('.retry-btn') as HTMLElement).onclick = () => { audioEngine.playClick(); onRetry() };
+    (this.overlay.querySelector('.menu-btn') as HTMLElement).onclick = () => { audioEngine.playClick(); onMenu() }
+  }
+
+  /** Run stats supplied by main.ts right before showing a result screen. */
+  private lastStats: { kills: number; leaks: number; goldEarned: number; wave: number; waveCount: number } | null = null
+  setRunStats(s: { kills: number; leaks: number; goldEarned: number; wave: number; waveCount: number }): void {
+    this.lastStats = s
+  }
+
+  private statsHtml(): string {
+    const s = this.lastStats
+    if (!s) return ''
+    const cell = (label: string, value: string | number) =>
+      `<div class="pcb-stat"><div class="pcb-stat-val">${value}</div><div class="pcb-stat-label">${label}</div></div>`
+    return `<div class="pcb-overlay-stats">
+      ${cell(i18n.t('result.stat_kills'), s.kills)}
+      ${cell(i18n.t('result.stat_leaks'), s.leaks)}
+      ${cell(i18n.t('result.stat_gold'), '⚡' + s.goldEarned)}
+    </div>`
   }
 
   closeOverlay(): void {
     this.overlay.style.display = 'none'
     this.overlay.innerHTML = ''
   }
+
+  // ---------------------------------------------------------- pause menu
+  private pauseMenuEl: HTMLElement | null = null
+  get isPauseMenuOpen(): boolean { return !!this.pauseMenuEl }
+
+  /** Genre-standard pause overlay. Also the confirmation layer for leaving a run:
+   * the MAP button routes here instead of instantly killing 20 minutes of progress. */
+  showPauseMenu(opts: { onResume(): void; onRestart(): void; onMenu(): void }): void {
+    if (this.pauseMenuEl) return
+    const el = document.createElement('div')
+    el.className = 'pcb-settings-modal'
+    el.style.display = 'flex'
+    el.style.zIndex = '250'
+    el.innerHTML = `
+      <div class="pcb-settings-card" style="min-width: 240px;">
+        <h2>${i18n.t('pause.title')}</h2>
+        <button class="pcb-hud-btn active pm-resume" style="width:100%; margin-top:14px;">${i18n.t('pause.resume')}</button>
+        <button class="pcb-hud-btn pm-settings" style="width:100%; margin-top:8px;">${i18n.t('settings.title')}</button>
+        <button class="pcb-hud-btn pm-restart" style="width:100%; margin-top:8px;">${i18n.t('result.retry')}</button>
+        <button class="pcb-hud-btn pm-menu" style="width:100%; margin-top:8px;">${i18n.t('result.campaign_map')}</button>
+      </div>`
+    const done = (cb: () => void) => () => { audioEngine.playClick(); this.hidePauseMenu(); cb() }
+    el.onclick = (e) => { if (e.target === el) done(opts.onResume)() }
+    ;(el.querySelector('.pm-resume') as HTMLElement).onclick = done(opts.onResume)
+    ;(el.querySelector('.pm-settings') as HTMLElement).onclick = () => { audioEngine.playClick(); this.hidePauseMenu(); this.showSettings() }
+    ;(el.querySelector('.pm-restart') as HTMLElement).onclick = done(opts.onRestart)
+    ;(el.querySelector('.pm-menu') as HTMLElement).onclick = done(opts.onMenu)
+    mountUi(el)
+    this.pauseMenuEl = el
+  }
+
+  hidePauseMenu(): void {
+    this.pauseMenuEl?.remove()
+    this.pauseMenuEl = null
+  }
+
+  get isSettingsOpen(): boolean { return this.settingsModal.style.display !== 'none' && this.settingsModal.style.display !== '' }
+  closeSettings(): void { this.settingsModal.style.display = 'none'; this.opts.onModalClose?.() }
+  get isRadialOpen(): boolean { return this.radial.classList.contains('open') }
 }
 
 function getEnemyColor(kind: string): string {

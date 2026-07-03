@@ -58,9 +58,20 @@ export class GameView {
         this.enemies.onDamaged(e.enemy, e.from)
         this.damageAgg.add(e.enemy, e.amount, e.pos.x, e.pos.y, this.time)
       } else if (e.type === 'enemyDied') {
+        this.enemies.onDied(e.enemy) // body dissolve tween — must run before sync() drops the view
         this.onEnemyDied(e.kind, e.pos)
         this.floating.spawn('+' + e.bounty, e.pos.x, e.pos.y - FLOAT_TEXT_OFFSET_Y, PALETTE.padGold)
         if (e.kind === 'boss') this.vfx.rgbSplitPulse()
+      } else if (e.type === 'enemyHealed') {
+        this.enemies.onHealed(e.enemy)
+      } else if (e.type === 'bossPhase') {
+        // Phase shift reads as a glitch spike: burst + chromatic pulse
+        this.particles.burst({ x: e.pos.x, y: e.pos.y, count: 18, speed: [100, 260], life: [0.2, 0.5], color: 0xff5ed0, size: [1.5, 3], shape: 'spark' })
+        this.vfx.rgbSplitPulse()
+      } else if (e.type === 'abilityUsed') {
+        // Discharge detonation: white flash ring + spark storm at the click point
+        this.particles.burst({ x: e.pos.x, y: e.pos.y, count: 26, speed: [120, 320], life: [0.25, 0.55], color: 0xf0c43a, size: [1.5, 3.5], shape: 'spark' })
+        this.particles.burst({ x: e.pos.x, y: e.pos.y, count: 10, speed: [40, 120], life: [0.3, 0.6], color: 0xffffff, size: [2, 4], shape: 'dot' })
       } else if (e.type === 'baseHit') {
         this.vfx.flashVignette()
         this.vfx.rgbSplitPulse()

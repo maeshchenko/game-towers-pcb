@@ -32,6 +32,8 @@ const RETARGET_RADIUS_CELLS = 1.5
 export class Game {
   readonly state: GameState
   readonly towers: Tower[] = []
+  /** Run statistics for the victory/defeat debrief. */
+  readonly runStats = { kills: 0, leaks: 0, goldEarned: 0 }
   speed = 1
   readonly events = new EventBus()
   private wm: WaveManager
@@ -45,7 +47,7 @@ export class Game {
   /** World-space (px) filleted polylines — same recipe WaveManager uses, exposed for view-layer juice (Task 10 TracePulse). */
   get paths(): Pt[][] { return this._paths }
 
-  constructor(level: Level, seed = 1, opts?: { hpMul?: number }) {
+  constructor(level: Level, seed = 1, opts?: { hpMul?: number; endless?: boolean }) {
     this.pitch = level.board.pitch
     this.grid = new SpatialGrid<Enemy>(this.pitch)
     const paths = levelPaths(level).map((t: Trace) => filletPath(t.waypoints, t.cornerRadius, this.pitch))
@@ -66,6 +68,7 @@ export class Game {
       entries.map((e) => ({ ...e, count: Math.max(1, Math.round(e.count * countMul)) })),
     )
     this.state = new GameState(diff, waves.length)
+    this.state.endless = opts?.endless ?? false
     this.wm = new WaveManager(paths, waves, hpScale(diff) * (level.meta.tune?.hpMul ?? 1) * (opts?.hpMul ?? 1), this.pitch * SPEED_SCALE, seed, diff)
     this.spots = [
       ...level.spots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: false, score: s.score ?? 0 })),
@@ -121,7 +124,8 @@ export class Game {
   /** Next wave may be CALLED early while the current one still has live enemies — as soon as
    * the spawner is done (all forms have left the entry). Classic KR-style overlap. */
   canCallNextWave(): boolean {
-    return this.state.phase === 'wave' && !this.wm.spawning && this.state.wave + 1 < this.state.waveCount
+    const hasNext = this.state.endless || this.state.wave + 1 < this.state.waveCount
+    return this.state.phase === 'wave' && !this.wm.spawning && hasNext
   }
 
   /** Active ability: capacitor discharge — click-targeted AoE burst with a short stun-grade
@@ -258,6 +262,7 @@ export class Game {
       if (e.reachedBase) {
         this.state.damageBase(e.leak)
         this.wm.remove(e)
+        this.runStats.leaks += 1
         this.events.emit({ type: 'leak', kind: e.kind, livesLost: e.leak })
         this.events.emit({ type: 'baseHit', livesLost: e.leak })
       }
@@ -330,6 +335,8 @@ export class Game {
       if (e.hp <= 0) {
         this.state.add(e.bounty)
         this.wm.remove(e)
+        this.runStats.kills += 1
+        this.runStats.goldEarned += e.bounty
         this.events.emit({ type: 'enemyDied', kind: e.kind, pos: { x: e.pos.x, y: e.pos.y }, bounty: e.bounty, enemy: e })
         const split = e.abilities.splitInto
         if (split) {

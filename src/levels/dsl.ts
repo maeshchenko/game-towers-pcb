@@ -261,6 +261,22 @@ export class LevelBuilder {
 
   build(): Level {
     if (this.paths.length === 0) throw new Error('level has no path')
+    // Composition invariants (user rule): every segment is 0/45/90° — PCB traces never slur —
+    // and every waypoint stays on the board. Fails the BUILD, not silently ships broken art.
+    for (const p of this.paths) {
+      for (let i = 1; i < p.waypoints.length; i++) {
+        const [ax, ay] = p.waypoints[i - 1], [bx, by] = p.waypoints[i]
+        const dx = Math.abs(bx - ax), dy = Math.abs(by - ay)
+        if (!(dx === 0 || dy === 0 || dx === dy)) {
+          throw new Error(`level "${this.meta.name}": segment [${ax},${ay}]→[${bx},${by}] is not octilinear (dx=${dx}, dy=${dy})`)
+        }
+      }
+      for (const [x, y] of p.waypoints) {
+        if (x < 0 || y < 0 || x >= this.board.cols || y >= this.board.rows) {
+          throw new Error(`level "${this.meta.name}": waypoint [${x},${y}] is outside the ${this.board.cols}x${this.board.rows} board`)
+        }
+      }
+    }
     const fin = new Set(this.paths.map((p) => {
       const w = p.waypoints[p.waypoints.length - 1]; return `${w[0]},${w[1]}`
     }))

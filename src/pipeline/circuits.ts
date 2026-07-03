@@ -287,9 +287,9 @@ export function passiveBank(origin: Cell, count: number, alloc: RefAlloc): Block
 export function amplifierStage(origin: Cell, alloc: RefAlloc): BlockResult {
   const [ox, oy] = origin, items: DecorItem[] = [], nets: number[][] = []
   const add = (k: string, ref: string, dc: number, dr: number) => { items.push(item(k, 1, [ox + dc, oy + dr], 0, ref)); return items.length - 1 }
-  const cin = add('mlcc', alloc.nextC(), 0, 2), r1 = add('res', alloc.nextR(), 2, 0), r2 = add('res', alloc.nextR(), 2, 4)
-  const rc = add('res', alloc.nextR(), 5, 0), q = add('sot23', alloc.nextQ(), 5, 2), re = add('res', alloc.nextR(), 5, 4)
-  const ce = add('mlcc', alloc.nextC(), 8, 4), cout = add('mlcc', alloc.nextC(), 8, 2)
+  const cin = add('mlcc', alloc.nextC(), 0, 3), r1 = add('res', alloc.nextR(), 2, 0), r2 = add('res', alloc.nextR(), 2, 6)
+  const rc = add('res', alloc.nextR(), 6, 0), q = add('sot23', alloc.nextQ(), 6, 3), re = add('res', alloc.nextR(), 6, 6)
+  const ce = add('mlcc', alloc.nextC(), 9, 6), cout = add('mlcc', alloc.nextC(), 9, 3)
   nets.push([cin, q], [r1, q], [r2, q], [rc, q], [q, re], [re, ce], [q, cout])
   return { items, nets }
 }

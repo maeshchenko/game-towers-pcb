@@ -17,6 +17,23 @@ export function buildLevel10(board: Board): Level {
   b.block(opAmp([34, 20], b.alloc))
   b.block(railSpine([0, 6], b.alloc, 4)); b.block(railSpine([32, 6], b.alloc, 1))
   // Tower spots from the coverage-greedy placer → always BESIDE the lanes, never on them.
+  // Authored wave script — this level's own dramaturgy (see W10 design notes).
+  b.waves([
+    // «Многослойный мост»: the longest single lane — endurance and layered pushes.
+    [{ kind: 'normal', count: 10, interval: 0.6, jitter: 0.4 }],
+    [{ kind: 'fast', count: 10, interval: 0.35 }, { kind: 'normal', count: 6, interval: 0.7, delay: 9 }],
+    [{ kind: 'shielded', count: 5, interval: 1.1 }, { kind: 'fast', count: 8, interval: 0.4, delay: 6 }],
+    [{ kind: 'carrier', count: 2, interval: 2.6 }, { kind: 'rogue', count: 10, interval: 0.4, delay: 5, jitter: 0.6 }],
+    [{ kind: 'tank', count: 3, interval: 2.0 }, { kind: 'brute', count: 2, interval: 2.4, delay: 8 }, { kind: 'healer', count: 2, interval: 3.0, delay: 4 }],
+    [{ kind: 'fast', count: 18, interval: 0.35, jitter: 0.5, mix: { fast: 2, rogue: 2, shielded: 1 } }],
+    [{ kind: 'fast', count: 22, interval: 0.2 }],
+    [{ kind: 'carrier', count: 3, interval: 2.2 }, { kind: 'healer', count: 2, interval: 3.0, delay: 4 }, { kind: 'shielded', count: 5, interval: 1.1, delay: 10 }],
+    [{ kind: 'brute', count: 4, interval: 2.0, jitter: 0.3 }, { kind: 'tank', count: 3, interval: 2.2, delay: 10 }],
+    [{ kind: 'rogue', count: 20, interval: 0.35, jitter: 0.6, mix: { rogue: 3, fast: 2, carrier: 1 } }, { kind: 'healer', count: 3, interval: 2.8, delay: 10 }],
+    [{ kind: 'tank', count: 4, interval: 1.8 }, { kind: 'shielded', count: 6, interval: 1.0, delay: 6 }, { kind: 'brute', count: 3, interval: 2.2, delay: 12 }],
+    [{ kind: 'fast', count: 24, interval: 0.22, jitter: 0.4, mix: { fast: 3, rogue: 2, shielded: 1 } }, { kind: 'carrier', count: 3, interval: 2.2, delay: 12 }, { kind: 'healer', count: 3, interval: 2.8, delay: 8 }],
+  ])
+
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   b.patrolSpots()
   return b.build()

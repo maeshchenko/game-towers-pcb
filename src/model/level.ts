@@ -28,8 +28,13 @@ export interface Level {
     tune?: { hpMul?: number; countMul?: number }
     /** Hand-authored wave script (outer array = waves, inner = spawn groups). Overrides the
      * shared mapWaves(difficulty) template; wave count may differ from 10. Kept structural
-     * (kind as string) to avoid a model→game dependency — Game validates kinds on load. */
-    waves?: { kind: string; count: number; interval: number; pathIndex?: number }[][] }
+     * (kind as string) to avoid a model→game dependency — Game validates kinds on load.
+     * Field semantics mirror game/WaveManager WaveEntry (delay/mix/jitter/pathIndex). */
+    waves?: {
+      kind: string; count: number; interval: number
+      pathIndex?: number; delay?: number; jitter?: number
+      mix?: Record<string, number>
+    }[][] }
 }
 
 /** Returns the authoritative set of enemy paths for a level. */

@@ -223,28 +223,52 @@ body.pcb-portrait #game-container {
     display: none !important;
   }
 
-  /* Compact HUD */
+  /* Compact HUD — but every control keeps a ≥40px touch target (padding grows the hit
+     area even where the visual stays slim). Fonts never dip below 11px. */
   .pcb-tophud {
-    padding: 0 8px;
-    height: 44px;
+    padding: 0 max(8px, env(safe-area-inset-left)) 0 max(8px, env(safe-area-inset-right));
+    height: 48px;
     font-size: 11px;
   }
   .pcb-hud-left, .pcb-hud-center, .pcb-hud-right {
-    gap: 6px;
+    gap: 5px;
   }
   .pcb-hud-badge {
-    padding: 2px 4px;
+    padding: 4px 5px;
     font-size: 11px;
   }
   .pcb-hud-btn {
-    padding: 4px 8px;
+    padding: 0 9px;
     font-size: 11px;
+    min-height: 40px;
+    min-width: 40px;
   }
   .hud-level-label {
     display: none;
   }
   .next-wave-btn {
-    padding: 4px 6px;
+    padding: 0 8px;
+  }
+  /* Radial build items: bigger finger targets + readable captions */
+  .pcb-radialmenu-item {
+    width: 76px;
+    height: 76px;
+    font-size: 10px;
+  }
+  .pcb-radialmenu-item span {
+    font-size: 10px;
+  }
+  .pcb-radial-tooltip {
+    font-size: 11px;
+  }
+  /* Tower panel buttons must be tappable */
+  .pcb-towerpanel button {
+    min-height: 40px;
+    font-size: 12px;
+  }
+  /* Settings rows breathe on touch */
+  .pcb-settings-card button {
+    min-height: 40px;
   }
 
   /* Reposition and compact the tower panel */
@@ -451,3 +475,18 @@ body.pcb-portrait #game-container {
 }
 
 
+
+/* Result-screen run stats */
+.pcb-overlay-stats { display: flex; gap: 18px; justify-content: center; margin: 10px 0 4px; }
+.pcb-stat { text-align: center; }
+.pcb-stat-val { color: #6cf2a0; font-size: 16px; font-weight: bold; }
+.pcb-stat-label { color: #6f8f7e; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+.pcb-tutorial-skip { background: none; border: none; color: #5b7a68; font: 10px monospace; cursor: pointer; text-decoration: underline; padding: 2px; }
+.pcb-tutorial-skip:hover { color: #8fb3a0; }
+/* A11y: visible keyboard focus everywhere */
+button:focus-visible, input:focus-visible { outline: 2px solid #2bd06a; outline-offset: 2px; }
+
+/* Freshly unlocked ability: draw the eye until first use */
+.pcb-hud-btn.ability-btn.fresh { animation: pcbAbilityPulse 1.1s ease-in-out infinite; border-color: #f0c43a; color: #f0c43a; }
+@keyframes pcbAbilityPulse { 50% { box-shadow: 0 0 16px rgba(240,196,58,0.8); } }

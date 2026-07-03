@@ -32,6 +32,19 @@ export function buildLevel01(board: Board): Level {
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   // spacing tightened slightly: decor now correctly excludes spots from its footprint (occupancy
   // fix), so the default spacing left too few legal slots near the dense top bands.
+  // Authored wave script — this level's own dramaturgy (see W1 design notes).
+  b.waves([
+    // «Вводные шины»: only PACKETS — 8 waves that teach pacing, not variety.
+    [{ kind: 'normal', count: 5, interval: 1.2 }],
+    [{ kind: 'normal', count: 4, interval: 1.0 }, { kind: 'normal', count: 4, interval: 0.9, delay: 6, jitter: 0.4 }],
+    [{ kind: 'normal', count: 6, interval: 0.9, jitter: 0.5 }, { kind: 'normal', count: 3, interval: 0.5, delay: 8 }],
+    [{ kind: 'normal', count: 5, interval: 1.1 }, { kind: 'normal', count: 5, interval: 0.8, delay: 7 }],
+    [{ kind: 'normal', count: 8, interval: 0.7, jitter: 0.3 }],
+    [{ kind: 'normal', count: 5, interval: 0.9 }, { kind: 'normal', count: 6, interval: 0.6, delay: 6 }, { kind: 'normal', count: 4, interval: 0.4, delay: 14 }],
+    [{ kind: 'normal', count: 10, interval: 0.55, jitter: 0.5 }],
+    [{ kind: 'normal', count: 6, interval: 0.8 }, { kind: 'normal', count: 10, interval: 0.3, delay: 8 }],
+  ])
+
   b.patrolSpots({ spacing: 3.5 })
   return b.build()
 }

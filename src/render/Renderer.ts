@@ -34,13 +34,16 @@ export class Renderer {
   // everything and is unaffected by camera pan/zoom/shake. Never cleared by render().
   readonly vfxOverlay = new Container()
   readonly layers = {
-    board: new Container(), copper: new Container(), decor: new Container(), decals: new Container(),
+    board: new Container(), copper: new Container(), decor: new Container(), decorFx: new Container(),
+    decals: new Container(),
     trace: new Container(), tracePulse: new Container(), spot: new Container(), game: new Container(),
     projectiles: new Container(), particles: new Container(), overlay: new Container(), floatingText: new Container(),
   }
+  /** Blinking LED registry rebuilt each render(): ambient life on the otherwise-baked decor. */
+  private leds: Array<{ g: Graphics; period: number; phase: number }> = []
   constructor(private app: Application) {
     this.world.addChild(
-      this.layers.board, this.layers.copper, this.layers.decor, this.layers.decals,
+      this.layers.board, this.layers.copper, this.layers.decor, this.layers.decorFx, this.layers.decals,
       this.layers.trace, this.layers.tracePulse, this.layers.spot, this.layers.game, this.layers.projectiles,
       this.layers.particles, this.layers.overlay, this.layers.floatingText,
     )
@@ -57,14 +60,20 @@ export class Renderer {
       if (PERSISTENT_LAYERS.has(name)) continue
       for (const child of c.removeChildren()) child.destroy()
     }
+    this.leds = []
     this.drawBoard(level)
     if (SHOW_DECOR) {
       this.drawCopper(level)
       this.drawDecor(level)
       // Bake to a single texture each — copper/decor never change between renders of the same
       // level, so this trades one re-bake per level load for near-zero draw-call cost per frame.
-      this.layers.copper.cacheAsTexture(true)
-      this.layers.decor.cacheAsTexture(true)
+      // Bake resolution ≥1 so silkscreen text survives the camera's 4× zoom; capped by the
+      // GPU texture limit (~4096) — XL boards (60×45×30px = 1800px) fit res 2 comfortably.
+      const bw = level.board.cols * level.board.pitch
+      const bh = level.board.rows * level.board.pitch
+      const bakeRes = Math.max(1, Math.min(2, 4096 / Math.max(bw, bh)))
+      this.layers.copper.cacheAsTexture({ resolution: bakeRes })
+      this.layers.decor.cacheAsTexture({ resolution: bakeRes })
       // Dim decor/copper relative to gameplay elements (trace/brackets/octagons) — decor is
       // background, not foreground. Container alpha applies on top of the cached texture in pixi v8.
       this.layers.copper.alpha = 0.8
@@ -222,6 +231,18 @@ export class Renderer {
       else if (s.type === 'text') texts.push(s)
     }
     this.layers.decor.addChild(g)
+    if (v === 'led5mm') {
+      // Live glow dot over the baked LED body: blinks with its own pseudo-random rhythm.
+      const cx = ox + (vf.w * vp) / 2, cy = oy + (vf.h * vp) / 2
+      const bright = item.variant === 1 ? 0x4dff7a : 0xf0c43a
+      const dot = new Graphics()
+      dot.circle(cx, cy, vp * 1.6).fill({ color: bright, alpha: 0.25 })
+      dot.circle(cx, cy, vp * 0.8).fill({ color: bright, alpha: 0.9 })
+      dot.blendMode = 'add'
+      this.layers.decorFx.addChild(dot)
+      const h = Math.abs((item.cell[0] * 73 + item.cell[1] * 131) % 100)
+      this.leds.push({ g: dot, period: 1.3 + (h % 17) / 8, phase: (h / 100) * Math.PI * 2 })
+    }
     // Silkscreen designators / part markings (R1, C4, '+', '104'…) — drawVintageItem used to
     // silently drop text specs, which is why boards looked less "engineering-document" than kit2.
     for (const ts of texts) {
@@ -230,6 +251,15 @@ export class Renderer {
       t.alpha = 0.85
       t.position.set(ts.x + ox, ts.y + oy)
       this.layers.decor.addChild(t)
+    }
+  }
+
+  /** Ambient decor life: LEDs blink each with their own rhythm. Called every frame from the
+   * main ticker (menu included) — a dead-frozen board reads as a screenshot, not a device. */
+  updateAmbient(timeSec: number): void {
+    for (const led of this.leds) {
+      const t = (timeSec / led.period + led.phase) % 1
+      led.g.alpha = t < 0.55 ? 1 : 0.12
     }
   }
 
@@ -243,12 +273,17 @@ export class Renderer {
         g.stroke({ color: stroke.color, width: stroke.width, alpha: stroke.alpha, cap: 'round', join: 'round' })
         this.layers.trace.addChild(g)
       }
+      // All chevrons batch into ONE Graphics (manual rotation) — XL maps spawned dozens of
+      // tiny display objects here for no reason.
+      const chevG = new Graphics()
       for (const ch of buildChevrons(trace, level.board.pitch, RENDER.chevronSpacing)) {
-        const g = new Graphics()
-        g.moveTo(-4, -4).lineTo(2, 0).lineTo(-4, 4).stroke({ color: PALETTE.chevron, width: 2, alpha: 0.8 })
-        g.position.set(ch.x, ch.y); g.rotation = ch.angle
-        this.layers.trace.addChild(g)
+        const cos = Math.cos(ch.angle), sin = Math.sin(ch.angle)
+        const pt = (lx: number, ly: number) => ({ x: ch.x + lx * cos - ly * sin, y: ch.y + lx * sin + ly * cos })
+        const a = pt(-4, -4), b = pt(2, 0), c = pt(-4, 4)
+        chevG.moveTo(a.x, a.y).lineTo(b.x, b.y).lineTo(c.x, c.y)
       }
+      chevG.stroke({ color: PALETTE.chevron, width: 2, alpha: 0.8 })
+      this.layers.trace.addChild(chevG)
       this.drawPad(trace.waypoints[0], PALETTE.startGreen, level.board.pitch)
       this.drawPad(trace.waypoints[trace.waypoints.length - 1], PALETTE.finishRed, level.board.pitch)
     }

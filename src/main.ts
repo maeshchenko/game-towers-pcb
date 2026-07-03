@@ -17,7 +17,7 @@ import { GameUI } from './ui/GameUI'
 import type { Board } from './model/level'
 import { levelPaths } from './model/level'
 import type { Tower } from './game/Tower'
-import { CampaignMenu } from './ui/CampaignMenu'
+import { CampaignMenu, dailyStamp } from './ui/CampaignMenu'
 import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial, saveProgress } from './game/campaign'
 import { StoryScreen } from './ui/StoryScreen'
 import { CAMPAIGN_STORY } from './story/campaignStory'
@@ -30,11 +30,15 @@ import { initMotion } from './render/juice/motion'
 import { ScreenShake } from './render/juice/ScreenShake'
 import { HitStop } from './render/juice/HitStop'
 import { enemyTheme } from './render/theme'
+import { Graphics } from 'pixi.js'
+import { TOWER_DEFS } from './game/towerTypes'
 import { mountUi, uiRoot } from './ui/uiRoot'
+import { enemyGlyphSvg } from './ui/icons'
 import { waveComposition } from './game/WaveManager'
 import { PLAYER_DIFFICULTY_HP } from './game/difficulty'
 import { loadPlayerDifficulty } from './game/playerPrefs'
 import { saveRun, loadRun, clearRun } from './game/runSave'
+import { storageGet, storageSet } from './util/safeStorage'
 
 // Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
@@ -173,14 +177,89 @@ async function boot() {
   let seedCounter = 1
   let campaign = 0 // index into DIFFICULTY_RAMP; advances each Auto-Generate
   let game: Game | null = null
+  // Replay modes launched from the campaign menu footer.
+  let endlessMode = false
+  let dailyActive = false
   // Discharge ability aiming state: armed = the next board click detonates it.
   let dischargeArmed = false
+  /** The ability unlocks at campaign level 3 (story: "emergency discharge circuit restored") —
+   * L1-2 teach the basics first. Non-campaign boards (endless/daily/generated) get it at once. */
+  function abilityUnlocked(): boolean {
+    return activeCampaignLevelIndex === null || activeCampaignLevelIndex >= 2
+  }
   function updateDischargeButton(): void {
-    ui.setAbilityState(game?.dischargeCooldown ?? 0, dischargeArmed)
+    ui.setAbilityState(game?.dischargeCooldown ?? 0, dischargeArmed, abilityUnlocked())
   }
   let selectedSpeed = 1
   let selectedTower: Tower | null = null
   let gameView: GameView | null = null
+
+  // Build-range preview circle (radial menu hover / touch arm) — lives in the overlay layer.
+  const rangePreviewG = new Graphics()
+  renderer.layers.game.addChild(rangePreviewG)
+  // Discharge aim circle: follows the cursor while armed so the blast area is never a guess.
+  const aimCircleG = new Graphics()
+  renderer.layers.game.addChild(aimCircleG)
+  window.addEventListener('pointermove', (e) => {
+    if (!dischargeArmed || !game) { if (aimCircleG.visible) { aimCircleG.visible = false } return }
+    const r = app.canvas.getBoundingClientRect()
+    const wx = (e.clientX - r.left - camera.x) / camera.zoom
+    const wy = (e.clientY - r.top - camera.y) / camera.zoom
+    aimCircleG.visible = true
+    aimCircleG.clear()
+    const radius = Game.DISCHARGE.radiusCells * (editor.state.board.pitch)
+    aimCircleG.circle(wx, wy, radius).fill({ color: 0xf0c43a, alpha: 0.08 }).stroke({ color: 0xf0c43a, width: 1.5, alpha: 0.7 })
+  })
+  const RANGE_PREVIEW_COLORS: Record<string, number> = {
+    cannon: 0x36e0e0, slow: 0x4dff7a, sniper: 0x3a7bff, mortar: 0xff9b3a, tesla: 0xc23bff,
+  }
+
+  // ---- pause menu / modal-pause plumbing -------------------------------
+  // Remember the speed the player HAD (0 stays 0 — a deliberate pause must survive a modal).
+  let speedBeforeModal: number | null = null
+  function pauseForModal(): void {
+    if (!game || speedBeforeModal !== null) return
+    speedBeforeModal = game.speed
+    game.speed = 0
+  }
+  function resumeFromModal(): void {
+    if (!game || speedBeforeModal === null) { speedBeforeModal = null; return }
+    game.speed = speedBeforeModal
+    ui.selectSpeed(speedBeforeModal === 0 ? 0 : speedBeforeModal)
+    speedBeforeModal = null
+  }
+  function exitToMenu(): void {
+    endlessMode = false
+    dailyActive = false
+    ui.closeOverlay()
+    if (activeTutorial) {
+      activeTutorial.destroy()
+      activeTutorial = null
+    }
+    resetPlay()
+    activeCampaignLevelIndex = null
+    campaignMenu.show()
+  }
+  function restartLevel(): void {
+    ui.closeOverlay()
+    clearRun() // an explicit restart must not resume into the abandoned run
+    if (activeCampaignLevelIndex !== null) {
+      loadAuthoredOrGenerated(activeCampaignLevelIndex)
+    } else if (editor.state.level) {
+      const lvl = editor.state.level
+      makeLevel(lvl.board.cols, lvl.board.rows, lvl.meta.difficulty, lvl.seed)
+    }
+    setMode('play')
+  }
+  function openPauseMenu(): void {
+    if (ui.isPauseMenuOpen) return
+    pauseForModal()
+    ui.showPauseMenu({
+      onResume: () => resumeFromModal(),
+      onRestart: () => { resumeFromModal(); restartLevel() },
+      onMenu: () => { resumeFromModal(); exitToMenu() },
+    })
+  }
 
   // Frame the camera on the PATH bounding box so the trace is the centered hero (~78% of viewport).
   function frameLevel(): void {
@@ -206,27 +285,39 @@ async function boot() {
     const isMobile = view().w < 800
     const mL = isMobile ? 16 : 156
     const mR = isMobile ? 16 : 24
-    // Top margin = MEASURED height of the top HUD (+ the next-wave preview strip under it),
-    // not a constant: the board must center inside the free area below the panels, otherwise
-    // the trace visually sits too high / under the HUD. offsetHeight ignores the portrait
-    // CSS rotation of #game-container, so the logical math holds in both orientations.
-    let mT = isMobile ? 52 : 56
+    // Two user rules, combined: (1) center vertically on the FULL viewport — the HUD is a
+    // floating overlay, not a layout block; (2) NOTHING of the map (trace + pads) may hide
+    // under that overlay. So: frame to the full viewport first, then clamp — shift down if
+    // the content's top lands under the HUD, and shrink the fit only when shifting can't help
+    // (tall boards like 60×45). Small boards stay perfectly screen-centered.
+    const mT = 16
+    const mB = 16
     const hudEl = document.querySelector('.pcb-tophud') as HTMLElement | null
-    if (hudEl && hudEl.offsetHeight > 0) {
-      mT = hudEl.offsetTop + hudEl.offsetHeight + 8
-      const previewEl = document.querySelector('.pcb-wavepreview') as HTMLElement | null
-      if (previewEl && previewEl.style.display !== 'none' && previewEl.offsetHeight > 0) {
-        mT += previewEl.offsetHeight + 4
-      }
-    }
-    const mB = isMobile ? 16 : 64
+    const hudBottom = (hudEl && hudEl.offsetHeight > 0 ? hudEl.offsetTop + hudEl.offsetHeight : 0) + 6
     const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
     const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY)
-    camera.zoom = Math.max(0.1, Math.min(4, Math.min(aw / bw, ah / bh) * 0.99))
+    let zoom = Math.max(0.1, Math.min(4, Math.min(aw / bw, ah / bh) * 0.99))
+    let cy = mT + ah / 2 - ((minY + maxY) / 2) * zoom
+    const contentTop = cy + minY * zoom
+    if (contentTop < hudBottom) {
+      const shift = hudBottom - contentTop
+      const contentBottom = cy + maxY * zoom
+      if (contentBottom + shift <= view().h - mB) {
+        cy += shift // room below — just slide the board out from under the HUD
+      } else {
+        // no room — refit into the [hudBottom .. h-mB] band
+        const ah2 = Math.max(100, view().h - hudBottom - mB)
+        zoom = Math.max(0.1, Math.min(4, Math.min(aw / bw, ah2 / bh) * 0.99))
+        cy = hudBottom + ah2 / 2 - ((minY + maxY) / 2) * zoom
+      }
+    }
     // cap zoom-out slightly beyond the start framing — zooming further out loses the board
-    camera.minZoom = camera.zoom * 0.9
-    camera.x = mL + aw / 2 - ((minX + maxX) / 2) * camera.zoom
-    camera.y = mT + ah / 2 - ((minY + maxY) / 2) * camera.zoom
+    camera.minZoom = zoom * 0.9
+    const cx = mL + aw / 2 - ((minX + maxX) / 2) * zoom
+    // First framing (camera still at the default pose) teleports; later ones glide — the
+    // level-load "settle" is one of the cheapest expensive-feeling moves available.
+    if (camera.zoom === 1 && camera.x === 0 && camera.y === 0) camera.snapTo(cx, cy, zoom)
+    else camera.glideTo(cx, cy, zoom)
     camera.apply(renderer.world)
   }
 
@@ -254,6 +345,9 @@ async function boot() {
 
     app.renderer.resize(logicalW, logicalH)
     frameLevel()
+    // Re-anchor the tutorial bubble/ring: frameLevel just moved the camera underneath them.
+    // Delayed past the camera glide so the ring lands on the settled spot position.
+    if (activeTutorial) setTimeout(() => { if (activeTutorial) runTutorialStep(tutorialStep) }, 450)
   }
 
   window.addEventListener('resize', handleResize)
@@ -363,13 +457,18 @@ async function boot() {
       // Snapshot seen-enemy intros once per level: reading loadProgress (JSON.parse) every
       // ticker frame during a wave caused constant GC churn.
       seenIntroCache = new Set(Object.keys(loadProgress().seenIntroductions ?? {}))
-      game = new Game(editor.state.level, ++seedCounter, { hpMul: PLAYER_DIFFICULTY_HP[loadPlayerDifficulty()] })
+      game = new Game(editor.state.level, ++seedCounter, { hpMul: PLAYER_DIFFICULTY_HP[loadPlayerDifficulty()], endless: endlessMode })
       gameView?.destroy() // defensive: resetPlay normally clears it, this guards any future path that skips it
       gameView = new GameView(app, renderer, game)
+      // Normalized world X → gentle stereo pan (you can HEAR which side is breached).
+      const worldX01 = (x: number): number => {
+        const lvl = editor.state.level
+        return lvl ? x / (lvl.board.cols * lvl.board.pitch) : 0.5
+      }
       game.events.on((e) => {
         if (e.type === 'leak') audioEngine.playLeak()
-        else if (e.type === 'enemyDied') audioEngine.playEnemyDeath()
-        else if (e.type === 'shotFired') audioEngine.playShot(e.kind as any)
+        else if (e.type === 'enemyDied') audioEngine.playEnemyDeath(worldX01(e.pos.x))
+        else if (e.type === 'shotFired') { if (e.kind !== 'slow') audioEngine.playShot(e.kind, worldX01(e.from.x)) }
         else if (e.type === 'enemySpawned' && e.kind === 'boss') {
           // Boss only appears on the final wave in this game, so tension jumps straight to max.
           audioEngine.playBossSpawn()
@@ -383,7 +482,9 @@ async function boot() {
           else hitStop.trigger(0.05)
         } else if (e.type === 'projectileImpact' && e.kind === 'mortar') {
           shake.add(0.08)
-          audioEngine.playExplosion()
+          audioEngine.playExplosion(worldX01(e.pos.x))
+        } else if (e.type === 'projectileImpact') {
+          audioEngine.playImpact(worldX01(e.pos.x))
         }
       })
       game.events.on((e) => {
@@ -406,6 +507,17 @@ async function boot() {
           }
         }
       })
+      // One-time ability briefing the first time the discharge becomes available.
+      if (abilityUnlocked() && !seenIntroCache.has('ability_discharge') && activeCampaignLevelIndex !== null) {
+        seenIntroCache.add('ability_discharge')
+        const prog = loadProgress()
+        if (!prog.seenIntroductions) prog.seenIntroductions = {}
+        if (!prog.seenIntroductions['ability_discharge']) {
+          prog.seenIntroductions['ability_discharge'] = true
+          saveProgress(prog)
+          setTimeout(() => showAbilityIntroduction(), 600) // after the level frame settles
+        }
+      }
       // Resume an interrupted campaign run: rebuild towers/economy at the saved wave boundary.
       if (activeCampaignLevelIndex !== null) {
         const snap = loadRun(activeCampaignLevelIndex)
@@ -424,7 +536,8 @@ async function boot() {
   let activeTutorial: TutorialOverlay | null = null
   let tutorialStep = 0
   let tutorialSpotIndex = -1
-  let autoWaveEnabled = true
+  // Persisted like every other setting (it silently reset to ON each session before).
+  let autoWaveEnabled = storageGet('pcb_td_autowave_v1') !== '0'
   let waveCountdown = 0
   let countdownTimer: any = null
   const introducingEnemies = new Set<string>()
@@ -501,8 +614,8 @@ async function boot() {
   ui = new GameUI({
     onBuild: (kind, spotIndex) => {
       if (game) {
-        game.build(kind, spotIndex)
-        if (activeTutorial && tutorialStep === 1 && kind === 'cannon') {
+        if (!game.build(kind, spotIndex)) audioEngine.playError() // can't afford / spot taken
+        else if (activeTutorial && tutorialStep === 1 && kind === 'cannon') {
           runTutorialStep(2)
         }
       }
@@ -540,14 +653,10 @@ async function boot() {
     onSell: () => { if (game && selectedTower) { game.sell(selectedTower); selectedTower = null; ui.showTower(null, 0) } },
     onTargetMode: () => { if (selectedTower) { selectedTower.cycleTargetMode(); ui.showTower(selectedTower, game!.sellValue(selectedTower)) } },
     onMenu: () => {
-      ui.closeOverlay()
-      if (activeTutorial) {
-        activeTutorial.destroy()
-        activeTutorial = null
-      }
-      resetPlay()
-      activeCampaignLevelIndex = null
-      campaignMenu.show()
+      // MAP is the most expensive misclick in the game (kills a 20-min run) — it now routes
+      // through the pause menu instead of leaving instantly. No game → straight to the map.
+      if (game && game.state.phase !== 'win' && game.state.phase !== 'lose') openPauseMenu()
+      else exitToMenu()
     },
     onLanguageChanged: () => {
       ui.retranslateHud(game || undefined, editor.state.level?.meta.difficulty ?? 1)
@@ -573,10 +682,28 @@ async function boot() {
     },
     onAutoWaveChanged: (val) => {
       autoWaveEnabled = val
+      storageSet('pcb_td_autowave_v1', val ? '1' : '0')
     },
     onOpenBestiary: () => {
+      // Reading the bestiary must not cost lives — pause while it's open.
+      pauseForModal()
       const progress = loadProgress()
-      campaignMenu.showBestiary(progress.unlockedLevelIndex)
+      campaignMenu.showBestiary(progress.unlockedLevelIndex, () => { if (!ui.isPauseMenuOpen) resumeFromModal() })
+    },
+    onModalOpen: () => pauseForModal(),
+    onModalClose: () => { if (!ui.isPauseMenuOpen) resumeFromModal() },
+    onPreviewRange: (kind, spotIndex) => {
+      // Range circle while choosing in the radial — buying blind was the touch UX hole.
+      rangePreviewG.clear()
+      if (!kind || !game) return
+      const cell = game.spotCells()[spotIndex]
+      if (!cell) return
+      const pitch = editor.state.board.pitch
+      const cx = cell[0] * pitch + pitch / 2, cy = cell[1] * pitch + pitch / 2
+      const boost = game.isSpecial(spotIndex) ? 1.35 : 1
+      const r = TOWER_DEFS[kind][0].range * pitch * boost
+      const color = RANGE_PREVIEW_COLORS[kind]
+      rangePreviewG.circle(cx, cy, r).fill({ color, alpha: 0.07 }).stroke({ color, width: 1.5, alpha: 0.55 })
     },
     onProgressImported: () => {
       // Imported save changes unlocks/intros: refresh the per-level cache and the menu.
@@ -651,6 +778,27 @@ async function boot() {
   }
 
   campaignMenu = new CampaignMenu({
+    onEndless: () => {
+      // Survival: the BIGGEST board at max difficulty; waves synthesize harder forever.
+      // Auto-wave is forced on — endless is about tactics under pressure, not clicking START.
+      campaignMenu.hide()
+      endlessMode = true
+      dailyActive = false
+      activeCampaignLevelIndex = null
+      autoWaveEnabled = true
+      ui.setAutoWave(true)
+      makeLevel(60, 45, 9, 1 + Math.floor(Math.random() * 99999))
+      setMode('play')
+    },
+    onDaily: () => {
+      // One shared seed per calendar day — everyone plays the same board.
+      campaignMenu.hide()
+      endlessMode = false
+      dailyActive = true
+      activeCampaignLevelIndex = null
+      makeLevel(32, 24, 5, Number(dailyStamp()) % 100000)
+      setMode('play')
+    },
     onSelectLevel: (index) => {
       audioEngine.init()
       if (audioEngine.isMuted()) {
@@ -665,6 +813,11 @@ async function boot() {
       goToCampaignLevel(index, () => {
         if (index === 0) {
           activeTutorial = new TutorialOverlay()
+          activeTutorial.onSkip = () => {
+            completeTutorial() // persists — the guided intro never comes back
+            activeTutorial?.destroy()
+            activeTutorial = null
+          }
           setTimeout(() => {
             runTutorialStep(0)
           }, 100)
@@ -867,6 +1020,7 @@ async function boot() {
     if (dischargeArmed) {
       dischargeArmed = false
       document.body.classList.remove('pcb-aiming')
+      aimCircleG.visible = false
       const r = app.canvas.getBoundingClientRect()
       const wx = (e.clientX - r.left - camera.x) / camera.zoom
       const wy = (e.clientY - r.top - camera.y) / camera.zoom
@@ -934,16 +1088,85 @@ async function boot() {
   let lastPhase: string | null = null
 
   // game loop on the Pixi ticker
+  // ------------------------------------------------------------ hotkeys
+  // Desktop keyboard layer. Guards: typing fields, story terminal (it owns its own keys),
+  // enemy-intro modal. Esc unwinds the TOP layer only: settings → pause → radial → selection.
+  window.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+    if (document.querySelector('.pcb-story-overlay')) return // StoryScreen handles its own keys
+    if (e.code === 'Escape') {
+      if (ui.isSettingsOpen) { ui.closeSettings(); return }
+      if (ui.isPauseMenuOpen) { ui.hidePauseMenu(); resumeFromModal(); return }
+      if (dischargeArmed) { dischargeArmed = false; document.body.classList.remove('pcb-aiming'); updateDischargeButton(); return }
+      if (ui.isRadialOpen) { ui.closeRadialMenu(); return }
+      if (selectedTower) { selectedTower = null; ui.showTower(null, 0); return }
+      if (game && game.state.phase !== 'win' && game.state.phase !== 'lose') openPauseMenu()
+      return
+    }
+    if (!game) return
+    switch (e.code) {
+      case 'Space':
+        e.preventDefault() // Space scrolls / re-triggers focused buttons otherwise
+        if (game.speed === 0) { game.speed = selectedSpeed; ui.selectSpeed(selectedSpeed) }
+        else { selectedSpeed = game.speed; game.speed = 0; ui.selectSpeed(0) }
+        break
+      case 'Digit1': selectedSpeed = 1; game.speed = 1; ui.selectSpeed(1); break
+      case 'Digit2': selectedSpeed = 2; game.speed = 2; ui.selectSpeed(2); break
+      case 'Digit3':
+      case 'Digit4': selectedSpeed = 4; game.speed = 4; ui.selectSpeed(4); break
+      case 'Enter': onStartWaveClick(); break
+      case 'KeyU':
+        if (selectedTower) {
+          if (selectedTower.canBranch) break // branch choice must be a deliberate click
+          game.upgrade(selectedTower)
+          ui.showTower(selectedTower, game.sellValue(selectedTower))
+        }
+        break
+      case 'KeyM': audioEngine.toggleMute(); break
+      case 'KeyQ':
+        if (game.dischargeCooldown === 0 && game.state.phase === 'wave') {
+          dischargeArmed = !dischargeArmed
+          document.body.classList.toggle('pcb-aiming', dischargeArmed)
+          updateDischargeButton()
+        }
+        break
+    }
+  })
+
+  let ambientClock = 0
+  // Tutorial anchors live in screen space: any camera motion (glide, clamp, resize) leaves the
+  // ring/bubble stranded at stale coordinates. Track the pose per frame and re-run the current
+  // step ONCE, the frame the camera comes to rest.
+  let lastCamPose = ''
+  let camWasMoving = false
   app.ticker.add((ticker) => {
+    const rawDt = ticker.deltaMS / 1000
+    ambientClock += rawDt
+    renderer.updateAmbient(ambientClock)
+    // Free build spots "breathe" during the build phase; steady during combat (distraction).
+    renderer.layers.spot.alpha = !game || game.state.phase === 'build'
+      ? 0.82 + 0.18 * Math.sin(ambientClock * 2.2)
+      : 1
+    // Camera glide must advance even with no game running (level-load settle, menu → level).
+    camera.update(rawDt)
+    const camPose = `${camera.x.toFixed(1)},${camera.y.toFixed(1)},${camera.zoom.toFixed(3)}`
+    if (camPose !== lastCamPose) {
+      camWasMoving = true
+    } else if (camWasMoving) {
+      camWasMoving = false
+      if (activeTutorial) runTutorialStep(tutorialStep)
+    }
+    lastCamPose = camPose
     if (!game) {
+      camera.apply(renderer.world)
       lastPhase = null
       return
     }
-    const rawDt = ticker.deltaMS / 1000
     const simDt = hitStop.filter(rawDt)
     game.tick(simDt)
     updateDischargeButton()
     audioEngine.setSlowHum(game.state.phase === 'wave' && game.towers.some((t) => t.kind === 'slow'))
+    audioEngine.setAmbient(game.state.phase === 'build')
     gameView?.update(rawDt, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
     camera.apply(renderer.world)
@@ -1014,6 +1237,22 @@ async function boot() {
       const score = game.state.lives
       game.speed = 0 // pause ticker updates
       clearRun() // the run ended either way — never resume INTO a finished/lost level
+      ui.setRunStats({
+        ...game.runStats,
+        wave: game.state.endless ? game.state.wave + 1 : Math.min(game.state.wave + 1, game.state.waveCount),
+        waveCount: game.state.endless ? Infinity : game.state.waveCount,
+      })
+      if (endlessMode && !won) {
+        // Endless score = the wave you fell on; keep the best.
+        const reached = game.state.wave + 1
+        const prev = Number(storageGet('pcb_td_endless_best_v1') ?? '0')
+        if (reached > prev) storageSet('pcb_td_endless_best_v1', String(reached))
+      }
+      if (dailyActive && won) {
+        const key = `pcb_td_daily_${dailyStamp()}`
+        const prev = Number(storageGet(key) ?? '-1')
+        if (game.state.lives > prev) storageSet(key, String(game.state.lives))
+      }
 
       if (won) {
         audioEngine.playVictory()
@@ -1109,6 +1348,32 @@ async function boot() {
     }
   })
 
+  /** New-enemy briefings BEFORE the wave launches: chained intro cards for every unseen kind
+   * in the upcoming wave, then `proceed`. Mid-combat popups broke the flow — the ticker-based
+   * detector remains only as a fallback for kinds born mid-wave (carrier fragments). */
+  function introduceUpcoming(waveIndex: number, proceed: () => void): void {
+    if (!game || activeCampaignLevelIndex === null) { proceed(); return }
+    const known = ['normal', 'fast', 'healer', 'brute', 'tank', 'rogue', 'boss', 'shielded', 'carrier']
+    const fresh = [...waveComposition(game.peekWave(waveIndex)).keys()]
+      .filter((k) => known.includes(k) && !seenIntroCache.has(k) && !introducingEnemies.has(k))
+    if (fresh.length === 0) { proceed(); return }
+    const showNext = (i: number): void => {
+      if (i >= fresh.length) { proceed(); return }
+      const kind = fresh[i]
+      introducingEnemies.add(kind)
+      showEnemyIntroduction(kind, () => {
+        const prog = loadProgress()
+        if (!prog.seenIntroductions) prog.seenIntroductions = {}
+        prog.seenIntroductions[kind] = true
+        saveProgress(prog)
+        seenIntroCache.add(kind)
+        introducingEnemies.delete(kind)
+        showNext(i + 1)
+      })
+    }
+    showNext(0)
+  }
+
   function onStartWaveClick() {
     ensureGame()
     if (!game) return
@@ -1118,38 +1383,50 @@ async function boot() {
     // only decays it). Big maps stop being a waiting game.
     if (game.state.phase === 'wave') {
       if (!game.canCallNextWave()) return
-      const bonus = game.earlyCallBonus() // the sim banks it inside callNextWave
-      if (game.callNextWave()) {
-        audioEngine.playUpgrade()
-        showFloatingBonusText(bonus)
-        ui.update(game, editor.state.level?.meta.difficulty ?? 1)
-      }
+      // Brief unseen kinds first, with the battle paused — then summon.
+      const prevSpeed = game.speed
+      if (game.speed > 0) game.speed = 0
+      introduceUpcoming(game.state.wave + 1, () => {
+        if (!game) return
+        game.speed = prevSpeed
+        if (!game.canCallNextWave()) return
+        const bonus = game.earlyCallBonus() // the sim banks it inside callNextWave
+        if (game.callNextWave()) {
+          audioEngine.playUpgrade()
+          showFloatingBonusText(bonus)
+          ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+        }
+      })
       return
     }
     if (game.state.phase !== 'build') return
 
-    // Calculate early start bonus: scales with wave number so the risk/reward stays
+    // Freeze the early-start bonus BEFORE any intro cards (reading time must not eat it),
+    // then brief, then launch. Bonus scales with wave number so the risk/reward stays
     // meaningful late game (up to ~5s × (6+wave) energy for an instant restart).
-    if (waveCountdown > 0) {
-      const bonus = Math.ceil(waveCountdown) * (6 + (game?.state.waveNumber ?? 1))
-      game.state.add(bonus)
-      audioEngine.playUpgrade() // nice positive sound for bonus!
-      showFloatingBonusText(bonus)
-    }
-
+    const frozenBonus = waveCountdown > 0 ? Math.ceil(waveCountdown) * (6 + (game?.state.waveNumber ?? 1)) : 0
     if (countdownTimer) {
       clearInterval(countdownTimer)
       countdownTimer = null
     }
     waveCountdown = 0
-    
-    game.startWave()
-    if (activeTutorial && tutorialStep === 3) {
-      completeTutorial()
-      activeTutorial.destroy()
-      activeTutorial = null
-    }
-    ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+    updateStartWaveButtonText()
+
+    introduceUpcoming(game.state.wave, () => {
+      if (!game || game.state.phase !== 'build') return
+      if (frozenBonus > 0) {
+        game.state.add(frozenBonus)
+        audioEngine.playUpgrade() // nice positive sound for bonus!
+        showFloatingBonusText(frozenBonus)
+      }
+      game.startWave()
+      if (activeTutorial && tutorialStep === 3) {
+        completeTutorial()
+        activeTutorial.destroy()
+        activeTutorial = null
+      }
+      ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+    })
   }
 
   function startBuildPhaseCountdown() {
@@ -1226,6 +1503,30 @@ async function boot() {
     setTimeout(() => el.remove(), 1000)
   }
 
+  /** First-unlock briefing for the discharge ability — same modal style as enemy intros. */
+  function showAbilityIntroduction(): void {
+    const modal = document.createElement('div')
+    modal.className = 'pcb-settings-modal'
+    modal.style.zIndex = '300'
+    modal.style.display = 'flex'
+    modal.innerHTML = `
+      <div class="pcb-settings-card" style="border-color: #f0c43a; box-shadow: 0 0 30px rgba(240,196,58,0.25); max-width: 340px; text-align: center;">
+        <h2 style="color: #f0c43a; letter-spacing: 2px;">${i18n.t('ability.intro.title')}</h2>
+        <div style="margin: 14px auto; width: 52px; height: 52px; border-radius: 50%; border: 2px solid #f0c43a; display: flex; align-items: center; justify-content: center; color: #f0c43a; box-shadow: 0 0 14px rgba(240,196,58,0.5); font-size: 22px;">⚡</div>
+        <div style="color: #fff; font-size: 12px; line-height: 1.5; margin-bottom: 10px;">${i18n.t('ability.intro.desc')}</div>
+        <div style="color: #8fb3a0; font-size: 11px; line-height: 1.5; margin-bottom: 14px;">${i18n.t('ability.intro.how')}</div>
+        <button class="pcb-hud-btn active" style="width: 100%; min-height: 40px;">${i18n.t('enemy.intro.ok')}</button>
+      </div>`
+    const btn = modal.querySelector('button') as HTMLButtonElement
+    btn.onclick = () => {
+      audioEngine.playClick()
+      modal.remove()
+      ui.pulseAbilityButton()
+    }
+    modal.onclick = (e) => { if (e.target === modal) btn.click() }
+    mountUi(modal)
+  }
+
   function showEnemyIntroduction(kind: string, onClose: () => void) {
     const modal = document.createElement('div')
     modal.className = 'pcb-settings-modal'
@@ -1243,7 +1544,7 @@ async function boot() {
         
         <div style="display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 16px 0;">
           <div style="width: 48px; height: 48px; border-radius: 50%; background: ${color}22; border: 2px solid ${color}; box-shadow: 0 0 12px ${color}55; display: flex; align-items: center; justify-content: center; font-size: 20px;">
-            👾
+            ${enemyGlyphSvg(enemyTheme(kind).glyph, color)}
           </div>
           <div style="font-weight: bold; color: ${color}; font-size: 15px; letter-spacing: 1px;">${name}</div>
         </div>
@@ -1261,11 +1562,13 @@ async function boot() {
     `
     mountUi(modal);
 
-    (modal.querySelector('.close-intro-btn') as HTMLElement).onclick = () => {
+    const closeIntro = () => {
       audioEngine.playClick()
       modal.parentNode?.removeChild(modal)
       onClose()
     }
+    ;(modal.querySelector('.close-intro-btn') as HTMLElement).onclick = closeIntro
+    modal.onclick = (e) => { if (e.target === modal) closeIntro() }
   }
 
   // Boot finished — drop the HTML splash (it covered the whole screen while the bundle loaded).
