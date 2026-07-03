@@ -49,7 +49,9 @@ export class GameView {
     this.decals = new Decals(layers.decals)
     this.floating = new FloatingText(layers.floatingText)
     this.vfx = new Vfx(app, renderer.world, renderer.vfxOverlay, [layers.projectiles, layers.particles])
-    this.tracePulse = new TracePulse(app, layers.trace, game.paths)
+    // Dedicated persistent layer: `trace` is cleared+destroyed on every Renderer.render(),
+    // which would leave TracePulse updating destroyed sprites (crash in the ticker).
+    this.tracePulse = new TracePulse(app, layers.tracePulse, game.paths)
     this.towers.bind(game.events) // build/upgrade/recoil scale tweens — owned by TowerViews itself
     this.unsubs.push(game.events.on((e) => {
       if (e.type === 'enemyDamaged') {

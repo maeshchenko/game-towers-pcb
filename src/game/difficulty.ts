@@ -9,3 +9,13 @@ export function waveClearGold(wave1Based: number): number { return 16 + wave1Bas
 export function effectiveDamage(raw: number, armor: number, pierce = 0): number {
   return Math.max(1, raw - Math.max(0, armor - pierce))
 }
+
+/** Player-chosen global difficulty. Levels are BALANCED on 'normal' (the FAIR band); casual
+ * trims enemy HP for a stuck player, veteran raises it for the hardcore. Pure enemy-HP
+ * multiplier — economy untouched, so tower math stays familiar across modes. */
+export type PlayerDifficulty = 'casual' | 'normal' | 'veteran'
+export const PLAYER_DIFFICULTY_HP: Record<PlayerDifficulty, number> = {
+  casual: 0.75,
+  normal: 1,
+  veteran: 1.3,
+}

@@ -15,6 +15,9 @@ export const ENEMY_THEME: Record<string, EnemyTheme> = {
   tank:   { name: 'CORRUPTED', color: PALETTE.neonOrange,  glyph: 'hex' },
   rogue:  { name: 'GLITCH',    color: PALETTE.neonGreen,   glyph: 'triangle' },
   boss:   { name: 'BOSS',      color: 0xff5ed0,            glyph: 'bossDiamond' },
+  shielded: { name: 'CAPSULE', color: PALETTE.neonBlue,    glyph: 'hex' },
+  carrier:  { name: 'CONTAINER', color: 0xd08aff,          glyph: 'diamond' },
+  fragment: { name: 'SHARD',   color: 0xff8a8a,            glyph: 'triangle' },
 }
 export function enemyTheme(kind: string): EnemyTheme {
   return ENEMY_THEME[kind] ?? { name: kind.toUpperCase(), color: 0xffffff, glyph: 'circle' }

@@ -1,4 +1,6 @@
 // src/ui/i18n.ts
+import { storageGet, storageSet } from '../util/safeStorage'
+
 export type Lang = 'ru' | 'en'
 
 const TRANSLATIONS = {
@@ -28,6 +30,42 @@ const TRANSLATIONS = {
     'settings.reduced_fx': 'Сниженные эффекты',
     'settings.lang': 'Язык',
     'settings.close': 'ЗАКРЫТЬ',
+    'ability.discharge.hint': 'РАЗРЯД: клик по кнопке, затем по плате — площадной удар с замедлением. Перезарядка 45с.',
+    'settings.difficulty': 'Сложность',
+    'settings.difficulty.casual': 'ЛЕГКО',
+    'settings.difficulty.normal': 'НОРМА',
+    'settings.difficulty.veteran': 'ВЕТЕРАН',
+    'settings.difficulty.casual.hint': 'Враги слабее на 25%. Со следующего уровня.',
+    'settings.difficulty.normal.hint': 'Как задумано. Со следующего уровня.',
+    'settings.difficulty.veteran.hint': 'Враги крепче на 30%. Со следующего уровня.',
+    'settings.save_code': 'Код сохранения',
+    'settings.save_export': 'КОПИРОВАТЬ',
+    'settings.save_import': 'ВСТАВИТЬ',
+    'settings.save_copied': 'Код скопирован в буфер обмена.',
+    'settings.save_copy_manual': 'Скопируйте код из поля вручную.',
+    'settings.save_paste': 'Вставьте код и нажмите ВСТАВИТЬ ещё раз',
+    'settings.save_imported': 'Прогресс восстановлен.',
+    'settings.save_bad_code': 'Код не распознан.',
+    'branch.overclock.name': 'РАЗГОН',
+    'branch.overclock.desc': 'Втрое выше скорострельность — шинковка толп.',
+    'branch.piercer.name': 'БРОНЕБОЙ',
+    'branch.piercer.desc': 'Тяжёлые пули пробивают любую броню.',
+    'branch.cryostat.name': 'КРИОСТАТ',
+    'branch.cryostat.desc': 'Глубокая заморозка в компактном поле.',
+    'branch.fieldcoil.name': 'КАТУШКА ПОЛЯ',
+    'branch.fieldcoil.desc': 'Огромный радиус замедления.',
+    'branch.railgun.name': 'РЕЛЬСОТРОН',
+    'branch.railgun.desc': 'Медленный выстрел чудовищной силы — гроза боссов.',
+    'branch.splitbeam.name': 'РАСЩЕПИТЕЛЬ',
+    'branch.splitbeam.desc': 'Луч ветвится на соседние цели.',
+    'branch.cluster.name': 'КАССЕТА',
+    'branch.cluster.desc': 'Ковровый удар по огромной площади.',
+    'branch.buster.name': 'ПРОБОЙНИК',
+    'branch.buster.desc': 'Редкий, но сокрушительный бронебойный снаряд.',
+    'branch.arcmatrix.name': 'ДУГОВАЯ МАТРИЦА',
+    'branch.arcmatrix.desc': 'Длинные цепи молний плавят рои.',
+    'branch.capacitor.name': 'КОНДЕНСАТОР',
+    'branch.capacitor.desc': 'Редкий мощный разряд по группе.',
     
     'result.victory_title': 'ИСПЫТАНИЕ ЗАВЕРШЕНО',
     'result.victory_subtitle': 'ЦЕПЬ СТАБИЛИЗИРОВАНА',
@@ -59,6 +97,9 @@ const TRANSLATIONS = {
     'enemy.healer': 'ФОРМА-05 «РЕГЕНЕРАТОР»',
     'enemy.brute': 'ФОРМА-06 «ВИРУС»',
     'enemy.boss': 'ФОРМА-07 «НОСИТЕЛЬ»',
+    'enemy.shielded': 'ФОРМА-08 «КАПСУЛА»',
+    'enemy.carrier': 'ФОРМА-09 «КОНТЕЙНЕР»',
+    'enemy.fragment': 'ФОРМА-10 «ОСКОЛОК»',
     'enemy.next_wave': 'СЛЕДУЮЩАЯ ВОЛНА:',
 
     // Editor UI
@@ -138,7 +179,13 @@ const TRANSLATIONS = {
     'enemy.rogue.desc': 'Форма с нарушенной корректирующей матрицей; траектория не поддаётся прогнозу.',
     'enemy.rogue.strat': 'Зелёные чипы SLOW стабилизируют его скорость.',
     'enemy.boss.desc': 'Управляющая форма сигнала: координирует и переносит остальные копии.',
-    'enemy.boss.strat': 'Стройте улучшенные чипы LASER и MISSILE для максимального урона.',
+    'enemy.boss.strat': 'Стройте улучшенные чипы LASER и MISSILE для максимального урона. Теряя целостность, меняет поведение — будьте готовы.',
+    'enemy.shielded.desc': 'Экранированная капсула: защитная оболочка гасит первые попадания целиком, независимо от их силы.',
+    'enemy.shielded.strat': 'Мощный одиночный выстрел пропадает зря. Сбивайте экран скорострельными PULSE и TESLA.',
+    'enemy.carrier.desc': 'Транспортная форма: при разрушении высвобождает рой осколков прямо на дорожку.',
+    'enemy.carrier.strat': 'Уничтожайте КОНТЕЙНЕРЫ подальше от выхода и держите MISSILE или TESLA для зачистки осколков.',
+    'enemy.fragment.desc': 'Обрывок кода из разрушенного контейнера: слабый, быстрый, многочисленный.',
+    'enemy.fragment.strat': 'Площадной урон MISSILE и цепи TESLA снимают их пачками.',
 
     // Story: "Сигнал извне" — POST-intro, briefings, debriefs, final log.
     // story.blank is a shared pause key for blank separator lines in the spec texts
@@ -303,6 +350,42 @@ const TRANSLATIONS = {
     'settings.reduced_fx': 'Reduced effects',
     'settings.lang': 'Language',
     'settings.close': 'CLOSE',
+    'ability.discharge.hint': 'DISCHARGE: click the button, then the board — an AoE burst with a slow. 45s cooldown.',
+    'settings.difficulty': 'Difficulty',
+    'settings.difficulty.casual': 'CASUAL',
+    'settings.difficulty.normal': 'NORMAL',
+    'settings.difficulty.veteran': 'VETERAN',
+    'settings.difficulty.casual.hint': 'Enemies 25% weaker. From the next level.',
+    'settings.difficulty.normal.hint': 'As designed. From the next level.',
+    'settings.difficulty.veteran.hint': 'Enemies 30% tougher. From the next level.',
+    'settings.save_code': 'Save code',
+    'settings.save_export': 'COPY',
+    'settings.save_import': 'PASTE',
+    'settings.save_copied': 'Code copied to clipboard.',
+    'settings.save_copy_manual': 'Copy the code from the field manually.',
+    'settings.save_paste': 'Paste the code and press PASTE again',
+    'settings.save_imported': 'Progress restored.',
+    'settings.save_bad_code': 'Code not recognized.',
+    'branch.overclock.name': 'OVERCLOCK',
+    'branch.overclock.desc': 'Triple fire rate — shreds swarms.',
+    'branch.piercer.name': 'PIERCER',
+    'branch.piercer.desc': 'Heavy rounds punch through any armor.',
+    'branch.cryostat.name': 'CRYOSTAT',
+    'branch.cryostat.desc': 'Deep freeze in a compact field.',
+    'branch.fieldcoil.name': 'FIELD COIL',
+    'branch.fieldcoil.desc': 'Huge slow-field radius.',
+    'branch.railgun.name': 'RAILGUN',
+    'branch.railgun.desc': 'Slow, monstrous single shot — boss killer.',
+    'branch.splitbeam.name': 'SPLIT BEAM',
+    'branch.splitbeam.desc': 'The beam forks into nearby targets.',
+    'branch.cluster.name': 'CLUSTER',
+    'branch.cluster.desc': 'Carpet strike over a huge area.',
+    'branch.buster.name': 'BUSTER',
+    'branch.buster.desc': 'Rare but devastating armor-piercing shell.',
+    'branch.arcmatrix.name': 'ARC MATRIX',
+    'branch.arcmatrix.desc': 'Long lightning chains melt swarms.',
+    'branch.capacitor.name': 'CAPACITOR',
+    'branch.capacitor.desc': 'Rare, massive group discharge.',
     
     'result.victory_title': 'TEST COMPLETED',
     'result.victory_subtitle': 'CIRCUIT STABILIZED',
@@ -334,6 +417,9 @@ const TRANSLATIONS = {
     'enemy.healer': 'FORM-05 "REGENERATOR"',
     'enemy.brute': 'FORM-06 "VIRUS"',
     'enemy.boss': 'FORM-07 "CARRIER"',
+    'enemy.shielded': 'FORM-08 "CAPSULE"',
+    'enemy.carrier': 'FORM-09 "CONTAINER"',
+    'enemy.fragment': 'FORM-10 "SHARD"',
     'enemy.next_wave': 'NEXT WAVE:',
 
     // Editor UI
@@ -413,7 +499,13 @@ const TRANSLATIONS = {
     'enemy.rogue.desc': 'Form with a disrupted error-correction matrix; trajectory unpredictable.',
     'enemy.rogue.strat': 'Green SLOW chips stabilize its erratic speed.',
     'enemy.boss.desc': 'Signal control form: coordinates and carries the remaining copies.',
-    'enemy.boss.strat': 'Deploy upgraded LASER and MISSILE chips for maximum damage.',
+    'enemy.boss.strat': 'Deploy upgraded LASER and MISSILE chips for maximum damage. It changes behaviour as it loses integrity — stay ready.',
+    'enemy.shielded.desc': 'Shielded capsule: the protective shell absorbs the first hits entirely, whatever their power.',
+    'enemy.shielded.strat': 'Big single shots are wasted on it. Strip the shield with rapid-fire PULSE and TESLA.',
+    'enemy.carrier.desc': 'Transport form: releases a swarm of shards onto the trace when destroyed.',
+    'enemy.carrier.strat': 'Kill CONTAINERS far from the exit and keep MISSILE or TESLA ready to sweep the shards.',
+    'enemy.fragment.desc': 'A scrap of code from a destroyed container: weak, fast, numerous.',
+    'enemy.fragment.strat': 'MISSILE splash and TESLA chains clear them in batches.',
 
     // Story: "Signal From Beyond" — POST-intro, briefings, debriefs, final log.
     // story.blank is a shared pause key for blank separator lines in the spec texts
@@ -576,25 +668,34 @@ export class I18nManager {
 
   set lang(l: Lang) {
     this.currentLang = l
-    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
-      window.localStorage.setItem(LANG_KEY, l)
-    }
+    storageSet(LANG_KEY, l)
+    this.syncDocumentLang()
+  }
+
+  private syncDocumentLang(): void {
+    if (typeof document !== 'undefined') document.documentElement.lang = this.currentLang
   }
 
   loadLang(): void {
-    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
-      const saved = window.localStorage.getItem(LANG_KEY) as Lang
-      if (saved === 'ru' || saved === 'en') {
-        this.currentLang = saved
-        return
-      }
+    const saved = storageGet(LANG_KEY) as Lang | null
+    if (saved === 'ru' || saved === 'en') {
+      this.currentLang = saved
+    } else {
+      // First launch: follow the browser locale — RU for Russian, EN for everyone else.
+      const nav = typeof navigator !== 'undefined' ? navigator.language ?? '' : ''
+      this.currentLang = nav.toLowerCase().startsWith('ru') ? 'ru' : 'en'
     }
-    this.currentLang = 'ru' // default to Russian
+    this.syncDocumentLang()
   }
 
   t(key: keyof typeof TRANSLATIONS.ru): string {
     const dict = TRANSLATIONS[this.currentLang] || TRANSLATIONS.ru
     return dict[key] || TRANSLATIONS.ru[key] || String(key)
+  }
+
+  /** Dynamic-key lookup (e.g. `branch.${id}.name`) — key presence is guarded by tests, not tsc. */
+  tk(key: string): string {
+    return this.t(key as keyof typeof TRANSLATIONS.ru)
   }
 }
 

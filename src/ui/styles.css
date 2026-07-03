@@ -30,7 +30,7 @@
 .pcb-hud-badge.medium { color: #f0c43a; border-color: #f0c43a; box-shadow: 0 0 5px rgba(240,196,58,0.3); }
 .pcb-hud-badge.hard { color: #ff4d4d; border-color: #ff4d4d; box-shadow: 0 0 5px rgba(255,77,77,0.3); }
 .pcb-hud-val { font-weight: bold; color: #fff; }
-.pcb-hud-btn { background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 6px 12px; font: 12px monospace; cursor: pointer; border-radius: 3px; transition: all 0.15s; }
+.pcb-hud-btn { position: relative; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 6px 12px; font: 12px monospace; cursor: pointer; border-radius: 3px; transition: all 0.15s; }
 .pcb-hud-btn:hover { background: #1f8f4d; color: #000; box-shadow: 0 0 8px rgba(108,242,160,0.5); }
 .pcb-hud-btn.active { background: #2bd06a; color: #000; border-color: #2bd06a; font-weight: bold; box-shadow: 0 0 10px rgba(43,208,106,0.6); }
 
@@ -45,6 +45,13 @@
 .pcb-towerpanel { position: fixed; top: 120px; right: 16px; width: 190px; background: rgba(13,31,23,0.92); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 12px; font: 12px monospace; z-index: 11; }
 .pcb-towerpanel h3 { color: #6cf2a0; margin: 0 0 6px; letter-spacing: 1px; }
 .pcb-towerpanel button { display: block; width: 100%; margin-top: 6px; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 5px; font: 11px monospace; cursor: pointer; }
+/* Tier-4 branch choice: gold accent — a permanent, role-defining decision */
+.pcb-towerpanel .pcb-branch-btn { display: flex; justify-content: space-between; gap: 6px; border-color: #b98a2e; color: #f0c43a; }
+.pcb-towerpanel .pcb-branch-btn:hover { background: #1a2a12; box-shadow: 0 0 8px rgba(240,196,58,0.25); }
+.pcb-towerpanel .pcb-branch-cost { opacity: 0.8; }
+/* Discharge ability: crosshair while aiming, gold pulse on the armed button */
+body.pcb-aiming canvas { cursor: crosshair; }
+.pcb-hud-btn.ability-btn.active { border-color: #f0c43a; color: #f0c43a; box-shadow: 0 0 10px rgba(240,196,58,0.4); }
 
 .pcb-modebar { position: fixed; top: 62px; left: 8px; display: flex; gap: 6px; z-index: 12; }
 .pcb-modebar button { background: #0d1f17; color: #6cf2a0; border: 1px solid #2bd06a; padding: 6px 12px; font: 12px monospace; cursor: pointer; }

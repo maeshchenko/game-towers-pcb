@@ -1,5 +1,6 @@
 // src/ui/AudioEngine.ts
 import type { TowerKind } from '../game/towerTypes'
+import { storageGet, storageSet } from '../util/safeStorage'
 
 const MUSIC_VOL_KEY = 'pcb_td_music_vol_v1'
 const SFX_VOL_KEY = 'pcb_td_sfx_vol_v1'
@@ -52,12 +53,12 @@ export class AudioEngine {
   }
 
   loadVolumeSettings(): void {
-    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.getItem === 'function') {
-      const mv = window.localStorage.getItem(MUSIC_VOL_KEY)
-      const sv = window.localStorage.getItem(SFX_VOL_KEY)
-      if (mv !== null) this.musicVol = parseFloat(mv)
-      if (sv !== null) this.sfxVol = parseFloat(sv)
-    }
+    // Clamp + finite-check: a corrupt stored value would set gain to NaN, which the try/catch
+    // around WebAudio calls swallows silently — the game would go permanently mute.
+    const mv = parseFloat(storageGet(MUSIC_VOL_KEY) ?? '')
+    const sv = parseFloat(storageGet(SFX_VOL_KEY) ?? '')
+    if (Number.isFinite(mv)) this.musicVol = Math.max(0, Math.min(1, mv))
+    if (Number.isFinite(sv)) this.sfxVol = Math.max(0, Math.min(1, sv))
   }
 
   getMusicVolume(): number { return this.musicVol }
@@ -65,16 +66,12 @@ export class AudioEngine {
 
   setMusicVolume(vol: number): void {
     this.musicVol = Math.max(0, Math.min(1, vol))
-    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
-      window.localStorage.setItem(MUSIC_VOL_KEY, String(this.musicVol))
-    }
+    storageSet(MUSIC_VOL_KEY, String(this.musicVol))
   }
 
   setSfxVolume(vol: number): void {
     this.sfxVol = Math.max(0, Math.min(1, vol))
-    if (typeof window !== 'undefined' && window.localStorage && typeof window.localStorage.setItem === 'function') {
-      window.localStorage.setItem(SFX_VOL_KEY, String(this.sfxVol))
-    }
+    storageSet(SFX_VOL_KEY, String(this.sfxVol))
     // The SLOW-aura drone is continuous — retarget its gain live, or the slider is ignored
     // until the hum restarts.
     if (this.slowHumActive && this.slowHumGain && this.ctx) {
@@ -103,6 +100,19 @@ export class AudioEngine {
   toggleMute(): boolean {
     this.setMute(this.enabled)
     return !this.enabled
+  }
+
+  /** Hidden-tab handling: suspend mutes the whole graph instantly; on resume the music
+   * scheduler clock must be resynced, otherwise it "catches up" the missed notes in a burst
+   * (background setInterval is throttled to ≥1 s while the lookahead is only 0.3 s). */
+  suspendForBackground(): void {
+    this.ctx?.suspend().catch(() => {})
+  }
+
+  resumeFromBackground(): void {
+    if (!this.ctx) return
+    this.ctx.resume().catch(() => {})
+    this.nextNoteTime = this.ctx.currentTime
   }
 
   isMuted(): boolean {

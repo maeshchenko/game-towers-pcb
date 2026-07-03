@@ -1,10 +1,14 @@
 // src/ui/GameUI.ts
 import type { Game } from '../game/Game'
 import type { Tower } from '../game/Tower'
-import { TOWER_DEFS, type TowerKind } from '../game/towerTypes'
+import { TOWER_DEFS, TOWER_BRANCHES, type TowerKind } from '../game/towerTypes'
 import { audioEngine } from './AudioEngine'
 import { i18n } from './i18n'
 import { juice, setReducedFx } from '../render/juice/motion'
+import { exportProgressCode, importProgressCode } from '../game/campaign'
+import { waveComposition } from '../game/WaveManager'
+import { loadPlayerDifficulty, savePlayerDifficulty } from '../game/playerPrefs'
+import { mountUi } from './uiRoot'
 
 export function formatHud(s: { wave: number; waveCount: number; lives: number; gold: number; phase: string }) {
   return { wave: `${i18n.t('hud.wave')} ${s.wave}/${s.waveCount}`, lives: `${i18n.t('hud.lives')} ${s.lives}`, gold: `${i18n.t('hud.gold')} ${s.gold}` }
@@ -32,6 +36,7 @@ export class GameUI {
   private settingsModal!: HTMLElement
   private speedBtns: Record<number, HTMLButtonElement> = {}
   private btnPause!: HTMLButtonElement
+  private btnAbility: HTMLButtonElement | null = null
   private autoWaveActive = true
   private waveBanner: HTMLElement | null = null
   private waveBannerTimer: number | null = null
@@ -39,10 +44,13 @@ export class GameUI {
   constructor(private opts: {
     onBuild(kind: TowerKind, spotIndex: number): void; onStartWave(): void; onTogglePlay(): void
     onSpeed(mult: number): void; onUpgrade(): void; onSell(): void; onTargetMode(): void
+    onUpgradeBranch?(b: 0 | 1): void
+    onAbility?(): void
     onMenu?(): void
     onLanguageChanged?(): void
     onAutoWaveChanged?(val: boolean): void
     onOpenBestiary?(): void
+    onProgressImported?(): void
   }) {}
 
   selectedBuildKind(): TowerKind | null { return null } // Legacy placeholder
@@ -129,6 +137,14 @@ export class GameUI {
     btn4x.onclick = () => { audioEngine.playClick(); this.opts.onSpeed(4); this.selectSpeed(4) }
     this.speedBtns[4] = btn4x
 
+    // Active ability: capacitor discharge (armed → next board click detonates).
+    const btnAbility = document.createElement('button')
+    btnAbility.className = 'pcb-hud-btn ability-btn'
+    btnAbility.textContent = '⚡'
+    btnAbility.title = i18n.t('ability.discharge.hint')
+    btnAbility.onclick = () => { audioEngine.playClick(); this.opts.onAbility?.() }
+    this.btnAbility = btnAbility
+
     const btnBestiary = document.createElement('button')
     btnBestiary.className = 'pcb-hud-btn'
     btnBestiary.textContent = '📖'
@@ -146,20 +162,20 @@ export class GameUI {
       this.showSettings()
     }
 
-    right.append(btnStart, btnPause, btn1x, btn2x, btn4x, btnBestiary, btnSettings)
+    right.append(btnStart, btnPause, btn1x, btn2x, btn4x, btnAbility, btnBestiary, btnSettings)
     hud.append(left, center, right)
-    document.body.appendChild(hud)
+    mountUi(hud)
 
     // Wave Preview (initially hidden)
     this.wavePreview = document.createElement('div')
     this.wavePreview.className = 'pcb-wavepreview'
     this.wavePreview.style.display = 'none'
-    document.body.appendChild(this.wavePreview)
+    mountUi(this.wavePreview)
 
     // Radial build menu (initially empty)
     this.radial = document.createElement('div')
     this.radial.className = 'pcb-radialmenu'
-    document.body.appendChild(this.radial)
+    mountUi(this.radial)
 
     // Dim backdrop behind the radial so the build menu reads as a modal, not merged into the board.
     this.radialBackdrop = document.createElement('div')
@@ -168,7 +184,7 @@ export class GameUI {
       e.stopPropagation()
       this.closeRadialMenu()
     })
-    document.body.appendChild(this.radialBackdrop)
+    mountUi(this.radialBackdrop)
 
     // Robust tutorial zoom/pan freeze: capturing blockers that detect the tutorial via the DOM (no
     // dependency on main.ts), so the camera can't move while the guided ring is anchored to a spot.
@@ -188,25 +204,25 @@ export class GameUI {
     this.radialTooltip = document.createElement('div')
     this.radialTooltip.className = 'pcb-radial-tooltip'
     this.radialTooltip.style.display = 'none'
-    document.body.appendChild(this.radialTooltip)
+    mountUi(this.radialTooltip)
 
     // Settings Modal
     this.settingsModal = document.createElement('div')
     this.settingsModal.className = 'pcb-settings-modal'
     this.settingsModal.style.display = 'none'
-    document.body.appendChild(this.settingsModal)
+    mountUi(this.settingsModal)
 
     // Tower detail panel (side panel)
     this.panel = document.createElement('div')
     this.panel.className = 'pcb-towerpanel'
     this.panel.style.display = 'none'
-    document.body.appendChild(this.panel)
+    mountUi(this.panel)
 
     // Game Overlay (Victory / Defeat)
     this.overlay = document.createElement('div')
     this.overlay.className = 'pcb-game-overlay'
     this.overlay.style.display = 'none'
-    document.body.appendChild(this.overlay)
+    mountUi(this.overlay)
 
     return hud
   }
@@ -279,6 +295,27 @@ export class GameUI {
           </div>
         </div>
 
+        <div class="settings-row select-row">
+          <label>${i18n.t('settings.difficulty')}</label>
+          <div style="display: flex; gap: 6px;">
+            ${(['casual', 'normal', 'veteran'] as const).map((d) =>
+              `<button class="pcb-hud-btn diff-${d} ${loadPlayerDifficulty() === d ? 'active' : ''}" title="${i18n.tk(`settings.difficulty.${d}.hint`)}">${i18n.tk(`settings.difficulty.${d}`)}</button>`
+            ).join('')}
+          </div>
+        </div>
+
+        <div class="settings-row select-row">
+          <label>${i18n.t('settings.save_code')}</label>
+          <div style="display: flex; gap: 8px;">
+            <button class="pcb-hud-btn save-export-btn">${i18n.t('settings.save_export')}</button>
+            <button class="pcb-hud-btn save-import-btn">${i18n.t('settings.save_import')}</button>
+          </div>
+        </div>
+        <div class="settings-row save-import-row" style="display: none;">
+          <input type="text" id="saveCodeInput" placeholder="${i18n.t('settings.save_paste')}" style="width: 100%;">
+        </div>
+        <div class="settings-save-status" style="min-height: 14px; font-size: 10px; color: #8fb3a0;"></div>
+
         <button class="pcb-hud-btn active close-settings-btn" style="margin-top: 20px; width: 100%;">${i18n.t('settings.close')}</button>
       </div>
     `
@@ -334,6 +371,63 @@ export class GameUI {
       audioEngine.playClick()
       this.settingsModal.style.display = 'none'
     }
+
+    // Global difficulty: persists immediately, applies from the next level start.
+    for (const d of ['casual', 'normal', 'veteran'] as const) {
+      const btn = this.settingsModal.querySelector(`.diff-${d}`) as HTMLButtonElement
+      btn.onclick = () => {
+        audioEngine.playClick()
+        savePlayerDifficulty(d)
+        this.renderSettings()
+      }
+    }
+
+    // Save-as-code: insurance against localStorage loss (portal iframes, private modes).
+    const saveStatus = this.settingsModal.querySelector('.settings-save-status') as HTMLElement
+    const importRow = this.settingsModal.querySelector('.save-import-row') as HTMLElement
+    const codeInput = this.settingsModal.querySelector('#saveCodeInput') as HTMLInputElement
+    const btnExport = this.settingsModal.querySelector('.save-export-btn') as HTMLButtonElement
+    btnExport.onclick = async () => {
+      audioEngine.playClick()
+      const code = exportProgressCode()
+      try {
+        await navigator.clipboard.writeText(code)
+        saveStatus.textContent = i18n.t('settings.save_copied')
+      } catch {
+        // Clipboard API blocked (permissions/insecure context) — show the code for manual copy.
+        importRow.style.display = 'block'
+        codeInput.value = code
+        codeInput.select()
+        saveStatus.textContent = i18n.t('settings.save_copy_manual')
+      }
+    }
+    const btnImport = this.settingsModal.querySelector('.save-import-btn') as HTMLButtonElement
+    btnImport.onclick = () => {
+      audioEngine.playClick()
+      if (importRow.style.display === 'none') {
+        importRow.style.display = 'block'
+        codeInput.value = ''
+        codeInput.focus()
+        saveStatus.textContent = i18n.t('settings.save_paste')
+        return
+      }
+      if (importProgressCode(codeInput.value)) {
+        saveStatus.textContent = i18n.t('settings.save_imported')
+        this.opts.onProgressImported?.()
+      } else {
+        saveStatus.textContent = i18n.t('settings.save_bad_code')
+      }
+    }
+  }
+
+  /** Ability button state: cooldown countdown, armed highlight, disabled while recharging. */
+  setAbilityState(cooldownSec: number, armed: boolean): void {
+    if (!this.btnAbility) return
+    const label = cooldownSec > 0 ? `⚡${Math.ceil(cooldownSec)}` : '⚡'
+    if (this.btnAbility.textContent !== label) this.btnAbility.textContent = label
+    this.btnAbility.disabled = cooldownSec > 0
+    this.btnAbility.classList.toggle('active', armed)
+    this.btnAbility.style.opacity = cooldownSec > 0 ? '0.5' : ''
   }
 
   public selectSpeed(mult: number): void {
@@ -376,18 +470,18 @@ export class GameUI {
       if (nextWave.length > 0) {
         this.wavePreview.style.display = 'flex'
         this.wavePreview.innerHTML = `<span class="pcb-wavepreview-title">${i18n.t('enemy.next_wave')}</span>`
-        nextWave.forEach((entry) => {
-          const kindName = `enemy.${entry.kind}` as any
-          const t = { name: i18n.t(kindName), color: getEnemyColor(entry.kind) }
+        // Aggregated totals (mixed groups split by weight) — the preview shows the real mix.
+        for (const [kind, count] of waveComposition(nextWave)) {
+          const t = { name: i18n.tk(`enemy.${kind}`), color: getEnemyColor(kind) }
           const item = document.createElement('div')
           item.className = 'pcb-wavepreview-item'
           item.innerHTML = `
             <span class="pcb-wavepreview-dot" style="background: ${t.color}; box-shadow: 0 0 6px ${t.color};"></span>
             <span class="pcb-wavepreview-name">${t.name}</span>
-            <span class="pcb-wavepreview-count">×${entry.count}</span>
+            <span class="pcb-wavepreview-count">×${count}</span>
           `
           this.wavePreview.appendChild(item)
-        })
+        }
       } else {
         this.wavePreview.style.display = 'none'
       }
@@ -503,7 +597,8 @@ export class GameUI {
     if (!t) { this.panel.style.display = 'none'; return }
     const s = t.stats
     this.panel.style.display = 'block'
-    this.panel.innerHTML = `<h3>${TOWER_THEMES[t.kind].name} L${t.level + 1}</h3>
+    const branchName = t.branch !== null ? ` · ${i18n.tk(`branch.${TOWER_BRANCHES[t.kind][t.branch].id}.name`)}` : ''
+    this.panel.innerHTML = `<h3>${TOWER_THEMES[t.kind].name} L${t.level + 1}${branchName}</h3>
       <div style="margin-bottom: 8px;">DMG ${s.damage} · RATE ${s.fireRate} · RANGE ${s.range}</div>
       <div style="margin-bottom: 8px;">MODE ${t.targetMode}</div>`
     const mk = (label: string, fn: () => void, sfxType: 'click' | 'upgrade' | 'sell') => {
@@ -523,7 +618,19 @@ export class GameUI {
 
     // Upgrade slot is ALWAYS present (disabled "MAX" when maxed) so the Sell button never jumps up
     // into the spot the cursor just clicked — prevents accidental sells right after a max upgrade.
-    if (t.level < t.maxLevel) {
+    if (t.canBranch) {
+      // Tier-4 specialization: two role-changing options instead of one linear upgrade.
+      for (const b of [0, 1] as const) {
+        const br = TOWER_BRANCHES[t.kind][b]
+        const btn = document.createElement('button')
+        btn.className = 'pcb-branch-btn'
+        btn.title = i18n.tk(`branch.${br.id}.desc`)
+        btn.innerHTML = `<span class="pcb-branch-name">▲ ${i18n.tk(`branch.${br.id}.name`)}</span>` +
+          `<span class="pcb-branch-cost">$${br.cost}</span>`
+        btn.onclick = () => { audioEngine.playUpgrade(); this.opts.onUpgradeBranch?.(b) }
+        this.panel.appendChild(btn)
+      }
+    } else if (t.level < t.maxLevel) {
       mk(`${upgradeStr} $${TOWER_DEFS[t.kind][t.level + 1].cost}`, this.opts.onUpgrade, 'upgrade')
     } else {
       const maxBtn = document.createElement('button')
@@ -576,7 +683,7 @@ export class GameUI {
     })
     banner.appendChild(chips)
 
-    document.body.appendChild(banner)
+    mountUi(banner)
     this.waveBanner = banner
     this.waveBannerTimer = window.setTimeout(() => {
       banner.remove()
@@ -660,6 +767,9 @@ function getEnemyColor(kind: string): string {
     tank: '#ff9b3a',
     rogue: '#4dff7a',
     boss: '#c23bff',
+    shielded: '#3a7bff',
+    carrier: '#d08aff',
+    fragment: '#ff8a8a',
   }
   return map[kind] || '#fff'
 }

@@ -1,6 +1,7 @@
 // src/ui/Panels.ts
 import type { Level } from '../model/level'
 import { i18n } from './i18n'
+import { mountUi } from './uiRoot'
 
 let currentTipIndex = 0
 const TIP_KEYS = ['tips.desc1', 'tips.desc2', 'tips.desc3', 'tips.desc4', 'tips.desc5', 'tips.desc6', 'tips.desc7', 'tips.desc8', 'tips.desc9', 'tips.desc10', 'tips.desc11', 'tips.desc12'] as const
@@ -47,7 +48,7 @@ export function mountPanels(level: Level | null): HTMLElement {
         <span class="pcb-tip-next" style="cursor: pointer; padding: 2px 6px; border: 1px solid #1f8f4d; border-radius: 3px; background: rgba(31,143,77,0.1);">▶</span>
       </div>
     </div>`
-  document.body.appendChild(wrap)
+  mountUi(wrap)
 
   // Tips close for the CURRENT level only — they come back on the next level / reload
   // (players asked for that: dismiss is a "not now", not a "never again").

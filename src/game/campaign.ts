@@ -2,6 +2,7 @@
 import { startLives } from './difficulty'
 import type { Board, Level } from '../model/level'
 import { AUTHORED_LEVELS } from '../levels'
+import { storageGet, storageSet } from '../util/safeStorage'
 
 export interface CampaignLevelDef {
   name: string
@@ -46,24 +47,36 @@ AUTHORED_LEVELS.forEach((fn, i) => { if (CAMPAIGN_LEVELS[i]) CAMPAIGN_LEVELS[i].
 
 const SAVE_KEY = 'pcb_td_campaign_progress_v1'
 
+/** Version stamped INSIDE the JSON. Bump on any structural change and extend migrateSave() —
+ * pre-versioned saves (no `v` field) are treated as v1 and migrated forward, so players never
+ * lose progress across updates. */
+export const SAVE_VERSION = 2
+
+/** Normalize/upgrade a parsed save of any known version to the current PlayerProgress shape.
+ * Returns null for garbage (wrong types, not an object) — caller falls back to a fresh save. */
+export function migrateSave(parsed: unknown): PlayerProgress | null {
+  if (!parsed || typeof parsed !== 'object') return null
+  const raw = parsed as Record<string, unknown>
+  if (typeof raw.unlockedLevelIndex !== 'number') return null
+  // v1 (unstamped) → v2: identical fields, just adds the explicit `v` stamp on next save.
+  // Future migrations chain here, e.g.: if (v === 2) { ...transform...; v = 3 }
+  return {
+    unlockedLevelIndex: Math.max(0, Math.min(CAMPAIGN_LEVELS.length - 1, raw.unlockedLevelIndex)),
+    stars: (raw.stars as Record<number, number>) || {},
+    highscores: (raw.highscores as Record<number, number>) || {},
+    tutorialCompleted: !!raw.tutorialCompleted,
+    seenIntroductions: (raw.seenIntroductions as Record<string, boolean>) || {},
+    storyIntroSeen: !!raw.storyIntroSeen,
+    storyBriefSeen: (raw.storyBriefSeen as Record<number, boolean>) || {},
+  }
+}
+
 export function loadProgress(): PlayerProgress {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const data = window.localStorage.getItem(SAVE_KEY)
-      if (data) {
-        const parsed = JSON.parse(data)
-        if (parsed && typeof parsed.unlockedLevelIndex === 'number') {
-          return {
-            unlockedLevelIndex: parsed.unlockedLevelIndex,
-            stars: parsed.stars || {},
-            highscores: parsed.highscores || {},
-            tutorialCompleted: parsed.tutorialCompleted || false,
-            seenIntroductions: parsed.seenIntroductions || {},
-            storyIntroSeen: parsed.storyIntroSeen || false,
-            storyBriefSeen: parsed.storyBriefSeen || {},
-          }
-        }
-      }
+    const data = storageGet(SAVE_KEY)
+    if (data) {
+      const migrated = migrateSave(JSON.parse(data))
+      if (migrated) return migrated
     }
   } catch (err) {
     console.error('Failed to load campaign progress:', err)
@@ -72,12 +85,25 @@ export function loadProgress(): PlayerProgress {
 }
 
 export function saveProgress(progress: PlayerProgress): void {
+  storageSet(SAVE_KEY, JSON.stringify({ v: SAVE_VERSION, ...progress }))
+}
+
+/** Save-as-code: insurance against localStorage loss (itch.io iframes live on a CDN domain that
+ * has already changed once, wiping saves; private modes block storage entirely). */
+export function exportProgressCode(): string {
+  const json = JSON.stringify({ v: SAVE_VERSION, ...loadProgress() })
+  return btoa(String.fromCharCode(...new TextEncoder().encode(json)))
+}
+
+export function importProgressCode(code: string): boolean {
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      window.localStorage.setItem(SAVE_KEY, JSON.stringify(progress))
-    }
-  } catch (err) {
-    console.error('Failed to save campaign progress:', err)
+    const bytes = Uint8Array.from(atob(code.trim()), (c) => c.charCodeAt(0))
+    const migrated = migrateSave(JSON.parse(new TextDecoder().decode(bytes)))
+    if (!migrated) return false
+    saveProgress(migrated)
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -87,9 +113,11 @@ export function registerVictory(
 ): { stars: number; unlockedNext: boolean } {
   const progress = loadProgress()
 
-  // Calculate stars
+  // Stars: 3 forgives up to 2 leaked lives — the balance band deliberately targets SOME
+  // pressure on a fair defense, so a literal perfect-run requirement made 3★ near-impossible
+  // by the game's own honesty model. 2★ from 50% lives, 1★ for any win.
   let stars = 1
-  if (livesRemaining === startLives) {
+  if (livesRemaining >= startLives - 2) {
     stars = 3
   } else if (livesRemaining >= startLives * 0.5) {
     stars = 2

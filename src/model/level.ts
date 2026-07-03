@@ -25,7 +25,11 @@ export interface Level {
   tiles?: TileGrid
   meta: { name: string; difficulty: number; archetype?: string; balance?: { won: boolean; pressure: number }
     /** per-map balance knob from scripts/balance-optimize: enemy-HP multiplier (1 = none). */
-    tune?: { hpMul?: number; countMul?: number } }
+    tune?: { hpMul?: number; countMul?: number }
+    /** Hand-authored wave script (outer array = waves, inner = spawn groups). Overrides the
+     * shared mapWaves(difficulty) template; wave count may differ from 10. Kept structural
+     * (kind as string) to avoid a model→game dependency — Game validates kinds on load. */
+    waves?: { kind: string; count: number; interval: number; pathIndex?: number }[][] }
 }
 
 /** Returns the authoritative set of enemy paths for a level. */

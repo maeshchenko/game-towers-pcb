@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc
+      - name: Tests
+        run: npx vitest run
+      - name: Build
+        run: npm run build
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcb-td-dist
+          path: dist/
+          retention-days: 14
+
+  # Deploy job (enable when hosting is chosen):
+  # - GitHub Pages: actions/configure-pages + actions/upload-pages-artifact + actions/deploy-pages
+  # - itch.io: butler push dist USER/pcb-td:html5 (needs BUTLER_API_KEY secret)

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Game } from '../../src/game/Game'
 import type { GameEvent } from '../../src/game/events'
 import type { Level } from '../../src/model/level'
+import { waveClearGold } from '../../src/game/difficulty'
 
 function miniLevel(): Level {
   // short straight path along row 5 from col 1..10 on a small board
@@ -89,11 +90,67 @@ describe('early next-wave call', () => {
     expect(spawnedMore).toBe(true)
   })
 
+  it('banks the early-call risk bonus inside the sim (not the UI layer)', () => {
+    const game = makeTestGame()
+    game.startWave()
+    let guard = 0
+    while (!game.canCallNextWave() && game.state.phase === 'wave' && guard++ < 20000) game.tick(0.05)
+    expect(game.canCallNextWave()).toBe(true)
+    const goldBefore = game.state.gold
+    const waveNumBefore = game.state.waveNumber
+    const bonus = game.earlyCallBonus()
+    expect(bonus).toBe(5 * (6 + waveNumBefore))
+    expect(game.callNextWave()).toBe(true)
+    expect(game.state.gold).toBe(goldBefore + waveClearGold(waveNumBefore) + bonus)
+  })
+
   it('cannot call while the current wave is still spawning', () => {
     const game = makeTestGame()
     game.startWave()
     game.tick(0.05)
     expect(game.canCallNextWave()).toBe(false)
     expect(game.callNextWave()).toBe(false)
+  })
+})
+
+describe('authored wave scripts (meta.waves)', () => {
+  const twoPathLevel = (): Level => ({
+    version: 1, board: { cols: 16, rows: 12, pitch: 24 }, seed: 1,
+    trace: { waypoints: [[1, 3], [10, 3]], cornerRadius: 0.5 },
+    paths: [
+      { waypoints: [[1, 3], [10, 3]], cornerRadius: 0.5 },
+      { waypoints: [[1, 9], [10, 9]], cornerRadius: 0.5 },
+    ],
+    spots: [{ cell: [3, 6], score: 5, kind: 'build' }], specialSpots: [], decor: [],
+    meta: {
+      name: 'two-path', difficulty: 0,
+      waves: [
+        [{ kind: 'normal', count: 3, interval: 0.2, pathIndex: 1 }],
+        [{ kind: 'fast', count: 2, interval: 0.2 }],
+      ],
+    },
+  })
+
+  it('overrides the shared template: wave count and composition come from the script', () => {
+    const game = new Game(twoPathLevel(), 1)
+    expect(game.state.waveCount).toBe(2)
+    expect(game.peekWave(0)).toEqual([{ kind: 'normal', count: 3, interval: 0.2, pathIndex: 1 }])
+    expect(game.peekWave(1)[0].kind).toBe('fast')
+  })
+
+  it('pathIndex directs every enemy of the group to the chosen entrance', () => {
+    const game = new Game(twoPathLevel(), 1)
+    game.startWave()
+    let guard = 0
+    while (game.enemies().length < 3 && guard++ < 2000) game.tick(0.05)
+    expect(game.enemies().length).toBe(3)
+    // path 1 runs along row 9 → y = 9 * 24 + 12 = 228 px for every spawned enemy
+    for (const e of game.enemies()) expect(e.pos.y).toBeCloseTo(9 * 24 + 12, 0)
+  })
+
+  it('rejects unknown enemy kinds with a clear error', () => {
+    const lvl = twoPathLevel()
+    lvl.meta.waves = [[{ kind: 'dragon', count: 1, interval: 1 }]]
+    expect(() => new Game(lvl, 1)).toThrow(/unknown enemy kind "dragon"/)
   })
 })

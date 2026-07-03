@@ -7,6 +7,7 @@ import type { StoryLine } from '../story/campaignStory'
 import { i18n } from './i18n'
 import { juice } from '../render/juice/motion'
 import { audioEngine } from './AudioEngine'
+import { mountUi } from './uiRoot'
 
 const CHAR_MS = 28
 const PUNCT_PAUSE_MS = 220
@@ -107,7 +108,7 @@ export class StoryScreen {
     column.appendChild(button)
 
     overlay.appendChild(column)
-    document.body.appendChild(overlay)
+    mountUi(overlay)
 
     overlay.addEventListener('click', this.handleClick)
     window.addEventListener('keydown', this.handleKeydown)

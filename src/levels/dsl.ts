@@ -32,6 +32,14 @@ export class LevelBuilder {
   path(waypoints: Cell[], cornerRadius: number = RENDER.cornerRadiusCells): this {
     this.paths.push({ waypoints, cornerRadius }); return this
   }
+  /**
+   * Hand-authored wave script for this level (overrides the shared mapWaves template).
+   * Outer array = waves, inner = spawn groups; group.pathIndex directs a group to a specific
+   * entrance on multi-path maps. Enemy kinds are validated by Game on load.
+   */
+  waves(script: NonNullable<Level['meta']['waves']>): this {
+    this.meta.waves = script; return this
+  }
   buildSpot(...cells: Cell[]): this {
     for (const c of cells) this.spots.push({ cell: c, score: 1, kind: 'build' }); return this
   }

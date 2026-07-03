@@ -1,5 +1,6 @@
 // src/render/juice/motion.ts
 // Global reduced-effects flag. No pixi/gsap imports so this stays jsdom-testable in isolation.
+import { storageGet, storageSet } from '../../util/safeStorage'
 
 const STORAGE_KEY = 'pcb_td_reduced_fx_v1'
 
@@ -8,8 +9,7 @@ export const juice = {
 }
 
 function readStoredPreference(): boolean | null {
-  if (typeof window === 'undefined' || !window.localStorage) return null
-  const raw = window.localStorage.getItem(STORAGE_KEY)
+  const raw = storageGet(STORAGE_KEY)
   if (raw === '1') return true
   if (raw === '0') return false
   return null
@@ -28,7 +28,5 @@ export function initMotion(): void {
 
 export function setReducedFx(v: boolean): void {
   juice.reducedFx = v
-  if (typeof window !== 'undefined' && window.localStorage) {
-    window.localStorage.setItem(STORAGE_KEY, v ? '1' : '0')
-  }
+  storageSet(STORAGE_KEY, v ? '1' : '0')
 }

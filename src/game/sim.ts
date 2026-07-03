@@ -1,6 +1,6 @@
 import type { Level } from '../model/level'
 import type { TowerKind } from './towerTypes'
-import { TOWER_DEFS } from './towerTypes'
+import { TOWER_DEFS, TOWER_BRANCHES } from './towerTypes'
 import { Game } from './Game'
 import { startLives } from './difficulty'
 
@@ -31,6 +31,12 @@ export function basicPlacement(game: Game): void {
     // Pure upgrade-first starves multi-spawn maps of coverage (one L3 cannon vs three entrances).
     if (game.towers.length >= Math.min(4, cap)) for (const t of game.towers) {
       if (t.level >= t.maxLevel) continue
+      // Reference bot must SEE tier-4 power, or balance calibration lies about strong players.
+      // It always picks branch 0 — branch choice is player expression, not bot strategy.
+      if (t.canBranch) {
+        if (game.state.gold >= TOWER_BRANCHES[t.kind][0].cost && game.upgradeBranch(t, 0)) progressed = true
+        continue
+      }
       const cost = TOWER_DEFS[t.kind][t.level + 1].cost
       if (game.state.gold >= cost && game.upgrade(t)) progressed = true
     }

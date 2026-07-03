@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
+    "package": "npm run build && cd dist && zip -rq ../pcb-td.zip . && cd .. && ls -lh pcb-td.zip",
     "test": "vitest run",
     "test:watch": "vitest",
     "balance:optimize": "vitest run scripts/balance-optimize.ts --config vitest.scripts.config.ts",

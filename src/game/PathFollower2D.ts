@@ -9,6 +9,12 @@ export class PathFollower2D {
     this.pos = { x: points[0]?.x ?? 0, y: points[0]?.y ?? 0 }
     if (points.length < 2) this.done = true
   }
+  /** Jump forward by a raw distance (px) — used to place split-off fragments at the parent's
+   * path position, independent of this follower's own speed. */
+  advanceDistance(d: number): void {
+    if (this.speedPx > 0) this.advance(d / this.speedPx)
+  }
+
   advance(dt: number): void {
     if (this.done) return
     let budget = this.speedPx * dt

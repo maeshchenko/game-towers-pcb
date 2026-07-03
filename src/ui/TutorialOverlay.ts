@@ -1,5 +1,6 @@
 // src/ui/TutorialOverlay.ts
 import { i18n } from './i18n'
+import { mountUi } from './uiRoot'
 
 export class TutorialOverlay {
   private bubble: HTMLElement | null = null
@@ -13,12 +14,12 @@ export class TutorialOverlay {
     this.bubble = document.createElement('div')
     this.bubble.className = 'pcb-tutorial-bubble'
     this.bubble.style.display = 'none'
-    document.body.appendChild(this.bubble)
+    mountUi(this.bubble)
 
     this.spotlight = document.createElement('div')
     this.spotlight.className = 'pcb-tutorial-spotlight'
     this.spotlight.style.display = 'none'
-    document.body.appendChild(this.spotlight)
+    mountUi(this.spotlight)
   }
 
   showStep(text: string, x: number, y: number, onNext: (() => void) | null = null, gap = 60): void {

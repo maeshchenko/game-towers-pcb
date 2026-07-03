@@ -3,6 +3,7 @@ import { CAMPAIGN_LEVELS, loadProgress, resetProgress } from '../game/campaign'
 import { cleanupPercent } from '../story/campaignStory'
 import { i18n } from './i18n'
 import { audioEngine } from './AudioEngine'
+import { mountUi } from './uiRoot'
 
 function getEnemyColor(kind: string): string {
   const map: Record<string, string> = {
@@ -13,6 +14,9 @@ function getEnemyColor(kind: string): string {
     tank: '#ff9b3a',
     rogue: '#4dff7a',
     boss: '#c23bff',
+    shielded: '#3a7bff',
+    carrier: '#d08aff',
+    fragment: '#ff8a8a',
   }
   return map[kind] || '#fff'
 }
@@ -25,6 +29,9 @@ function isEnemyUnlocked(kind: string, unlockedLevelIndex: number): boolean {
     brute: 3,  // Level 4
     tank: 4,   // Level 5
     rogue: 6,  // Level 7
+    shielded: 5, // Level 6
+    carrier: 7,  // Level 8
+    fragment: 7, // Level 8 (born from carriers)
     boss: 11,  // Level 12
   }
   return unlockedLevelIndex >= (map[kind] ?? 0)
@@ -46,7 +53,7 @@ export class CampaignMenu {
     this.element = wrap
 
     this.render()
-    document.body.appendChild(wrap)
+    mountUi(wrap)
     return wrap
   }
 
@@ -156,7 +163,7 @@ export class CampaignMenu {
     
     let itemsHtml = ''
     // Display order follows the FORM-NN nomenclature (story spec, Task 5).
-    const kinds = ['normal', 'fast', 'rogue', 'tank', 'healer', 'brute', 'boss']
+    const kinds = ['normal', 'fast', 'rogue', 'tank', 'healer', 'brute', 'boss', 'shielded', 'carrier', 'fragment']
     kinds.forEach((k) => {
       const unlocked = isEnemyUnlocked(k, unlockedLevelIndex)
       const color = getEnemyColor(k)
@@ -195,7 +202,7 @@ export class CampaignMenu {
         <button class="pcb-hud-btn active close-bestiary-btn" style="width: 100%;">${i18n.t('bestiary.close')}</button>
       </div>
     `
-    document.body.appendChild(modal);
+    mountUi(modal);
 
     (modal.querySelector('.close-bestiary-btn') as HTMLElement).onclick = () => {
       audioEngine.playClick()

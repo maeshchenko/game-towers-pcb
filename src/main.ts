@@ -30,30 +30,21 @@ import { initMotion } from './render/juice/motion'
 import { ScreenShake } from './render/juice/ScreenShake'
 import { HitStop } from './render/juice/HitStop'
 import { enemyTheme } from './render/theme'
+import { mountUi, uiRoot } from './ui/uiRoot'
+import { waveComposition } from './game/WaveManager'
+import { PLAYER_DIFFICULTY_HP } from './game/difficulty'
+import { loadPlayerDifficulty } from './game/playerPrefs'
+import { saveRun, loadRun, clearRun } from './game/runSave'
 
 // Difficulty ramp across tracks: EASY → MEDIUM → HARD (Auto-Generate climbs it).
 const DIFFICULTY_RAMP = [1, 2, 4, 5, 7, 8, 9]
 
 async function boot() {
-  const gameContainer = document.getElementById('game-container') || document.body
-
-  // Intercept appendChild/removeChild/insertBefore on document.body to direct them to gameContainer
-  const originalAppendChild = document.body.appendChild.bind(document.body)
-  const originalRemoveChild = document.body.removeChild.bind(document.body)
-  const originalInsertBefore = document.body.insertBefore.bind(document.body)
-
-  document.body.appendChild = function<T extends Node>(node: T): T {
-    if ((node as Node) === gameContainer) return originalAppendChild(node)
-    return gameContainer.appendChild(node)
-  }
-  document.body.removeChild = function<T extends Node>(node: T): T {
-    if (gameContainer.contains(node)) return gameContainer.removeChild(node)
-    return originalRemoveChild(node)
-  }
-  document.body.insertBefore = function<T extends Node>(node: T, child: Node | null): T {
-    if (child && gameContainer.contains(child)) return gameContainer.insertBefore(node, child)
-    return originalInsertBefore(node, child)
-  }
+  // All game UI mounts into #game-container via mountUi() (src/ui/uiRoot.ts) — the container is
+  // what rotates 90° in mobile portrait mode. The old approach of monkey-patching
+  // document.body.appendChild redirected third-party DOM inserts too (analytics, portal SDK
+  // overlays) and was removed.
+  const gameContainer = uiRoot()
 
   let currentRotation = 0
 
@@ -111,6 +102,27 @@ async function boot() {
   }
   window.addEventListener('pointerdown', enableAudioOnce, true)
   document.getElementById('app')!.appendChild(app.canvas)
+  app.canvas.addEventListener('webglcontextlost', (e) => {
+    e.preventDefault()
+    showFatalError(new Error('WebGL context lost'))
+  })
+
+  // Hidden tab: pause the sim and silence the audio graph. Without this the background
+  // setInterval throttling shreds the music into bursts while enemies keep leaking.
+  let speedBeforeHide: number | null = null
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      audioEngine.suspendForBackground()
+      if (game && game.speed > 0) {
+        speedBeforeHide = game.speed
+        game.speed = 0
+      }
+    } else {
+      audioEngine.resumeFromBackground()
+      if (game && speedBeforeHide !== null && game.speed === 0) game.speed = speedBeforeHide
+      speedBeforeHide = null
+    }
+  })
 
   // Override canvas.getBoundingClientRect
   app.canvas.getBoundingClientRect = function(): DOMRect {
@@ -161,6 +173,11 @@ async function boot() {
   let seedCounter = 1
   let campaign = 0 // index into DIFFICULTY_RAMP; advances each Auto-Generate
   let game: Game | null = null
+  // Discharge ability aiming state: armed = the next board click detonates it.
+  let dischargeArmed = false
+  function updateDischargeButton(): void {
+    ui.setAbilityState(game?.dischargeCooldown ?? 0, dischargeArmed)
+  }
   let selectedSpeed = 1
   let selectedTower: Tower | null = null
   let gameView: GameView | null = null
@@ -189,7 +206,19 @@ async function boot() {
     const isMobile = view().w < 800
     const mL = isMobile ? 16 : 156
     const mR = isMobile ? 16 : 24
-    const mT = isMobile ? 52 : 56
+    // Top margin = MEASURED height of the top HUD (+ the next-wave preview strip under it),
+    // not a constant: the board must center inside the free area below the panels, otherwise
+    // the trace visually sits too high / under the HUD. offsetHeight ignores the portrait
+    // CSS rotation of #game-container, so the logical math holds in both orientations.
+    let mT = isMobile ? 52 : 56
+    const hudEl = document.querySelector('.pcb-tophud') as HTMLElement | null
+    if (hudEl && hudEl.offsetHeight > 0) {
+      mT = hudEl.offsetTop + hudEl.offsetHeight + 8
+      const previewEl = document.querySelector('.pcb-wavepreview') as HTMLElement | null
+      if (previewEl && previewEl.style.display !== 'none' && previewEl.offsetHeight > 0) {
+        mT += previewEl.offsetHeight + 4
+      }
+    }
     const mB = isMobile ? 16 : 64
     const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
     const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY)
@@ -331,7 +360,10 @@ async function boot() {
   function ensureGame() {
     if (!game && editor.state.level) {
       showTipsPanel() // tips dismissal is per-level: they return on every new level entry
-      game = new Game(editor.state.level, ++seedCounter)
+      // Snapshot seen-enemy intros once per level: reading loadProgress (JSON.parse) every
+      // ticker frame during a wave caused constant GC churn.
+      seenIntroCache = new Set(Object.keys(loadProgress().seenIntroductions ?? {}))
+      game = new Game(editor.state.level, ++seedCounter, { hpMul: PLAYER_DIFFICULTY_HP[loadPlayerDifficulty()] })
       gameView?.destroy() // defensive: resetPlay normally clears it, this guards any future path that skips it
       gameView = new GameView(app, renderer, game)
       game.events.on((e) => {
@@ -356,10 +388,9 @@ async function boot() {
       })
       game.events.on((e) => {
         if (e.type === 'waveStart') {
-          const entries = game!.peekWave(e.index)
-          const comp = entries.map((entry) => {
-            const theme = enemyTheme(entry.kind)
-            return { name: theme.name, color: theme.color, count: entry.count }
+          const comp = [...waveComposition(game!.peekWave(e.index))].map(([kind, count]) => {
+            const theme = enemyTheme(kind)
+            return { name: theme.name, color: theme.color, count }
           })
           ui.showWaveBanner(e.index + 1, comp)
           audioEngine.playWaveStart()
@@ -368,8 +399,20 @@ async function boot() {
           audioEngine.setMusicTension(e.index === 9 ? 2 : 0)
         } else if (e.type === 'waveEnd') {
           audioEngine.setMusicTension(0)
+          // Mid-level save: persist the run at every build-phase boundary (campaign only).
+          if (activeCampaignLevelIndex !== null && game) {
+            const snap = game.snapshot()
+            if (snap && snap.wave > 0) saveRun(activeCampaignLevelIndex, snap)
+          }
         }
       })
+      // Resume an interrupted campaign run: rebuild towers/economy at the saved wave boundary.
+      if (activeCampaignLevelIndex !== null) {
+        const snap = loadRun(activeCampaignLevelIndex)
+        if (snap && snap.wave > 0 && game.restore(snap)) {
+          ui.showWaveBanner(snap.wave + 1, [])
+        }
+      }
       selectedTower = null
       editor.enabled = false
       const ip = infoPanel(); if (ip) ip.style.display = 'none' // live game-bar HUD replaces the static panel
@@ -385,6 +428,8 @@ async function boot() {
   let waveCountdown = 0
   let countdownTimer: any = null
   const introducingEnemies = new Set<string>()
+  // Per-level cache of progress.seenIntroductions — refreshed in ensureGame() (see there for why).
+  let seenIntroCache = new Set<string>()
 
   function runTutorialStep(step: number): void {
     if (!activeTutorial) return
@@ -485,6 +530,13 @@ async function boot() {
       }
     },
     onUpgrade: () => { if (game && selectedTower) { game.upgrade(selectedTower); ui.showTower(selectedTower, game.sellValue(selectedTower)) } },
+    onUpgradeBranch: (b) => { if (game && selectedTower) { game.upgradeBranch(selectedTower, b); ui.showTower(selectedTower, game.sellValue(selectedTower)) } },
+    onAbility: () => {
+      if (!game || game.dischargeCooldown > 0 || game.state.phase !== 'wave') return
+      dischargeArmed = !dischargeArmed
+      document.body.classList.toggle('pcb-aiming', dischargeArmed)
+      updateDischargeButton()
+    },
     onSell: () => { if (game && selectedTower) { game.sell(selectedTower); selectedTower = null; ui.showTower(null, 0) } },
     onTargetMode: () => { if (selectedTower) { selectedTower.cycleTargetMode(); ui.showTower(selectedTower, game!.sellValue(selectedTower)) } },
     onMenu: () => {
@@ -525,6 +577,11 @@ async function boot() {
     onOpenBestiary: () => {
       const progress = loadProgress()
       campaignMenu.showBestiary(progress.unlockedLevelIndex)
+    },
+    onProgressImported: () => {
+      // Imported save changes unlocks/intros: refresh the per-level cache and the menu.
+      seenIntroCache = new Set(Object.keys(loadProgress().seenIntroductions ?? {}))
+      if (activeCampaignLevelIndex === null && !game) campaignMenu.show()
     }
   })
   const gameBar = ui.mountHud()
@@ -657,13 +714,23 @@ async function boot() {
   // copyable track-code label (bottom-right) — same code in the URL reproduces the track
   const seedLabel = document.createElement('div')
   seedLabel.className = 'pcb-seed'; seedLabel.title = i18n.t('seed.tooltip')
-  document.body.appendChild(seedLabel)
+  mountUi(seedLabel)
 
   // start from ?t=COLSxROWS.DIFF.SEED if present (reproducible), else show campaign selector
-  const t = new URLSearchParams(location.search).get('t')
+  // Back to the campaign menu via a clean reload. Must stay relative: on itch.io the game
+  // lives deep under a CDN path, so an absolute '/' would leave the game entirely.
+  function exitToRoot(): void {
+    location.href = location.pathname.replace(/(editor|new)\/?$/, '') || './'
+  }
+
+  const params = new URLSearchParams(location.search)
+  const t = params.get('t')
   const m = t && /^(\d+)x(\d+)\.(\d+)\.(\d+)$/.exec(t)
-  const isEditor = location.pathname.replace(/\/+$/, '').endsWith('/editor')
-  const isNew = location.pathname.replace(/\/+$/, '').endsWith('/new')
+  // Modes are query-based (?mode=editor|new) so they survive subpath hosting (itch.io CDN);
+  // the pathname variants remain as dev-server conveniences (/editor, /new have own entries).
+  const modeParam = params.get('mode')
+  const isEditor = modeParam === 'editor' || location.pathname.replace(/\/+$/, '').endsWith('/editor')
+  const isNew = modeParam === 'new' || location.pathname.replace(/\/+$/, '').endsWith('/new')
 
   function retranslateModebar(): void {
     const btnPlay = modeBar.querySelector('.pcb-mode-btn-play')
@@ -680,7 +747,7 @@ async function boot() {
     setMode('play')
   } else if (isEditor) {
     newRandomLevel()
-    modeBtn(i18n.t('mode.play'), 'pcb-mode-btn-play', () => { location.href = '/' })
+    modeBtn(i18n.t('mode.play'), 'pcb-mode-btn-play', () => { exitToRoot() })
     setMode('edit')
   } else {
     // Normal campaign screen or code-based launch:
@@ -700,7 +767,7 @@ async function boot() {
       campaignMenu.show()
     }
   }
-  document.body.appendChild(modeBar)
+  mountUi(modeBar)
 
   // DRAG/PINCH to pan/zoom the camera; a CLICK (no drag) builds/selects in play mode
   let drag: { x: number; y: number; cx: number; cy: number } | null = null
@@ -796,6 +863,21 @@ async function boot() {
   function handleClick(e: PointerEvent): void {
     if (!game) return
 
+    // Armed discharge: the next board click detonates the ability instead of selecting.
+    if (dischargeArmed) {
+      dischargeArmed = false
+      document.body.classList.remove('pcb-aiming')
+      const r = app.canvas.getBoundingClientRect()
+      const wx = (e.clientX - r.left - camera.x) / camera.zoom
+      const wy = (e.clientY - r.top - camera.y) / camera.zoom
+      if (game.useDischarge({ x: wx, y: wy })) {
+        audioEngine.playExplosion()
+        shake.add(0.25)
+      }
+      updateDischargeButton()
+      return
+    }
+
     // Tutorial blocking logic
     if (activeTutorial) {
       if (tutorialStep === 1) {
@@ -860,6 +942,7 @@ async function boot() {
     const rawDt = ticker.deltaMS / 1000
     const simDt = hitStop.filter(rawDt)
     game.tick(simDt)
+    updateDischargeButton()
     audioEngine.setSlowHum(game.state.phase === 'wave' && game.towers.some((t) => t.kind === 'slow'))
     gameView?.update(rawDt, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
@@ -872,14 +955,13 @@ async function boot() {
 
     if (game.state.phase === 'wave') {
       const activeEnemies = game.enemies()
-      const progress = loadProgress()
-      if (!progress.seenIntroductions) progress.seenIntroductions = {}
-      
+
       // Enemy introductions are part of onboarding → trigger on any campaign level (activeCampaignLevelIndex !== null)
-      // the first time that specific enemy type is encountered.
+      // the first time that specific enemy type is encountered. seenIntroCache mirrors
+      // progress.seenIntroductions — never re-read storage in the frame loop.
       const newEnemy = activeCampaignLevelIndex !== null ? activeEnemies.find(e => {
         const k = e.kind
-        return ['normal', 'fast', 'healer', 'brute', 'tank', 'rogue', 'boss'].includes(k) && !progress.seenIntroductions![k] && !introducingEnemies.has(k)
+        return ['normal', 'fast', 'healer', 'brute', 'tank', 'rogue', 'boss', 'shielded', 'carrier'].includes(k) && !seenIntroCache.has(k) && !introducingEnemies.has(k)
       }) : undefined
 
       if (newEnemy) {
@@ -905,6 +987,7 @@ async function boot() {
           if (!prog.seenIntroductions) prog.seenIntroductions = {}
           prog.seenIntroductions[kind] = true
           saveProgress(prog)
+          seenIntroCache.add(kind)
           introducingEnemies.delete(kind)
 
           if (game) {
@@ -930,6 +1013,7 @@ async function boot() {
       const won = game.state.phase === 'win'
       const score = game.state.lives
       game.speed = 0 // pause ticker updates
+      clearRun() // the run ended either way — never resume INTO a finished/lost level
 
       if (won) {
         audioEngine.playVictory()
@@ -991,7 +1075,7 @@ async function boot() {
             () => {
               ui.closeOverlay()
               resetPlay()
-              location.href = '/'
+              exitToRoot()
             }
           )
         }
@@ -1016,7 +1100,7 @@ async function boot() {
               activeCampaignLevelIndex = null
               campaignMenu.show()
             } else {
-              location.href = '/'
+              exitToRoot()
             }
           }
         )
@@ -1034,9 +1118,8 @@ async function boot() {
     // only decays it). Big maps stop being a waiting game.
     if (game.state.phase === 'wave') {
       if (!game.canCallNextWave()) return
-      const bonus = 5 * (6 + game.state.waveNumber)
+      const bonus = game.earlyCallBonus() // the sim banks it inside callNextWave
       if (game.callNextWave()) {
-        game.state.add(bonus)
         audioEngine.playUpgrade()
         showFloatingBonusText(bonus)
         ui.update(game, editor.state.level?.meta.difficulty ?? 1)
@@ -1134,14 +1217,11 @@ async function boot() {
   function showFloatingBonusText(bonus: number) {
     const startBtn = document.querySelector('.next-wave-btn')
     if (!startBtn) return
-    const rect = startBtn.getBoundingClientRect()
     
     const el = document.createElement('div')
     el.className = 'pcb-floating-bonus'
-    el.style.left = `${rect.left + rect.width / 2}px`
-    el.style.top = `${rect.top - 20}px`
     el.textContent = `+${bonus} ⚡`
-    document.body.appendChild(el)
+    startBtn.appendChild(el)
     
     setTimeout(() => el.remove(), 1000)
   }
@@ -1179,7 +1259,7 @@ async function boot() {
         <button class="pcb-hud-btn active close-intro-btn" style="width: 100%;">${i18n.t('enemy.intro.ok')}</button>
       </div>
     `
-    document.body.appendChild(modal);
+    mountUi(modal);
 
     (modal.querySelector('.close-intro-btn') as HTMLElement).onclick = () => {
       audioEngine.playClick()
@@ -1187,6 +1267,9 @@ async function boot() {
       onClose()
     }
   }
+
+  // Boot finished — drop the HTML splash (it covered the whole screen while the bundle loaded).
+  document.getElementById('pcb-loading')?.remove()
 
   function getEnemyColor(kind: string): string {
     const map: Record<string, string> = {
@@ -1197,8 +1280,40 @@ async function boot() {
       tank: '#ff9b3a',
       rogue: '#4dff7a',
       boss: '#c23bff',
+      shielded: '#3a7bff',
+      carrier: '#d08aff',
+      fragment: '#ff8a8a',
     }
     return map[kind] || '#fff'
   }
 }
-boot()
+
+/** Fatal-error screen: without it any boot failure (WebGL unavailable/blocked, lost context)
+ * leaves the player on a silent black page forever. Uses the pristine <body> API — it may run
+ * before (or instead of) the appendChild monkey-patch inside boot(). */
+function showFatalError(err: unknown): void {
+  console.error('PCB TD boot failed:', err)
+  if (document.getElementById('pcb-fatal')) return
+  const el = document.createElement('div')
+  el.id = 'pcb-fatal'
+  el.style.cssText =
+    'position:fixed;inset:0;z-index:9999;display:flex;flex-direction:column;align-items:center;' +
+    'justify-content:center;gap:16px;background:#0b1611;color:#2bd06a;' +
+    "font-family:'JetBrains Mono',Menlo,monospace;text-align:center;padding:24px"
+  const ru = navigator.language?.toLowerCase().startsWith('ru')
+  el.innerHTML =
+    `<div style="font-size:18px;letter-spacing:2px">${ru ? 'НЕ УДАЛОСЬ ЗАПУСТИТЬ ИГРУ' : 'FAILED TO START THE GAME'}</div>` +
+    `<div style="font-size:12px;color:#8fb3a0;max-width:480px">${ru
+      ? 'Нужен браузер с поддержкой WebGL. Попробуйте перезагрузить страницу или другой браузер.'
+      : 'A WebGL-capable browser is required. Try reloading the page or a different browser.'}</div>` +
+    `<button style="font:inherit;color:inherit;background:none;border:1px solid #2bd06a;padding:8px 24px;cursor:pointer" ` +
+    `onclick="location.reload()">${ru ? 'ПЕРЕЗАГРУЗИТЬ' : 'RELOAD'}</button>`
+  document.body.appendChild(el)
+}
+
+window.addEventListener('unhandledrejection', (e) => {
+  // Only fatal while nothing is on screen yet — in-game promise noise must not nuke a running game.
+  if (!document.querySelector('canvas')) showFatalError(e.reason)
+})
+
+boot().catch(showFatalError)
