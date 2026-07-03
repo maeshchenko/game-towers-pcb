@@ -6,7 +6,7 @@ import { timer555, passiveBank, railSpine, amplifierStage } from '../../pipeline
 // TWO spawns merge → an inward spiral kill-zone that self-crosses (a bridge) → ONE finish.
 // Decor: a 555 timer + passive bank, kept clear of the tight spiral lanes.
 export function buildLevel12(board: Board): Level {
-  const b = new LevelBuilder(board, 112, { name: 'campaign.level11.name', difficulty: 9, archetype: 'cross', tune: { hpMul: 2.50 } })
+  const b = new LevelBuilder(board, 112, { name: 'campaign.level11.name', difficulty: 9, archetype: 'cross', tune: { hpMul: 2.00 } })
   const merge: [number, number] = [20, 22]
   const spiral: [number, number][] = [
     merge, [52, 22], [52, 40], [8, 40], [8, 8], [44, 8], [44, 30], [24, 30],

@@ -6,7 +6,7 @@ import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 // Branch & merge: one START forks into two equal-length loops that rejoin to ONE finish. Modelled as
 // two paths sharing first+last waypoint. Spots on both arms + a B spot at the merge.
 export function buildLevel03(board: Board): Level {
-  const b = new LevelBuilder(board, 103, { name: 'campaign.level2.name', difficulty: 3, archetype: 'branching', tune: { hpMul: 0.65 } })
+  const b = new LevelBuilder(board, 103, { name: 'campaign.level2.name', difficulty: 3, archetype: 'branching', tune: { hpMul: 1.30 } })
   const start: [number, number] = [0, 12]
   const split: [number, number] = [6, 12]
   const merge: [number, number] = [25, 12]

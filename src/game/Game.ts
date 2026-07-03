@@ -58,6 +58,9 @@ export class Game {
     const script: WaveEntry[][] = level.meta.waves
       ? level.meta.waves.map((entries) => entries.map((e) => {
           if (!(e.kind in ENEMY_DEFS)) throw new Error(`level "${level.meta.name}": unknown enemy kind "${e.kind}" in meta.waves`)
+          for (const mk of Object.keys(e.mix ?? {})) {
+            if (!(mk in ENEMY_DEFS)) throw new Error(`level "${level.meta.name}": unknown mix kind "${mk}" in meta.waves`)
+          }
           return { ...e, kind: e.kind as WaveEntry['kind'] }
         }))
       : mapWaves(diff)

@@ -39,7 +39,7 @@ function isEnemyUnlocked(kind: string, unlockedLevelIndex: number): boolean {
     shielded: 5, // Level 6
     carrier: 7,  // Level 8
     fragment: 7, // Level 8 (born from carriers)
-    boss: 11,  // Level 12
+    boss: 7,   // Level 8 — the first CARRIER mini-boss arrives there now
   }
   return unlockedLevelIndex >= (map[kind] ?? 0)
 }

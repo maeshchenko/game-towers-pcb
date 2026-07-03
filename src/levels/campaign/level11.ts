@@ -7,7 +7,7 @@ import { mcuCore, passiveBank, railSpine, powerSupply, opAmp, timer555, transist
 // Decor: the board is HUGE (60×45) — circuit blocks are spread across every quadrant so the
 // background reads as a packed motherboard, not a mostly-bare prototype (user feedback).
 export function buildLevel11(board: Board): Level {
-  const b = new LevelBuilder(board, 111, { name: 'campaign.level10.name', difficulty: 8, archetype: 'multiSpawn', tune: { hpMul: 0.50, countMul: 0.65 } })
+  const b = new LevelBuilder(board, 111, { name: 'campaign.level10.name', difficulty: 8, archetype: 'multiSpawn', tune: { hpMul: 1.20, countMul: 0.65 } })
   const merge: [number, number] = [30, 22]
   const finish: [number, number] = [59, 40]
   const spine: [number, number][] = [merge, [30, 34], [50, 34], [50, 40], finish]

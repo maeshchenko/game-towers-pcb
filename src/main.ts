@@ -18,8 +18,9 @@ import type { Board } from './model/level'
 import { levelPaths } from './model/level'
 import type { Tower } from './game/Tower'
 import { CampaignMenu, dailyStamp } from './ui/CampaignMenu'
-import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial, saveProgress } from './game/campaign'
+import { CAMPAIGN_LEVELS, registerVictory, loadProgress, completeTutorial } from './game/campaign'
 import { StoryScreen } from './ui/StoryScreen'
+import { TitleScreen } from './ui/TitleScreen'
 import { CAMPAIGN_STORY } from './story/campaignStory'
 import { TutorialOverlay } from './ui/TutorialOverlay'
 import { audioEngine } from './ui/AudioEngine'
@@ -180,6 +181,9 @@ async function boot() {
   // Replay modes launched from the campaign menu footer.
   let endlessMode = false
   let dailyActive = false
+  // The framing clamp reads overlay heights from the DOM, but the next-wave strip only
+  // appears AFTER the first ui.update of the build phase — re-frame once, when it shows up.
+  let framedWithPreview = false
   // Discharge ability aiming state: armed = the next board click detonates it.
   let dischargeArmed = false
   /** The ability unlocks at campaign level 3 (story: "emergency discharge circuit restored") —
@@ -293,7 +297,13 @@ async function boot() {
     const mT = 16
     const mB = 16
     const hudEl = document.querySelector('.pcb-tophud') as HTMLElement | null
-    const hudBottom = (hudEl && hudEl.offsetHeight > 0 ? hudEl.offsetTop + hudEl.offsetHeight : 0) + 6
+    let overlayBottom = hudEl && hudEl.offsetHeight > 0 ? hudEl.offsetTop + hudEl.offsetHeight : 0
+    // The next-wave strip floats right under the HUD and hides traces/pads too (user report).
+    const previewEl = document.querySelector('.pcb-wavepreview') as HTMLElement | null
+    if (previewEl && previewEl.offsetHeight > 0 && getComputedStyle(previewEl).display !== 'none') {
+      overlayBottom = Math.max(overlayBottom, previewEl.offsetTop + previewEl.offsetHeight)
+    }
+    const hudBottom = overlayBottom + 6
     const aw = Math.max(100, view().w - mL - mR), ah = Math.max(100, view().h - mT - mB)
     const bw = Math.max(1, maxX - minX), bh = Math.max(1, maxY - minY)
     let zoom = Math.max(0.1, Math.min(4, Math.min(aw / bw, ah / bh) * 0.99))
@@ -454,9 +464,8 @@ async function boot() {
   function ensureGame() {
     if (!game && editor.state.level) {
       showTipsPanel() // tips dismissal is per-level: they return on every new level entry
-      // Snapshot seen-enemy intros once per level: reading loadProgress (JSON.parse) every
-      // ticker frame during a wave caused constant GC churn.
-      seenIntroCache = new Set(Object.keys(loadProgress().seenIntroductions ?? {}))
+      seenIntroCache = new Set() // per-run: intro cards return on every playthrough
+      framedWithPreview = false // the next-wave strip isn't visible yet — re-frame once it is
       game = new Game(editor.state.level, ++seedCounter, { hpMul: PLAYER_DIFFICULTY_HP[loadPlayerDifficulty()], endless: endlessMode })
       gameView?.destroy() // defensive: resetPlay normally clears it, this guards any future path that skips it
       gameView = new GameView(app, renderer, game)
@@ -507,16 +516,10 @@ async function boot() {
           }
         }
       })
-      // One-time ability briefing the first time the discharge becomes available.
-      if (abilityUnlocked() && !seenIntroCache.has('ability_discharge') && activeCampaignLevelIndex !== null) {
+      // Ability briefing on its DEBUT level (L3) — every playthrough, like enemy intros.
+      if (activeCampaignLevelIndex === 2 && !seenIntroCache.has('ability_discharge')) {
         seenIntroCache.add('ability_discharge')
-        const prog = loadProgress()
-        if (!prog.seenIntroductions) prog.seenIntroductions = {}
-        if (!prog.seenIntroductions['ability_discharge']) {
-          prog.seenIntroductions['ability_discharge'] = true
-          saveProgress(prog)
-          setTimeout(() => showAbilityIntroduction(), 600) // after the level frame settles
-        }
+        setTimeout(() => showAbilityIntroduction(), 600) // after the level frame settles
       }
       // Resume an interrupted campaign run: rebuild towers/economy at the saved wave boundary.
       if (activeCampaignLevelIndex !== null) {
@@ -541,8 +544,12 @@ async function boot() {
   let waveCountdown = 0
   let countdownTimer: any = null
   const introducingEnemies = new Set<string>()
-  // Per-level cache of progress.seenIntroductions — refreshed in ensureGame() (see there for why).
+  // Intros are PER-RUN (user rule: every playthrough re-teaches, like the L1 tutorial):
+  // a kind's card shows on its DEBUT level each time you enter it. Cleared in ensureGame().
   let seenIntroCache = new Set<string>()
+  const DEBUT_LEVEL: Record<string, number> = {
+    normal: 0, fast: 1, healer: 2, brute: 3, tank: 4, shielded: 5, rogue: 6, carrier: 7, fragment: 7, boss: 7,
+  }
 
   function runTutorialStep(step: number): void {
     if (!activeTutorial) return
@@ -728,12 +735,9 @@ async function boot() {
   // then calls onDone. Progress flags are re-read/saved around each step so a mid-queue reload
   // can't lose the "seen" mark. No-ops straight to onDone once everything for this level is seen.
   function showStoryFor(index: number, onDone: () => void): void {
+    // The FULL story plays on EVERY level entry (user rule): level 1 keeps its station
+    // intro before the briefing, all levels replay their shift-log brief each time.
     const showBrief = () => {
-      const progress = loadProgress()
-      if (progress.storyBriefSeen?.[index]) {
-        onDone()
-        return
-      }
       const story = CAMPAIGN_STORY.levels[index]
       if (!story) {
         onDone()
@@ -741,26 +745,13 @@ async function boot() {
       }
       storyScreen.show(story.brief, {
         title: briefTitle(index),
-        onDone: () => {
-          const p = loadProgress()
-          if (!p.storyBriefSeen) p.storyBriefSeen = {}
-          p.storyBriefSeen[index] = true
-          saveProgress(p)
-          onDone()
-        },
+        onDone,
       })
     }
-
-    const progress = loadProgress()
-    if (index === 0 && !progress.storyIntroSeen) {
+    if (index === 0) {
       storyScreen.show(CAMPAIGN_STORY.intro, {
         title: i18n.t('story.intro.title'),
-        onDone: () => {
-          const p = loadProgress()
-          p.storyIntroSeen = true
-          saveProgress(p)
-          showBrief()
-        },
+        onDone: showBrief,
       })
     } else {
       showBrief()
@@ -775,6 +766,37 @@ async function boot() {
     loadAuthoredOrGenerated(index)
     setMode('play')
     showStoryFor(index, onReady)
+  }
+
+  function enterCampaignLevel(index: number): void {
+    audioEngine.init()
+    if (audioEngine.isMuted()) {
+      audioEngine.setMute(false)
+    }
+    audioEngine.playClick()
+
+    campaignMenu.hide()
+
+    // Tutorial only ever runs for level 0, and must start after the story overlay closes
+    // (it points at on-canvas spots, which the fullscreen story overlay would sit on top of).
+    goToCampaignLevel(index, () => {
+      if (index === 0) {
+        activeTutorial = new TutorialOverlay()
+        activeTutorial.onSkip = () => {
+          completeTutorial() // persists — the guided intro never comes back
+          activeTutorial?.destroy()
+          activeTutorial = null
+        }
+        setTimeout(() => {
+          runTutorialStep(0)
+        }, 100)
+      } else {
+        if (activeTutorial) {
+          activeTutorial.destroy()
+          activeTutorial = null
+        }
+      }
+    })
   }
 
   campaignMenu = new CampaignMenu({
@@ -799,36 +821,7 @@ async function boot() {
       makeLevel(32, 24, 5, Number(dailyStamp()) % 100000)
       setMode('play')
     },
-    onSelectLevel: (index) => {
-      audioEngine.init()
-      if (audioEngine.isMuted()) {
-        audioEngine.setMute(false)
-      }
-      audioEngine.playClick()
-
-      campaignMenu.hide()
-
-      // Tutorial only ever runs for level 0, and must start after the story overlay closes
-      // (it points at on-canvas spots, which the fullscreen story overlay would sit on top of).
-      goToCampaignLevel(index, () => {
-        if (index === 0) {
-          activeTutorial = new TutorialOverlay()
-          activeTutorial.onSkip = () => {
-            completeTutorial() // persists — the guided intro never comes back
-            activeTutorial?.destroy()
-            activeTutorial = null
-          }
-          setTimeout(() => {
-            runTutorialStep(0)
-          }, 100)
-        } else {
-          if (activeTutorial) {
-            activeTutorial.destroy()
-            activeTutorial = null
-          }
-        }
-      })
-    },
+    onSelectLevel: (index) => enterCampaignLevel(index),
     onShowLog: (index) => {
       audioEngine.playClick()
       // The FULL log: level 1 includes the station intro before its briefing.
@@ -917,7 +910,20 @@ async function boot() {
       resetPlay()
       gameBar.style.display = 'none'
       editorBar.style.display = 'none'
-      campaignMenu.show()
+      // Cold boot on the root path: the retro-monitor title screen. START plays the CRT
+      // collapse; a fresh save then gets the comic prologue and drops straight into level 1,
+      // a veteran goes to the campaign map.
+      const progress0 = loadProgress()
+      const freshSave = progress0.unlockedLevelIndex === 0 && !(progress0.stars[0] || 0)
+      // The comic prologue plays on EVERY cold boot (user rule — same as per-run intros);
+      // one click reveals all panels, NEXT skips on through.
+      new TitleScreen().show({
+        showComic: true,
+        onDone: () => {
+          if (freshSave) enterCampaignLevel(0)
+          else campaignMenu.show()
+        },
+      })
     }
   }
   mountUi(modeBar)
@@ -1169,6 +1175,13 @@ async function boot() {
     audioEngine.setAmbient(game.state.phase === 'build')
     gameView?.update(rawDt, selectedTower)
     ui.update(game, editor.state.level?.meta.difficulty ?? 1)
+    if (!framedWithPreview) {
+      const previewEl = document.querySelector('.pcb-wavepreview') as HTMLElement | null
+      if (previewEl && previewEl.offsetHeight > 0 && getComputedStyle(previewEl).display !== 'none') {
+        framedWithPreview = true
+        frameLevel() // now the clamp can see the strip's real height
+      }
+    }
     camera.apply(renderer.world)
     // camera.apply resets position/scale but not rotation, so zero it before the additive shake
     // to keep residual rotation from accumulating across frames.
@@ -1184,7 +1197,7 @@ async function boot() {
       // progress.seenIntroductions — never re-read storage in the frame loop.
       const newEnemy = activeCampaignLevelIndex !== null ? activeEnemies.find(e => {
         const k = e.kind
-        return ['normal', 'fast', 'healer', 'brute', 'tank', 'rogue', 'boss', 'shielded', 'carrier'].includes(k) && !seenIntroCache.has(k) && !introducingEnemies.has(k)
+        return DEBUT_LEVEL[k] === activeCampaignLevelIndex && !seenIntroCache.has(k) && !introducingEnemies.has(k)
       }) : undefined
 
       if (newEnemy) {
@@ -1206,10 +1219,6 @@ async function boot() {
         updateStartWaveButtonText()
 
         showEnemyIntroduction(kind, () => {
-          const prog = loadProgress()
-          if (!prog.seenIntroductions) prog.seenIntroductions = {}
-          prog.seenIntroductions[kind] = true
-          saveProgress(prog)
           seenIntroCache.add(kind)
           introducingEnemies.delete(kind)
 
@@ -1353,19 +1362,15 @@ async function boot() {
    * detector remains only as a fallback for kinds born mid-wave (carrier fragments). */
   function introduceUpcoming(waveIndex: number, proceed: () => void): void {
     if (!game || activeCampaignLevelIndex === null) { proceed(); return }
-    const known = ['normal', 'fast', 'healer', 'brute', 'tank', 'rogue', 'boss', 'shielded', 'carrier']
+    // Only kinds that DEBUT on this level get a card — and they get it on every playthrough.
     const fresh = [...waveComposition(game.peekWave(waveIndex)).keys()]
-      .filter((k) => known.includes(k) && !seenIntroCache.has(k) && !introducingEnemies.has(k))
+      .filter((k) => DEBUT_LEVEL[k] === activeCampaignLevelIndex && !seenIntroCache.has(k) && !introducingEnemies.has(k))
     if (fresh.length === 0) { proceed(); return }
     const showNext = (i: number): void => {
       if (i >= fresh.length) { proceed(); return }
       const kind = fresh[i]
       introducingEnemies.add(kind)
       showEnemyIntroduction(kind, () => {
-        const prog = loadProgress()
-        if (!prog.seenIntroductions) prog.seenIntroductions = {}
-        prog.seenIntroductions[kind] = true
-        saveProgress(prog)
         seenIntroCache.add(kind)
         introducingEnemies.delete(kind)
         showNext(i + 1)
