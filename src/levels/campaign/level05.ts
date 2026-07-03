@@ -9,7 +9,7 @@ import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 // free board here, so the 555 timer / op-amps / transistor stage that used to fill this level don't
 // fit anywhere and are dropped — decor is decoration).
 export function buildLevel05(board: Board): Level {
-  const b = new LevelBuilder(board, 105, { name: 'campaign.level4.name', difficulty: 5, archetype: 'spiral', tune: { hpMul: 3.50 } })
+  const b = new LevelBuilder(board, 105, { name: 'campaign.level4.name', difficulty: 5, archetype: 'spiral', tune: { hpMul: 3.25 } })
   b.path([
     [0, 2], [29, 2], [29, 21], [3, 21], [3, 6], [25, 6], [25, 17], [7, 17], [7, 10],
     [20, 10], [20, 13], [16, 13], [16, 23], [31, 23],

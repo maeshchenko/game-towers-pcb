@@ -6,7 +6,7 @@ import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 // Long 6-lane serpentine (frequency-divider theme: the path "steps down" repeatedly). Many turns +
 // length keep it fair at d7. Decor: passive banks + LED indicators in the lane gaps.
 export function buildLevel09(board: Board): Level {
-  const b = new LevelBuilder(board, 109, { name: 'campaign.level8.name', difficulty: 7, archetype: 'serpentine', tune: { hpMul: 2.65 } })
+  const b = new LevelBuilder(board, 109, { name: 'campaign.level8.name', difficulty: 7, archetype: 'serpentine', tune: { hpMul: 2.40 } })
   b.path([
     [0, 3], [55, 3], [55, 9], [5, 9], [5, 15], [55, 15], [55, 21], [5, 21],
     [5, 27], [55, 27], [55, 33], [5, 33], [5, 39], [58, 39],

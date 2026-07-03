@@ -20,8 +20,11 @@ export interface WaveEntry {
    * "normal normal fast normal rogue…" interleaving. `kind` stays the DOMINANT type and is
    * what previews display. Homogeneous groups simply omit this. */
   mix?: Partial<Record<EnemyKind, number>>
+  /** Spacing unevenness 0..1: each gap becomes interval × uniform[1-j, 1+j] (seeded).
+   * 0/omitted = metronome-even column; 0.6 = ragged strung-out mob. */
+  jitter?: number
 }
-interface Pending { kind: EnemyKind; interval: number; remaining: number; timer: number; pathIndex?: number; mix?: Partial<Record<EnemyKind, number>> }
+interface Pending { kind: EnemyKind; interval: number; remaining: number; timer: number; pathIndex?: number; mix?: Partial<Record<EnemyKind, number>>; jitter?: number }
 
 /** Aggregate a wave's entries into displayable {kind → count} totals. Mixed groups are split
  * across their kinds proportionally to the weights (largest-remainder rounding), so previews
@@ -67,109 +70,114 @@ export function mapWaves(difficulty: number): WaveEntry[][] {
   const dl = (base: number) => Math.round(base * Math.max(0.6, 1 - difficulty * 0.03))
   const w: WaveEntry[][] = []
 
-  // Every wave is authored in PHASES (delay = seconds from wave start): an opening squad, a
-  // breather, a mixed middle push, and a tail. Stretched pacing means one splash shell can
-  // never delete the whole wave, and mixed groups keep every counter-tool relevant.
+  // Every wave is authored in PHASES (delay = seconds from wave start): an opening squad,
+  // a short breather, a mixed middle push, and a tail. Phases OVERLAP the previous group's
+  // walk — the player should never stare at an empty track for seconds. Spacing has character:
+  // clumped (tiny interval), strung-out (big interval), ragged (jitter) or metronome-even.
 
-  // Wave 1: Warmup — two small packs of normals with a breather between them.
+  // Wave 1: Warmup — an even column, then a slightly ragged second pack.
   w.push([
-    { kind: 'normal', count: 4 + b, interval: iv(1.3) },
-    { kind: 'normal', count: 4 + b, interval: iv(1.0), delay: dl(12) },
+    { kind: 'normal', count: 4 + b, interval: iv(1.2) },
+    { kind: 'normal', count: 4 + b, interval: iv(0.9), delay: dl(7), jitter: 0.4 },
   ])
 
-  // Wave 2: Speed check — normals first, then two separated bursts of fast.
+  // Wave 2: Speed check — normals stroll unevenly, fast come as two tight bursts.
   w.push([
-    { kind: 'normal', count: 4 + m2, interval: iv(1.1) },
-    { kind: 'fast', count: 4 + m2, interval: iv(0.6), delay: dl(7) },
-    { kind: 'fast', count: 5 + m2, interval: iv(0.5), delay: dl(18) },
-    { kind: 'normal', count: 3 + m2, interval: iv(1.0), delay: dl(19) },
+    { kind: 'normal', count: 4 + m2, interval: iv(1.1), jitter: 0.5 },
+    { kind: 'fast', count: 4 + m2, interval: iv(0.4), delay: dl(4) },
+    { kind: 'fast', count: 5 + m2, interval: iv(0.35), delay: dl(10) },
+    { kind: 'normal', count: 3 + m2, interval: iv(1.0), delay: dl(11), jitter: 0.5 },
   ])
 
-  // Wave 3: Armor check — a lone tank probes, then the armored push with escorts.
+  // Wave 3: Armor check — a lone tank probes, escorts trail raggedly, second tank pushes in.
   w.push([
-    { kind: 'tank', count: 1 + m3, interval: iv(3.0) },
-    { kind: 'normal', count: 5 + b, interval: iv(1.0), delay: dl(3) },
-    { kind: 'tank', count: 1 + m3, interval: iv(2.8), delay: dl(18) },
-    { kind: 'fast', count: 4 + m2, interval: iv(0.55), delay: dl(20) },
+    { kind: 'tank', count: 1 + m3, interval: iv(2.6) },
+    { kind: 'normal', count: 5 + b, interval: iv(0.9), delay: dl(2), jitter: 0.4 },
+    { kind: 'tank', count: 1 + m3, interval: iv(2.4), delay: dl(10) },
+    { kind: 'fast', count: 4 + m2, interval: iv(0.5), delay: dl(12) },
   ])
 
-  // Wave 4: Healing check — healer walks inside each pack, packs come in two pulses.
+  // Wave 4: Healing check — healer walks inside each pack; packs alternate tight/ragged.
   w.push([
-    { kind: 'fast', count: 5 + m2, interval: iv(0.6) },
-    { kind: 'healer', count: 1, interval: iv(4.0), delay: dl(2) },
-    { kind: 'rogue', count: 4 + m2, interval: iv(0.7), delay: dl(16) },
-    { kind: 'healer', count: m3, interval: iv(4.0), delay: dl(18) },
-    { kind: 'fast', count: 4 + m2, interval: iv(0.5), delay: dl(28) },
+    { kind: 'fast', count: 5 + m2, interval: iv(0.55) },
+    { kind: 'healer', count: 1, interval: iv(3.5), delay: dl(2) },
+    { kind: 'rogue', count: 4 + m2, interval: iv(0.6), delay: dl(9), jitter: 0.6 },
+    { kind: 'healer', count: m3, interval: iv(3.5), delay: dl(10) },
+    { kind: 'fast', count: 4 + m2, interval: iv(0.45), delay: dl(15) },
   ])
 
-  // Wave 5: Swarm check — pulses bookend a long INTERLEAVED stream (fast/rogue/normal mixed).
+  // Wave 5: Swarm check — a tight burst, then one long ragged INTERLEAVED stream.
   w.push([
-    { kind: 'fast', count: 5 + m2, interval: iv(0.5) },
-    { kind: 'fast', count: 9 + b, interval: iv(0.6), delay: dl(9), mix: { fast: 3, rogue: 2, normal: 2 } },
-    { kind: 'fast', count: 5 + m2, interval: iv(0.45), delay: dl(27) },
+    { kind: 'fast', count: 5 + m2, interval: iv(0.4) },
+    { kind: 'fast', count: 9 + b, interval: iv(0.55), delay: dl(5), mix: { fast: 3, rogue: 2, normal: 2 }, jitter: 0.6 },
+    // DDoS burst: a genuine flood — splash/chain towers get their fireworks moment
+    { kind: 'fast', count: 10 + b, interval: 0.25, delay: dl(14) },
   ])
 
-  // Wave 6: Raw power check — brutes arrive one at a time with escorts between.
+  // Wave 6: Raw power check — brutes arrive spaced out with escorts flowing between.
   // Difficulty 5+ (campaign level 6+): shielded capsules debut inside the escort stream.
   w.push([
-    { kind: 'normal', count: 6 + b, interval: iv(0.9) },
-    { kind: 'brute', count: 1, interval: iv(3.0), delay: dl(6) },
-    ...(difficulty >= 5 ? [{ kind: 'shielded', count: 2 + m3, interval: iv(1.4), delay: dl(12) } as WaveEntry] : []),
-    { kind: 'brute', count: m2, interval: iv(2.6), delay: dl(20) },
-    { kind: 'fast', count: 6 + m2, interval: iv(0.55), delay: dl(22) },
-    { kind: 'normal', count: 4 + b, interval: iv(0.8), delay: dl(34) },
+    { kind: 'normal', count: 6 + b, interval: iv(0.8), jitter: 0.35 },
+    { kind: 'brute', count: 1, interval: iv(2.6), delay: dl(4) },
+    ...(difficulty >= 5 ? [{ kind: 'shielded', count: 2 + m3, interval: iv(1.2), delay: dl(7), jitter: 0.3 } as WaveEntry] : []),
+    { kind: 'brute', count: m2, interval: iv(2.2), delay: dl(11) },
+    { kind: 'fast', count: 6 + m2, interval: iv(0.5), delay: dl(12) },
+    { kind: 'normal', count: 4 + b, interval: iv(0.7), delay: dl(18), jitter: 0.5 },
   ])
 
-  // Wave 7: Synergy check — armored core with a healer, then chaff, then a second core.
+  // Wave 7: Synergy check — armored core with a healer, chaff flows in, second core lands.
   // Difficulty 7+ (campaign level 8+): a lone carrier probes the exit defense.
   w.push([
-    { kind: 'tank', count: 2 + m3, interval: iv(2.2) },
-    { kind: 'healer', count: 1, interval: iv(4.0), delay: dl(3) },
-    { kind: 'normal', count: 7 + b, interval: iv(0.85), delay: dl(15) },
-    ...(difficulty >= 7 ? [{ kind: 'carrier', count: 1, interval: iv(3.0), delay: dl(24) } as WaveEntry] : []),
-    { kind: 'tank', count: 1 + m2, interval: iv(2.0), delay: dl(28) },
-    { kind: 'rogue', count: 5 + m3, interval: iv(0.5), delay: dl(30) },
+    { kind: 'tank', count: 2 + m3, interval: iv(2.0) },
+    { kind: 'healer', count: 1, interval: iv(3.5), delay: dl(2) },
+    { kind: 'normal', count: 7 + b, interval: iv(0.75), delay: dl(8), jitter: 0.5 },
+    ...(difficulty >= 7 ? [{ kind: 'carrier', count: 1, interval: iv(2.6), delay: dl(13) } as WaveEntry] : []),
+    { kind: 'tank', count: 1 + m2, interval: iv(1.8), delay: dl(15) },
+    { kind: 'rogue', count: 5 + m3, interval: iv(0.45), delay: dl(16) },
   ])
 
   // Wave 8: Chaotic rush — one long ragged mixed stream with a healer hidden inside,
-  // then a clean fast burst as the sting.
+  // then a clean tight fast burst as the sting.
   w.push([
-    { kind: 'rogue', count: 5 + m2, interval: iv(0.45) },
-    { kind: 'rogue', count: 10 + b, interval: iv(0.5), delay: dl(8), mix: { rogue: 3, fast: 3, normal: 1 } },
-    { kind: 'healer', count: 1, interval: iv(4.0), delay: dl(15) },
-    { kind: 'fast', count: 6 + m2, interval: iv(0.4), delay: dl(26) },
+    { kind: 'rogue', count: 5 + m2, interval: iv(0.4) },
+    { kind: 'rogue', count: 10 + b, interval: iv(0.45), delay: dl(4), mix: { rogue: 3, fast: 3, normal: 1 }, jitter: 0.6 },
+    { kind: 'healer', count: 1, interval: iv(3.5), delay: dl(8) },
+    // DDoS sting: tight rogue flood to close the wave
+    { kind: 'rogue', count: 12 + b, interval: 0.25, delay: dl(14) },
   ])
 
-  // Wave 9: Penultimate test — three distinct assaults; the middle one is a ragged mixed mob.
+  // Wave 9: Penultimate test — three assaults flowing into each other; middle is a ragged mob.
   w.push([
-    { kind: 'tank', count: 2 + m2, interval: iv(1.8) },
-    { kind: 'healer', count: 1 + m3, interval: iv(3.0), delay: dl(2) },
+    { kind: 'tank', count: 2 + m2, interval: iv(1.7) },
+    { kind: 'healer', count: 1 + m3, interval: iv(2.8), delay: dl(2) },
     difficulty >= 7
-      ? { kind: 'rogue', count: 8 + b, interval: iv(0.7), delay: dl(15), mix: { rogue: 3, fast: 2, shielded: 2, carrier: 1 } }
-      : { kind: 'rogue', count: 8 + b, interval: iv(0.7), delay: dl(15), mix: { rogue: 3, fast: 2, normal: 2, brute: 1 } },
-    { kind: 'tank', count: 1 + m2, interval: iv(1.8), delay: dl(31) },
-    { kind: 'fast', count: 6 + m2, interval: iv(0.5), delay: dl(33) },
+      ? { kind: 'rogue', count: 8 + b, interval: iv(0.6), delay: dl(8), mix: { rogue: 3, fast: 2, shielded: 2, carrier: 1 }, jitter: 0.5 }
+      : { kind: 'rogue', count: 8 + b, interval: iv(0.6), delay: dl(8), mix: { rogue: 3, fast: 2, normal: 2, brute: 1 }, jitter: 0.5 },
+    { kind: 'tank', count: 1 + m2, interval: iv(1.7), delay: dl(16) },
+    { kind: 'fast', count: 6 + m2, interval: iv(0.4), delay: dl(17) },
   ])
 
   // Wave 10: Boss finale — scouts first, bosses arrive SPREAD OUT with their own escorts.
   const bosses = difficulty >= 6 ? 3 : difficulty >= 3 ? 2 : 1
   const finale: WaveEntry[] = [
-    { kind: 'fast', count: 6 + m2, interval: iv(0.55) },
-    { kind: 'boss', count: 1, interval: iv(4.0), delay: dl(10) },
-    { kind: 'tank', count: 2 + m2, interval: iv(2.0), delay: dl(12) },
-    { kind: 'normal', count: 6 + b, interval: iv(0.7), delay: dl(22) },
+    { kind: 'fast', count: 6 + m2, interval: iv(0.45) },
+    { kind: 'boss', count: 1, interval: iv(4.0), delay: dl(6) },
+    { kind: 'tank', count: 2 + m2, interval: iv(1.8), delay: dl(7) },
+    // DDoS escort: the boss marches inside a flood — spectacle AND cover for it
+    { kind: 'normal', count: 12 + b * 2, interval: 0.25, delay: dl(12), mix: { normal: 3, fast: 2 } },
   ]
   if (bosses >= 2) {
     finale.push(
-      { kind: 'boss', count: 1, interval: iv(4.0), delay: dl(34) },
-      { kind: 'healer', count: 1 + Math.floor(difficulty / 5), interval: iv(3.0), delay: dl(36) },
-      { kind: 'fast', count: 5 + m2, interval: iv(0.5), delay: dl(44) },
+      { kind: 'boss', count: 1, interval: iv(4.0), delay: dl(20) },
+      { kind: 'healer', count: 1 + Math.floor(difficulty / 5), interval: iv(2.8), delay: dl(21) },
+      { kind: 'rogue', count: 12 + b, interval: 0.25, delay: dl(24) },
     )
   }
   if (bosses >= 3) {
     finale.push(
-      { kind: 'boss', count: 1, interval: iv(4.0), delay: dl(58) },
-      { kind: 'tank', count: 1 + m2, interval: iv(2.0), delay: dl(60) },
+      { kind: 'boss', count: 1, interval: iv(4.0), delay: dl(34) },
+      // Final DDoS: the biggest flood of the game right behind the last boss
+      { kind: 'fast', count: 16 + b * 2, interval: 0.25, delay: dl(36), mix: { fast: 3, rogue: 2 } },
     )
   }
   w.push(finale)
@@ -203,7 +211,7 @@ export class WaveManager {
     this.currentWave = i
     const w = this.waves[i] ?? []
     // timer starts at the group's phase delay; the first enemy spawns the moment it hits 0.
-    this.queue = w.map((g) => ({ kind: g.kind, interval: g.interval, remaining: g.count, timer: g.delay ?? 0, pathIndex: g.pathIndex, mix: g.mix }))
+    this.queue = w.map((g) => ({ kind: g.kind, interval: g.interval, remaining: g.count, timer: g.delay ?? 0, pathIndex: g.pathIndex, mix: g.mix, jitter: g.jitter }))
   }
   update(dt: number): Enemy[] {
     const spawned: Enemy[] = []
@@ -219,7 +227,10 @@ export class WaveManager {
         const ramp = kind === 'boss' ? 1 : 1 + this.currentWave * this.waveRamp
         const e = new Enemy(def, path, this.hpScale * ramp, def.speed * this.speedScale)
         this._active.push(e); spawned.push(e)
-        g.remaining -= 1; g.timer += g.interval
+        g.remaining -= 1
+        // jitter: uneven gaps inside a group (seeded → reproducible in headless balance runs)
+        const j = g.jitter ?? 0
+        g.timer += g.interval * (j > 0 ? 1 - j + this.rng() * 2 * j : 1)
       }
     }
     this.queue = this.queue.filter((g) => g.remaining > 0)

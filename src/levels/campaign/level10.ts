@@ -6,7 +6,7 @@ import { passiveBank, opAmp, railSpine } from '../../pipeline/circuits'
 // A single weaving path that crosses itself several times (bridges). Spots sit at the crossings
 // (ultra-high value). Decor: two passive banks + an op-amp in the corner pockets.
 export function buildLevel10(board: Board): Level {
-  const b = new LevelBuilder(board, 110, { name: 'campaign.level9.name', difficulty: 8, archetype: 'cross', tune: { hpMul: 2.80 } })
+  const b = new LevelBuilder(board, 110, { name: 'campaign.level9.name', difficulty: 8, archetype: 'cross', tune: { hpMul: 2.60 } })
   b.path([
     [0, 4], [55, 4], [55, 40], [30, 40], [30, 10], [10, 10], [10, 30],
     [50, 30], [50, 15], [20, 15], [20, 44], [59, 44],

@@ -10,15 +10,34 @@ describe('mapWaves', () => {
     expect(w).toHaveLength(10)
     expect(w[9].some((g) => g.kind === 'boss')).toBe(true)
   })
-  it('every wave past the first is phased: groups arrive with real pauses, not one clump', () => {
+  it('every wave is phased but never leaves the player staring at an empty track', () => {
     for (const diff of [1, 5, 9]) {
       const waves = mapWaves(diff)
-      for (let i = 1; i < waves.length; i++) {
+      for (let i = 0; i < waves.length; i++) {
         const delays = waves[i].map((g) => g.delay ?? 0)
-        // at least one later phase, and the spread covers ≥10s of drama
-        expect(Math.max(...delays), `wave ${i + 1} diff ${diff}`).toBeGreaterThanOrEqual(10)
+        // at least one later phase…
+        expect(Math.max(...delays), `wave ${i + 1} diff ${diff}`).toBeGreaterThanOrEqual(4)
+        // …and no gaping hole: consecutive phase starts are ≤10s apart (boss finale ≤15s)
+        const sorted = [...new Set(delays)].sort((a, b) => a - b)
+        const cap = i === waves.length - 1 ? 15 : 10
+        for (let k = 1; k < sorted.length; k++) {
+          expect(sorted[k] - sorted[k - 1], `wave ${i + 1} diff ${diff} phase gap`).toBeLessThanOrEqual(cap)
+        }
       }
     }
+  })
+  it('jitter produces uneven spawn gaps; jitter 0 stays metronome-even', () => {
+    const gaps = (jitter: number): number[] => {
+      const wm = new WaveManager([p1], [[{ kind: 'normal', count: 10, interval: 0.5, jitter }]], 1, 50, 5)
+      wm.startWave(0)
+      const times: number[] = []
+      for (let t = 0; t < 3000; t++) { if (wm.update(0.01).length > 0) times.push(t * 0.01) }
+      return times.slice(1).map((t, i) => t - times[i])
+    }
+    const even = gaps(0)
+    expect(Math.max(...even) - Math.min(...even)).toBeLessThan(0.03)
+    const ragged = gaps(0.6)
+    expect(Math.max(...ragged) - Math.min(...ragged)).toBeGreaterThan(0.2)
   })
 })
 
