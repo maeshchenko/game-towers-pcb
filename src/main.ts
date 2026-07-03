@@ -419,8 +419,7 @@ async function boot() {
           i18n.t('tutorial.step1'),
           sx,
           sy,
-          null,
-          150 // the radial chip menu opens around this spot — keep the text clear of the ring
+          null
         )
       }
     } else if (step === 2) {
@@ -818,6 +817,8 @@ async function boot() {
     }
 
     ui.closeRadialMenu() // Close menu on any click first
+    // If the tutorial bubble was hidden for the ring and no chip was built, bring it back.
+    if (activeTutorial && tutorialStep === 1) runTutorialStep(1)
 
     const r = app.canvas.getBoundingClientRect()
     const wx = (e.clientX - r.left - camera.x) / camera.zoom
@@ -838,6 +839,9 @@ async function boot() {
       const clientX = wx_c * camera.zoom + camera.x + r.left
       const clientY = wy_c * camera.zoom + camera.y + r.top
       ui.openRadialMenu(bestI, clientX, clientY, game.state.gold, activeTutorial && tutorialStep === 1 ? 'cannon' : undefined, !activeTutorial)
+      // The instruction bubble sits right next to the pad — hide it while the chip ring is
+      // open so they never overlap; it comes back if the ring closes without a build.
+      if (activeTutorial && tutorialStep === 1) activeTutorial.hide()
     } else {
       const t = game.towers.find((tw) => Math.hypot(tw.pos.x - wx, tw.pos.y - wy) <= pitch)
       selectedTower = t ?? null
