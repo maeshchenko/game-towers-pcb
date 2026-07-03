@@ -8,52 +8,36 @@
 
 ## 0. Сеттинг и затравка / Setting & premise
 
-**RU.** Станция дальней космической связи «Вега-9» десятилетиями слушала пустоту. Однажды
-пустота ответила: принятый сигнал оказался не посланием, а исполняемым кодом — он запустился
-прямо в приёмном тракте и за ночь расползся по печатным платам станции. Заражённые цепи
-нельзя обесточить: питание ядра станции должно оставаться включённым. Остался один инженер
-смены и ящик запасных чипов. Игрок — этот инженер: каждый уровень — одна плата станции,
-дорожки — маршруты «форм сигнала» (врагов), монтажные площадки — места для башен-чипов.
-Задача кампании — изолировать заражение плата за платой и дойти до генератора, где сидит
-управляющая форма. Тон: тихий инженерный хоррор + практичный оптимизм ремонтника; вся
-терминология честно-электронная (формы, пакеты, шины, разряды), никакой магии.
+**RU.** Станция «Вега-9» десятилетиями слушала космос, пока не поймала неизвестный сигнал. Это оказалось не посланием, а исполняемым кодом — вирусом, который за ночь захватил управление системами. Отключить питание нельзя: генератор станции должен работать. Остался один инженер с ящиком запасных деталей. Игрок в роли инженера должен зачистить заражение, уровень за уровнем продвигаясь к главному генератору. Жанр: тактический Tower Defense в сеттинге микроэлектроники. Враги — потоки данных, защитные башни — микрочипы.
 
-**EN.** Deep-space relay station Vega-9 listened to the void for decades. One day the void
-answered: the received signal wasn't a message but executable code — it ran inside the
-receiver chain itself and crawled across the station's circuit boards overnight. Infected
-circuits can't simply be powered down: core power must stay on. One shift engineer remains,
-with a crate of spare chips. The player IS that engineer: every level is one board, the
-copper traces are the routes of "signal forms" (enemies), mounting pads hold tower chips.
-The campaign's goal is to isolate the infection board by board and reach the generator where
-the controlling form resides. Tone: quiet engineering horror plus a repairman's practical
-optimism; all terminology is honest electronics (forms, packets, buses, discharges) — no magic.
+**EN.** Deep-space relay station Vega-9 listened to the void for decades. One day the void answered: the received signal wasn't a message but executable code — it ran inside the receiver chain itself and crawled across the station's circuit boards overnight. Infected circuits can't simply be powered down: core power must stay on. One shift engineer remains, with a crate of spare chips. The player IS that engineer: every level is one board, the copper traces are the routes of "signal forms" (enemies), mounting pads hold tower chips. The campaign's goal is to isolate the infection board by board and reach the generator where the controlling form resides. Tone: quiet engineering horror plus a repairman's practical optimism; all terminology is honest electronics (forms, packets, buses, discharges) — no magic.
 
 ---
 
 ## 1. Вводные слайды (комикс) / Intro comic slides
 
 ### key: title.presents
-RU: MIZHGAN GAMES ПРЕДСТАВЛЯЕТ
+RU: MIZHGAN GAMES представляет
 EN: MIZHGAN GAMES PRESENTS
 
 ### key: title.tagline
-RU: tower defense на печатной плате
+RU: Оборонительная стратегия на микросхемах
 EN: a tower defense on a printed circuit board
 
 ### key: comic.1
-RU: Станция дальней связи «Вега-9». Десятилетиями антенны слушали пустоту — и однажды пустота ответила.
+RU: Станция «Вега-9». Антенны десятилетиями слушали космос, пока не поймали ЭТО.
 EN: Deep-space relay station Vega-9. For decades the antennas listened to the void — until the void answered.
 
 ### key: comic.2
-RU: Сигнал оказался не посланием. Контрольные суммы сходились сами собой: код исполнялся прямо в приёмном тракте.
+RU: Сигнал оказался не сообщением, а вирусом. Он активировался сам и начал перестраивать систему под себя.
 EN: The signal was no message. Its checksums resolved themselves: the code was EXECUTING inside the receiver chain.
 
 ### key: comic.3
-RU: За ночь он расползся по платам станции, переписывая всё на своём пути. Заражённые цепи не отключить — питание ядра трогать нельзя.
+RU: За ночь вирус захватил все электронные узлы. Обесточить станцию нельзя — ядро должно работать.
 EN: Overnight it crawled across the station's boards, rewriting everything it touched. Infected circuits can't be shut down — core power must stay on.
 
 ### key: comic.4
-RU: Остался один инженер и ящик запасных чипов. Каждая плата — рубеж. Каждая дорожка — линия фронта.
+RU: У вас остался только набор запчастей и шанс отрезать путь заразе. Вперёд.
 EN: One engineer remains, with a crate of spare chips. Every board is a front line. Every trace is a trench.
 
 
@@ -64,401 +48,401 @@ EN: One engineer remains, with a crate of spare chips. Every board is a front li
 ### Интро станции (терминал перед уровнем 1) / Station intro
 
 ### key: story.intro.title
-RU: DSCS VEGA-9 · INBOUND CARRIER
+RU: ЗАПУСК СИСТЕМЫ… ОШИБКА
 EN: DSCS VEGA-9 · INBOUND CARRIER
 
 ### key: story.intro.1
-RU: DSCS VEGA-9 · POWER-ON SELF TEST………… OK
+RU: ТЕСТ СИСТЕМ… НОРМА
 EN: DSCS VEGA-9 · POWER-ON SELF TEST………… OK
 
 ### key: story.intro.2
-RU: RECEIVER CHAIN……………………………………… OK
+RU: МОДУЛИ ПРИЁМА… НОРМА
 EN: RECEIVER CHAIN……………………………………… OK
 
 ### key: story.intro.3
-RU: REFERENCE OSCILLATOR………………………… OK
+RU: ГЕНЕРАТОР… НОРМА
 EN: REFERENCE OSCILLATOR………………………… OK
 
 ### key: story.intro.4
-RU: INBOUND CARRIER: DETECTED
+RU: ВНЕШНИЙ СИГНАЛ: ОБНАРУЖЕН
 EN: INBOUND CARRIER: DETECTED
 
 ### key: story.intro.5
-RU: ORIGIN: UNRESOLVED
+RU: ИСТОЧНИК: НЕИЗВЕСТЕН
 EN: ORIGIN: UNRESOLVED
 
 ### key: story.intro.6
-RU: STRUCTURE: PERIODIC. DECODING…
+RU: СТРУКТУРА: АНАЛИЗ…
 EN: STRUCTURE: PERIODIC. DECODING…
 
 ### key: story.intro.7
-RU: WARNING: PAYLOAD IS EXECUTABLE.
+RU: ВНИМАНИЕ: АКТИВНОЕ ВТОРЖЕНИЕ
 EN: WARNING: PAYLOAD IS EXECUTABLE.
 
 ### key: story.intro.8
-RU: WARNING: PAYLOAD IS RUNNING.
+RU: ВНИМАНИЕ: ЗАПУСК ВРЕДОНОСНОГО КОДА
 EN: WARNING: PAYLOAD IS RUNNING.
 
 ### key: story.intro.9
-RU: ЖУРНАЛ СМЕНЫ: сигнал воспроизводит себя в приёмном тракте.
+RU: ЖУРНАЛ: Вирус копирует себя прямо в системах связи.
 EN: SHIFT LOG: the signal is replicating inside the receiver chain.
 
 ### key: story.intro.10
-RU: Начинаю изоляцию заражённых плат. Связи с внешним миром нет
+RU: Начинаю локализацию. Нужно очистить всё до того,
 EN: Beginning isolation of infected boards. No outside contact
 
 ### key: story.intro.11
-RU: до окончания работ. Питание ядра отключать нельзя.
+RU: как он доберётся до ядра. Отключать питание запрещено.
 EN: until work is complete. Core power must stay on.
 
 
 ### Брифинги и дебрифы уровней / Level briefs & debriefs
 
 ### key: story.l01.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 01
+RU: УРОВЕНЬ 1. ВХОДНОЙ БЛОК
 EN: SHIFT LOG · ENTRY 01
 
 ### key: story.l01.brief.2
-RU: Плата входных шин. Первичное заражение.
+RU: Первичное заражение.
 EN: Input bus board. Primary infection.
 
 ### key: story.l01.brief.3
-RU: Сигнал разбит на пакеты, движется к выходному разъёму.
+RU: Цели движутся к выходу.
 EN: Signal split into packets, moving toward the output connector.
 
 ### key: story.l01.brief.4
-RU: Задача: не выпустить ни одного пакета с платы.
+RU: Задача: не дайте им прорваться.
 EN: Task: let no packet leave the board.
 
 ### key: story.l01.brief.5
-RU: Чипы ставить на монтажные площадки. Питание держит база.
+RU: Ставьте защитные башни на свободные площадки.
 EN: Mount chips on build pads. Base holds power.
 
 ### key: story.l01.debrief
-RU: INPUT BUSES ISOLATED. STATION CLEANUP: 6%
+RU: БЛОК ЗАЧИЩЕН. ПРОГРЕСС: 6%
 EN: INPUT BUSES ISOLATED. STATION CLEANUP: 6%
 
 ### key: story.l02.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 02
+RU: УРОВЕНЬ 2. КЛЮЧЕВОЙ УЗЕЛ
 EN: SHIFT LOG · ENTRY 02
 
 ### key: story.l02.brief.2
-RU: Ключевой каскад приёмника. Сигнал прошёл дальше, чем ожидалось.
+RU: Заражение проникло глубже.
 EN: Receiver key stage. Signal advanced further than expected.
 
 ### key: story.l02.brief.3
-RU: Зафиксированы быстрые формы: сокращённые копии несущей.
+RU: Появились быстрые враги.
 EN: Fast forms recorded: shortened copies of the carrier.
 
 ### key: story.l02.brief.4
-RU: Скорость распространения выше расчётной на 12%.
+RU: Скорость их движения выше базовой.
 EN: Propagation speed 12% above calculated.
 
 ### key: story.l02.brief.5
-RU: Задача: изоляция каскада.
+RU: Задача: удержать оборону.
 EN: Task: isolate the stage.
 
 ### key: story.l02.debrief
-RU: KEY STAGE ISOLATED. STATION CLEANUP: 13%
+RU: УЗЕЛ ЗАЧИЩЕН. ПРОГРЕСС: 13%
 EN: KEY STAGE ISOLATED. STATION CLEANUP: 13%
 
 ### key: story.l03.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 03
+RU: УРОВЕНЬ 3. ДВОЙНОЙ КОНТУР
 EN: SHIFT LOG · ENTRY 03
 
 ### key: story.l03.brief.2
-RU: Двойной контур декодера. Сигнал идёт двумя путями одновременно.
+RU: Сигнал разделился на два потока.
 EN: Decoder dual circuit. Signal travels two paths at once.
 
 ### key: story.l03.brief.3
-RU: Копии синхронизированы между собой. Механизм синхронизации не ясен.
+RU: Враги двигаются синхронно по обоим путям.
 EN: Copies are synchronized with each other. Sync mechanism unclear.
 
 ### key: story.l03.brief.4
-RU: Приёмный тракт после этой платы — чист.
+RU: Дальше по курсу чисто.
 EN: Receiver chain past this board is clean.
 
 ### key: story.l03.brief.5
-RU: Задача: закрыть оба пути. Акт изоляции тракта — финальный.
+RU: Задача: перекрыть оба направления.
 EN: Task: close both paths. Final act of chain isolation.
 
 ### key: story.l03.debrief
-RU: RECEIVER CHAIN FULLY ISOLATED. STATION CLEANUP: 20%
+RU: КОНТУР ЗАЧИЩЕН. ПРОГРЕСС: 20%
 EN: RECEIVER CHAIN FULLY ISOLATED. STATION CLEANUP: 20%
 
 ### key: story.l04.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 04
+RU: УРОВЕНЬ 4. БЛОК ПИТАНИЯ
 EN: SHIFT LOG · ENTRY 04
 
 ### key: story.l04.brief.2
-RU: Аномалия. Сигнал обнаружен в цепях ПИТАНИЯ.
+RU: Аномалия. Враг добрался до энергосистемы.
 EN: Anomaly. Signal detected in the POWER lines.
 
 ### key: story.l04.brief.3
-RU: Он не должен уметь переходить через развязку.
+RU: Появились бронированные цели.
 EN: It should not be able to cross the isolation barrier.
 
 ### key: story.l04.brief.4
-RU: Зафиксированы бронированные формы: несущая с избыточным кодированием.
+RU: Базовый урон их не берёт.
 EN: Armored forms recorded: carrier with redundant encoding.
 
 ### key: story.l04.brief.5
-RU: Задача: изоляция шунта. Пересмотреть схему отступления.
+RU: Задача: использовать лазеры для пробития брони.
 EN: Task: isolate the shunt. Revise the fallback plan.
 
 ### key: story.l04.debrief
-RU: SHUNT ISOLATED. BARRIER CROSSING DOCUMENTED. CLEANUP: 28%
+RU: БЛОК ПИТАНИЯ ЗАЧИЩЕН. ПРОГРЕСС: 28%
 EN: SHUNT ISOLATED. BARRIER CROSSING DOCUMENTED. CLEANUP: 28%
 
 ### key: story.l05.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 05
+RU: УРОВЕНЬ 5. СПИРАЛЬНЫЙ МОСТ
 EN: SHIFT LOG · ENTRY 05
 
 ### key: story.l05.brief.2
-RU: Спиральный мост межблочной связи. Здесь сигнал впервые ЖДАЛ.
+RU: Враги научились выжидать.
 EN: Inter-block spiral bridge. Here the signal WAITED for the first time.
 
 ### key: story.l05.brief.3
-RU: Формы удерживали позицию до подачи питания на плату.
+RU: Они стоят на месте, пока цепь не замкнётся.
 EN: Forms held position until the board was powered.
 
 ### key: story.l05.brief.4
-RU: Отмечены регенерирующие структуры: повреждённые копии
+RU: Замечены лекари: они восстанавливают
 EN: Regenerating structures noted: damaged copies
 
 ### key: story.l05.brief.5
-RU: восстанавливаются за счёт соседних.
+RU: здоровье соседним целям.
 EN: restore themselves using neighboring ones.
 
 ### key: story.l05.brief.6
-RU: Задача: изоляция моста. Не оставлять повреждённые формы без контроля.
+RU: Задача: уничтожайте лекарей в первую очередь.
 EN: Task: isolate the bridge. Do not leave damaged forms unattended.
 
 ### key: story.l05.debrief
-RU: BRIDGE ISOLATED. STATION CLEANUP: 36%
+RU: МОСТ ЗАЧИЩЕН. ПРОГРЕСС: 36%
 EN: BRIDGE ISOLATED. STATION CLEANUP: 36%
 
 ### key: story.l06.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 06
+RU: УРОВЕНЬ 6. ГЛАВНАЯ МАГИСТРАЛЬ
 EN: SHIFT LOG · ENTRY 06
 
 ### key: story.l06.brief.2
-RU: Главная магистраль данных. Плотность форм — максимальная с начала работ.
+RU: Плотность атак максимальная.
 EN: Main data highway. Form density — highest since work began.
 
 ### key: story.l06.brief.3
-RU: Наблюдение: последовательность манёвров сигнала повторяет
+RU: Враг адаптируется к нашей защите.
 EN: Observation: the signal's maneuver sequence repeats
 
 ### key: story.l06.brief.4
-RU: мою вчерашнюю схему расстановки чипов. Задержка — 3.2 секунды.
+RU: Он копирует расстановку башен из прошлых боёв.
 EN: my chip placement pattern from yesterday. Delay — 3.2 seconds.
 
 ### key: story.l06.brief.5
-RU: Совпадение исключено. Он смотрит.
+RU: Это не совпадение. Он учится.
 EN: Coincidence ruled out. It is watching.
 
 ### key: story.l06.brief.6
-RU: Задача: изоляция магистрали.
+RU: Задача: удержать магистраль.
 EN: Task: isolate the highway.
 
 ### key: story.l06.debrief
-RU: HIGHWAY ISOLATED. STATION CLEANUP: 44%
+RU: МАГИСТРАЛЬ ЗАЧИЩЕНА. ПРОГРЕСС: 44%
 EN: HIGHWAY ISOLATED. STATION CLEANUP: 44%
 
 ### key: story.l07.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 07
+RU: УРОВЕНЬ 7. КОММУТАТОР
 EN: SHIFT LOG · ENTRY 07
 
 ### key: story.l07.brief.2
-RU: Коммутационная сетка. Сигнал использует обходные маршруты,
+RU: Сигнал использует обходные пути.
 EN: Switching grid. Signal is using bypass routes
 
 ### key: story.l07.brief.3
-RU: которых нет в документации станции.
+RU: Следите за нестандартными маршрутами.
 EN: not present in station documentation.
 
 ### key: story.l07.brief.4
-RU: Вывод: он знает трассировку лучше меня. Источник знания не ясен.
+RU: Он знает устройство станции лучше нас.
 EN: Conclusion: it knows the routing better than I do. Source of knowledge unclear.
 
 ### key: story.l07.brief.5
-RU: Задача: изоляция сетки. Дальше — силовой отсек.
+RU: Задача: перекрыть все выходы.
 EN: Task: isolate the grid. Power bay next.
 
 ### key: story.l07.debrief
-RU: GRID ISOLATED. SOUTH WING CLEAN. STATION CLEANUP: 53%
+RU: КОММУТАТОР ЗАЧИЩЕН. ПРОГРЕСС: 53%
 EN: GRID ISOLATED. SOUTH WING CLEAN. STATION CLEANUP: 53%
 
 ### key: story.l08.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 08
+RU: УРОВЕНЬ 8. СИЛОВОЙ ОТСЕК
 EN: SHIFT LOG · ENTRY 08
 
 ### key: story.l08.brief.2
-RU: Силовой отсек. Работы под напряжением.
+RU: Работа под высоким напряжением.
 EN: Power bay. Working live.
 
 ### key: story.l08.brief.3
-RU: Сигнал уплотнил формы: меньше копий, больше массы.
+RU: Врагов меньше, но они намного плотнее и крепче.
 EN: Signal has compacted its forms: fewer copies, more mass.
 
 ### key: story.l08.brief.4
-RU: Датчики отсека передают шум. Часть записей журнала повреждена.
+RU: Сенсоры сбоят.
 EN: Bay sensors report noise. Part of the log is corrupted.
 
 ### key: story.l08.brief.5
-RU: Задача: изоляция силовой платы. Осторо////////но.
+RU: Задача: уничтожить тяжелые цели любой ценой.
 EN: Task: isolate the power board. Caut////////ion.
 
 ### key: story.l08.debrief
-RU: POWER BOARD ISOLATED. SENSORS PARTIALLY RESTORED. CLEANUP: 62%
+RU: СИЛОВОЙ ОТСЕК ЗАЧИЩЕН. ПРОГРЕСС: 62%
 EN: POWER BOARD ISOLATED. SENSORS PARTIALLY RESTORED. CLEANUP: 62%
 
 ### key: story.l09.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 09
+RU: УРОВЕНЬ 9. ДЕЛИТЕЛЬ ЧАСТОТЫ
 EN: SHIFT LOG · ENTRY 09
 
 ### key: story.l09.brief.2
-RU: Делитель опорной частоты. Сигнал пытается ПОДСТРОИТЬСЯ
+RU: Вирус пытается слиться с фоном станции.
 EN: Reference frequency divider. Signal is trying to SYNC
 
 ### key: story.l09.brief.3
-RU: под тактовую сетку станции. Если подстроится — станет неотличим
+RU: Если это случится — защита перестанет его видеть.
 EN: to the station's clock grid. If it syncs, it becomes indistinguishable
 
 ### key: story.l09.brief.4
-RU: от штатного трафика.
+RU: Времени мало.
 EN: from normal traffic.
 
 ### key: story.l09.brief.5
-RU: Задача: изоляция делителя до завершения подстройки.
+RU: Задача: остановить загрузку.
 EN: Task: isolate the divider before sync completes.
 
 ### key: story.l09.brief.6
-RU: Осталось два уровня защиты до генератора.
+RU: До главного ядра осталось два рубежа.
 EN: Two defense layers remain before the generator.
 
 ### key: story.l09.debrief
-RU: DIVIDER ISOLATED. SYNC ATTEMPT DISRUPTED. STATION CLEANUP: 71%
+RU: ЗАГРУЗКА ПРЕРВАНА. ПРОГРЕСС: 71%
 EN: DIVIDER ISOLATED. SYNC ATTEMPT DISRUPTED. STATION CLEANUP: 71%
 
 ### key: story.l10.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 10
+RU: УРОВЕНЬ 10. МОСТ ЯДРА
 EN: SHIFT LOG · ENTRY 10
 
 ### key: story.l10.brief.2
-RU: Многослойный мост ядра. Сигнал идёт по внутренним слоям платы —
+RU: Враг уходит вглубь платы, где нет башен.
 EN: Core multi-layer bridge. Signal travels the board's inner layers —
 
 ### key: story.l10.brief.3
-RU: там, куда нельзя поставить чип.
+RU: Они появляются только на точках выхода.
 EN: where no chip can be placed.
 
 ### key: story.l10.brief.4
-RU: Формы выходят на поверхность только на переходных отверстиях.
+RU: Концентрируйте огонь на этих узлах.
 EN: Forms surface only at the vias.
 
 ### key: story.l10.brief.5
-RU: Задача: изоляция моста. Бить по точкам выхода.
+RU: Задача: блокировать мост.
 EN: Task: isolate the bridge. Strike the exit points.
 
 ### key: story.l10.debrief
-RU: CORE BRIDGE ISOLATED. STATION CLEANUP: 80%
+RU: МОСТ ЗАБЛОКИРОВАН. ПРОГРЕСС: 80%
 EN: CORE BRIDGE ISOLATED. STATION CLEANUP: 80%
 
 ### key: story.l11.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 11
+RU: УРОВЕНЬ 11. ПРЕДЬЯДЕРНЫЙ КОНТУР
 EN: SHIFT LOG · ENTRY 11
 
 ### key: story.l11.brief.2
-RU: Предъядерный контур. Сигнал бросил на прорыв все накопленные формы.
+RU: Массированная атака всеми силами.
 EN: Pre-core circuit. Signal has thrown every accumulated form at the breach.
 
 ### key: story.l11.brief.3
-RU: Три волны идут с трёх направлений одновременно.
+RU: Волны идут с трёх сторон одновременно.
 EN: Three waves come from three directions at once.
 
 ### key: story.l11.brief.4
-RU: Журнал вести некогда. Если запись обрывается —
+RU: Связь обрывается.
 EN: No time to keep the log. If this entry cuts off —
 
 ### key: story.l11.brief.5
-RU: генератор защищать по схеме 12.
+RU: В случае потери контроля — защищайте генератор.
 EN: defend the generator per scheme 12.
 
 ### key: story.l11.brief.6
-RU: Задача: удержать контур.
+RU: Задача: выжить.
 EN: Task: hold the circuit.
 
 ### key: story.l11.debrief
-RU: CIRCUIT HELD. BREACH REPELLED. STATION CLEANUP: 90%
+RU: АТАКА ОТБИТА. ПРОГРЕСС: 90%
 EN: CIRCUIT HELD. BREACH REPELLED. STATION CLEANUP: 90%
 
 ### key: story.l12.brief.1
-RU: ЖУРНАЛ СМЕНЫ · ЗАПИСЬ 12
+RU: УРОВЕНЬ 12. ГЛАВНЫЙ ГЕНЕРАТОР
 EN: SHIFT LOG · ENTRY 12
 
 ### key: story.l12.brief.2
-RU: Генератор опорной частоты. Последняя плата.
+RU: Финал.
 EN: Reference oscillator. Final board.
 
 ### key: story.l12.brief.3
-RU: Сигнал понял, что проиграл станцию. Теперь ему нужен передатчик:
+RU: Вирус загнан в угол. Ему нужен передатчик.
 EN: The signal knows it has lost the station. Now it needs a transmitter:
 
 ### key: story.l12.brief.4
-RU: одна секунда на несущей — и он уйдёт в эфир. Дальше — везде.
+RU: Одна секунда в эфире — и он вырвется наружу.
 EN: one second on the carrier — and it goes out over the air. After that — everywhere.
 
 ### key: story.l12.brief.5
-RU: Задача: не дать сигналу коснуться генератора.
+RU: Задача: не дайте ни одному врагу коснуться ядра.
 EN: Task: do not let the signal touch the generator.
 
 ### key: story.l12.brief.6
-RU: Другой записи не будет.
+RU: Права на ошибку нет.
 EN: There will be no other entry.
 
 ### key: story.l12.debrief
-RU: GENERATOR CLEAN. TRANSMISSION BLOCKED. STATION CLEANUP: 100%
+RU: ГЕНЕРАТОР В БЕЗОПАСНОСТИ. ПРОГРЕСС: 100%
 EN: GENERATOR CLEAN. TRANSMISSION BLOCKED. STATION CLEANUP: 100%
 
 
 ### Финал / Finale
 
 ### key: story.final.1
-RU: GENERATOR CLEAN.
+RU: ГЕНЕРАТОР ОЧИЩЕН.
 EN: GENERATOR CLEAN.
 
 ### key: story.final.2
-RU: TRANSMISSION BLOCKED.
+RU: ПЕРЕДАЧА ЗАБЛОКИРОВАНА.
 EN: TRANSMISSION BLOCKED.
 
 ### key: story.final.3
-RU: STATION CLEANUP: 100%
+RU: ПРОГРЕСС: 100%
 EN: STATION CLEANUP: 100%
 
 ### key: story.final.4
-RU: POWER-ON SELF TEST………… OK
+RU: ТЕСТ СИСТЕМ… НОРМА
 EN: POWER-ON SELF TEST………… OK
 
 ### key: story.final.5
-RU: RECEIVER CHAIN…………………… OK
+RU: МОДУЛИ ПРИЁМА… НОРМА
 EN: RECEIVER CHAIN…………………… OK
 
 ### key: story.final.6
-RU: REFERENCE OSCILLATOR…………… OK
+RU: ГЕНЕРАТОР… НОРМА
 EN: REFERENCE OSCILLATOR…………… OK
 
 ### key: story.final.7
-RU: ЖУРНАЛ СМЕНЫ · ПОСЛЕДНЯЯ ЗАПИСЬ
+RU: ЖУРНАЛ · ФИНАЛЬНАЯ ЗАПИСЬ
 EN: SHIFT LOG · FINAL ENTRY
 
 ### key: story.final.8
-RU: Станция чиста. Все платы изолированы, трафик штатный.
+RU: Станция чиста. Угроза устранена.
 EN: Station is clean. All boards isolated, traffic nominal.
 
 ### key: story.final.9
-RU: Работы завершены.
+RU: Миссия выполнена.
 EN: Work complete.
 
 ### key: story.final.10
@@ -466,31 +450,31 @@ RU: …
 EN: …
 
 ### key: story.final.11
-RU: INBOUND CARRIER: ACTIVE
+RU: ВНЕШНИЙ СИГНАЛ: АКТИВЕН
 EN: INBOUND CARRIER: ACTIVE
 
 ### key: story.final.12
-RU: ORIGIN: UNRESOLVED
+RU: ИСТОЧНИК: НЕИЗВЕСТЕН
 EN: ORIGIN: UNRESOLVED
 
 ### key: story.final.13
-RU: SIGNAL REPEATS
+RU: СИГНАЛ ПОВТОРЯЕТСЯ
 EN: SIGNAL REPEATS
 
 ### key: story.final.14
-RU: SIGNAL REPEATS
+RU: СИГНАЛ ПОВТОРЯЕТСЯ
 EN: SIGNAL REPEATS
 
 ### key: story.final.15
-RU: SIGNAL REPEA//////////
+RU: СИГНАЛ ПОВТОР//////////
 EN: SIGNAL REPEA//////////
 
 ### key: story.final.16
-RU: RECEIVER MANUALLY DISCONNECTED.
+RU: ПИТАНИЕ ОТКЛЮЧЕНО ВРУЧНУЮ.
 EN: RECEIVER MANUALLY DISCONNECTED.
 
 ### key: story.final.17
-RU: END OF LOG.
+RU: КОНЕЦ ЗАПИСИ.
 EN: END OF LOG.
 
 
@@ -499,51 +483,51 @@ EN: END OF LOG.
 ## 3. Подсказки / Tips
 
 ### key: tips.desc1
-RU: Изгибы и петли трассы — золотые места: одна башня простреливает несколько проходов.
+RU: Ставьте башни на изгибах дорожек — там они дольше держат врагов под огнём.
 EN: Trace bends and loops are gold: one tower covers several passes.
 
 ### key: tips.desc2
-RU: Бирюзовые контакты дают чипу +35% к урону и дальности. Ставьте туда самое дорогое.
+RU: Бирюзовые клетки дают башне +35% к урону и дальности. Ставьте туда самые дорогие орудия.
 EN: Cyan contacts give a chip +35% damage and range. Put your priciest tower there.
 
 ### key: tips.desc3
-RU: Досрочный старт волны даёт бонус ⚡ — и он растёт с номером волны. Рискуйте.
+RU: Запуск волны раньше срока даёт бонус энергии. Чем дальше, тем больше награда. Рискуйте.
 EN: Starting a wave early grants bonus ⚡ — and it grows with the wave number. Take the risk.
 
 ### key: tips.desc4
-RU: SLOW не наносит урона, но связка SLOW + MISSILE решает: медленная толпа = весь сплэш в цель.
+RU: Замедляющая башня не наносит урона, но отлично работает с ракетницей: толпа собирается вместе и получает весь урон от взрыва.
 EN: SLOW deals no damage, but SLOW + MISSILE wins: a slowed crowd eats the full splash.
 
 ### key: tips.desc5
-RU: LASER пробивает броню — единственный надёжный ответ ФОРМЕ-04 «НАКОПИТЕЛЬ» и «НОСИТЕЛЮ».
+RU: Лазер пробивает броню — это единственный способ пробить толстых врагов и боссов.
 EN: LASER pierces armor — the only reliable answer to FORM-04 "ACCUMULATOR" and the "CARRIER".
 
 ### key: tips.desc6
-RU: Ракета MISSILE летит в точку упреждения — быстрые формы уворачиваются. Сначала замедлите их.
+RU: Ракеты летят в точку на опережение. Быстрые враги могут увернуться, так что сначала замедляйте их.
 EN: MISSILE shells fly to a predicted point — fast forms dodge them. Slow them down first.
 
 ### key: tips.desc7
-RU: TESLA бьёт цепью по 3–5 целям. Ставьте у плотных изгибов, где формы идут кучей.
+RU: Электрическая башня бьёт током по нескольким врагам сразу. Идеально для мест, где они идут толпой.
 EN: TESLA chains across 3–5 targets. Place it at tight bends where forms bunch up.
 
 ### key: tips.desc8
-RU: РЕГЕНЕРАТОР лечит соседние формы. Снимайте его первым — смените приоритет башни на «сильный».
+RU: Враг-лекарь восстанавливает здоровье соседям. В настройках башни поставьте цель "Сильные", чтобы убить его первым.
 EN: The REGENERATOR heals nearby forms. Kill it first — switch tower priority to "strong".
 
 ### key: tips.desc9
-RU: ГЛИТЧ дёргается: то ползёт, то рвёт. Аура SLOW стабилизирует его скорость.
+RU: Враг-глитч постоянно дёргается и меняет скорость. Замедляющая башня делает его предсказуемым.
 EN: The GLITCH twitches: crawls, then bursts. A SLOW aura stabilizes its speed.
 
 ### key: tips.desc10
-RU: НОСИТЕЛЬ невосприимчив к замедлению. Против него — только чистый урон и броня-пробой.
+RU: Крупного босса невозможно замедлить. Против него нужен только чистый урон и лазеры.
 EN: The CARRIER is immune to slows. Only raw damage and armor piercing work.
 
 ### key: tips.desc11
-RU: Один чип 3-го уровня обычно сильнее двух новых. Концентрируйте энергию.
+RU: Одна башня 3-го уровня бьёт больнее, чем две обычные. Качайте качество, а не количество.
 EN: One level-3 chip usually beats two fresh ones. Concentrate your energy.
 
 ### key: tips.desc12
-RU: Продажа возвращает 60% вложенного. Не бойтесь перестраивать оборону под состав волны.
+RU: Продажа башни возвращает 60% её стоимости. Не бойтесь перестраивать оборону под новую волну.
 EN: Selling refunds 60%. Do not be afraid to rebuild your defense for the wave ahead.
 
 
@@ -552,11 +536,11 @@ EN: Selling refunds 60%. Do not be afraid to rebuild your defense for the wave a
 ## 4. Названия уровней / Level names
 
 ### key: campaign.level0.name
-RU: Вводные шины
+RU: Входные системы
 EN: Input Buses
 
 ### key: campaign.level1.name
-RU: Поворот ключа
+RU: Ключевой узел
 EN: Key Turn
 
 ### key: campaign.level2.name
@@ -564,7 +548,7 @@ RU: Двойной контур
 EN: Dual Circuit
 
 ### key: campaign.level3.name
-RU: Шунт питания
+RU: Блок питания
 EN: Power Shunt
 
 ### key: campaign.level4.name
@@ -572,11 +556,11 @@ RU: Спиральный мост
 EN: Spiral Bridge
 
 ### key: campaign.level5.name
-RU: Широкая магистраль
+RU: Главная магистраль
 EN: Wide Highway
 
 ### key: campaign.level6.name
-RU: Сетка контактов
+RU: Коммутатор
 EN: Pin Grid
 
 ### key: campaign.level7.name
@@ -588,11 +572,11 @@ RU: Делитель частоты
 EN: Frequency Divider
 
 ### key: campaign.level9.name
-RU: Многослойный мост
+RU: Мост ядра
 EN: Multi-Layer Bridge
 
 ### key: campaign.level10.name
-RU: Критический перегруз
+RU: Перегрузка
 EN: Critical Overload
 
 ### key: campaign.level11.name
@@ -607,23 +591,23 @@ EN: Final: Generator
 > Имена башен (PULSE, SLOW, LASER, MISSILE, TESLA) — латиницей в обоих языках, это маркировка чипов.
 
 ### key: tower.cannon.desc
-RU: Базовый чип средней дальности. Стабильный импульсный урон.
+RU: Базовая башня. Стабильный урон на средней дистанции.
 EN: Basic medium-range chip. Stable pulse damage.
 
 ### key: tower.slow.desc
-RU: Замедляет сигналы в радиусе действия. Не наносит урона.
+RU: Замедляет врагов в радиусе действия. Не наносит урона.
 EN: Slows signals in range. Deals no damage.
 
 ### key: tower.sniper.desc
-RU: Мощный лазер. Огромный урон и радиус с пробитием брони.
+RU: Мощный лазер. Пробивает броню, бьёт далеко и очень больно.
 EN: Powerful laser. Huge damage and range with armor penetration.
 
 ### key: tower.mortar.desc
-RU: Выпускает мощные накопительные заряды, наносящие урон по площади.
+RU: Ракетница. Наносит огромный урон по площади.
 EN: Fires high-capacity discharge pulses dealing area damage.
 
 ### key: tower.tesla.desc
-RU: Генерирует электрические разряды, перескакивающие между целями.
+RU: Электрическая башня. Бьёт разрядами, которые перескакивают с одной цели на другую.
 EN: Generates electrical discharges jumping between targets.
 
 
@@ -634,7 +618,7 @@ RU: РАЗГОН
 EN: OVERCLOCK
 
 ### key: branch.overclock.desc
-RU: Втрое выше скорострельность — шинковка толп.
+RU: Скорострельность вырастает в три раза. Идеально против толпы.
 EN: Triple fire rate — shreds swarms.
 
 ### key: branch.piercer.name
@@ -642,23 +626,23 @@ RU: БРОНЕБОЙ
 EN: PIERCER
 
 ### key: branch.piercer.desc
-RU: Тяжёлые пули пробивают любую броню.
+RU: Тяжёлые снаряды, прошивающие любую броню.
 EN: Heavy rounds punch through any armor.
 
 ### key: branch.cryostat.name
-RU: КРИОСТАТ
+RU: ЗАМОРОЗКА
 EN: CRYOSTAT
 
 ### key: branch.cryostat.desc
-RU: Глубокая заморозка в компактном поле.
+RU: Максимальное замедление в небольшом радиусе.
 EN: Deep freeze in a compact field.
 
 ### key: branch.fieldcoil.name
-RU: КАТУШКА ПОЛЯ
+RU: ШИРОКОЕ ПОЛЕ
 EN: FIELD COIL
 
 ### key: branch.fieldcoil.desc
-RU: Огромный радиус замедления.
+RU: Огромный радиус действия замедления.
 EN: Huge slow-field radius.
 
 ### key: branch.railgun.name
@@ -666,23 +650,23 @@ RU: РЕЛЬСОТРОН
 EN: RAILGUN
 
 ### key: branch.railgun.desc
-RU: Медленный выстрел чудовищной силы — гроза боссов.
+RU: Медленный, но сокрушительный одиночный выстрел. Убийца боссов.
 EN: Slow, monstrous single shot — boss killer.
 
 ### key: branch.splitbeam.name
-RU: РАСЩЕПИТЕЛЬ
+RU: РАСЩЕПЛЕНИЕ
 EN: SPLIT BEAM
 
 ### key: branch.splitbeam.desc
-RU: Луч ветвится на соседние цели.
+RU: Лазерный луч рикошетит в соседние цели.
 EN: The beam forks into nearby targets.
 
 ### key: branch.cluster.name
-RU: КАССЕТА
+RU: КАССЕТНЫЙ ЗАРЯД
 EN: CLUSTER
 
 ### key: branch.cluster.desc
-RU: Ковровый удар по огромной площади.
+RU: Ковровая бомбардировка по огромной площади.
 EN: Carpet strike over a huge area.
 
 ### key: branch.buster.name
@@ -690,23 +674,23 @@ RU: ПРОБОЙНИК
 EN: BUSTER
 
 ### key: branch.buster.desc
-RU: Редкий, но сокрушительный бронебойный снаряд.
+RU: Редкий, но невероятно мощный выстрел по площади.
 EN: Rare but devastating armor-piercing shell.
 
 ### key: branch.arcmatrix.name
-RU: ДУГОВАЯ МАТРИЦА
+RU: ЦЕПНАЯ МОЛНИЯ
 EN: ARC MATRIX
 
 ### key: branch.arcmatrix.desc
-RU: Длинные цепи молний плавят рои.
+RU: Длинные разряды, испепеляющие толпы мелких врагов.
 EN: Long lightning chains melt swarms.
 
 ### key: branch.capacitor.name
-RU: КОНДЕНСАТОР
+RU: НАКОПИТЕЛЬ
 EN: CAPACITOR
 
 ### key: branch.capacitor.desc
-RU: Редкий мощный разряд по группе.
+RU: Редкий и мощный удар током по целой группе.
 EN: Rare, massive group discharge.
 
 
@@ -715,121 +699,121 @@ EN: Rare, massive group discharge.
 ## 6. Враги / Enemies
 
 ### key: enemy.normal
-RU: ФОРМА-01 «ПАКЕТ»
+RU: ПАКЕТ
 EN: FORM-01 "PACKET"
 
 ### key: enemy.normal.desc
-RU: Минимальная самокопирующаяся единица сигнала.
+RU: Базовый враг. Никаких особенностей.
 EN: Minimal self-replicating unit of the signal.
 
 ### key: enemy.normal.strat
-RU: Стройте любые чипы для уничтожения.
+RU: Уничтожается любыми башнями.
 EN: Build any chips to clear.
 
 ### key: enemy.fast
-RU: ФОРМА-02 «СИГНАЛ»
+RU: БЕГУН
 EN: FORM-02 "SIGNAL"
 
 ### key: enemy.fast.desc
-RU: Сжатая форма несущей: минимальная контрольная сумма, максимальная скорость передачи.
+RU: Очень быстрый, но хрупкий враг.
 EN: Compressed carrier form: minimal checksum, maximum transfer rate.
 
 ### key: enemy.fast.strat
-RU: Используйте скорострельные PULSE или TESLA чипы.
+RU: Используйте скорострельные башни или электричество.
 EN: Use fast-firing PULSE or TESLA chips.
 
 ### key: enemy.rogue
-RU: ФОРМА-03 «ГЛИЧ»
+RU: ГЛИТЧ
 EN: FORM-03 "GLITCH"
 
 ### key: enemy.rogue.desc
-RU: Форма с нарушенной корректирующей матрицей; траектория не поддаётся прогнозу.
+RU: Хаотично меняет скорость: то ползёт, то делает рывок.
 EN: Form with a disrupted error-correction matrix; trajectory unpredictable.
 
 ### key: enemy.rogue.strat
-RU: Зелёные чипы SLOW стабилизируют его скорость.
+RU: Замедление стабилизирует его движение.
 EN: Green SLOW chips stabilize its erratic speed.
 
 ### key: enemy.tank
-RU: ФОРМА-04 «НАКОПИТЕЛЬ»
+RU: ТАНК
 EN: FORM-04 "ACCUMULATOR"
 
 ### key: enemy.tank.desc
-RU: Форма максимальной ёмкости с наивысшим порогом целостности данных.
+RU: Медленный, бронированный и очень живучий.
 EN: Maximum-capacity form with the highest data-integrity threshold.
 
 ### key: enemy.tank.strat
-RU: Чипы LASER наносят огромный точечный урон по накопителям.
+RU: Лазеры — лучший выбор для пробития брони.
 EN: LASER chips deal high single-target damage to capacitors.
 
 ### key: enemy.healer
-RU: ФОРМА-05 «РЕГЕНЕРАТОР»
+RU: ЛЕКАРЬ
 EN: FORM-05 "REGENERATOR"
 
 ### key: enemy.healer.desc
-RU: Форма-транслятор: рассылает избыточный код для восстановления соседних копий.
+RU: Постоянно восстанавливает здоровье себе и соседям.
 EN: Relay form: broadcasts redundant code to restore adjacent copies.
 
 ### key: enemy.healer.strat
-RU: Используйте чипы LASER, настроив их приоритет на сильных врагов.
+RU: Убивайте его первым. Настройте лазеры на "Сильные цели".
 EN: Use LASER chips focused on strong targets.
 
 ### key: enemy.brute
-RU: ФОРМА-06 «ВИРУС»
+RU: ВИРУС
 EN: FORM-06 "VIRUS"
 
 ### key: enemy.brute.desc
-RU: Форма с усиленной структурой кода и повышенной деструктивной нагрузкой.
+RU: Усиленный враг с большим запасом здоровья.
 EN: Form with a reinforced code structure and elevated destructive payload.
 
 ### key: enemy.brute.strat
-RU: Комбинируйте замедление SLOW с мощными ударами MISSILE.
+RU: Замедляйте и бейте ракетами.
 EN: Combine SLOW deceleration with heavy MISSILE blasts.
 
 ### key: enemy.boss
-RU: ФОРМА-07 «НОСИТЕЛЬ»
+RU: БОСС
 EN: FORM-07 "CARRIER"
 
 ### key: enemy.boss.desc
-RU: Управляющая форма сигнала: координирует и переносит остальные копии.
+RU: Главная цель. Огромный запас здоровья и иммунитет к замедлению.
 EN: Signal control form: coordinates and carries the remaining copies.
 
 ### key: enemy.boss.strat
-RU: Стройте улучшенные чипы LASER и MISSILE для максимального урона. Теряя целостность, меняет поведение — будьте готовы.
+RU: Прокачайте лазеры и ракетницы на максимум.
 EN: Deploy upgraded LASER and MISSILE chips for maximum damage. It changes behaviour as it loses integrity — stay ready.
 
 ### key: enemy.shielded
-RU: ФОРМА-08 «КАПСУЛА»
+RU: ЩИТОВИК
 EN: FORM-08 "CAPSULE"
 
 ### key: enemy.shielded.desc
-RU: Экранированная капсула: защитная оболочка гасит первые попадания целиком, независимо от их силы.
+RU: Силовой щит полностью поглощает первые попадания, какими бы мощными они ни были.
 EN: Shielded capsule: the protective shell absorbs the first hits entirely, whatever their power.
 
 ### key: enemy.shielded.strat
-RU: Мощный одиночный выстрел пропадает зря. Сбивайте экран скорострельными PULSE и TESLA.
+RU: Сбивайте щит быстрыми и слабыми выстрелами, мощные пушки оставьте на потом.
 EN: Big single shots are wasted on it. Strip the shield with rapid-fire PULSE and TESLA.
 
 ### key: enemy.carrier
-RU: ФОРМА-09 «КОНТЕЙНЕР»
+RU: КОНТЕЙНЕР
 EN: FORM-09 "CONTAINER"
 
 ### key: enemy.carrier.desc
-RU: Транспортная форма: при разрушении высвобождает рой осколков прямо на дорожку.
+RU: После смерти распадается на рой мелких осколков.
 EN: Transport form: releases a swarm of shards onto the trace when destroyed.
 
 ### key: enemy.carrier.strat
-RU: Уничтожайте КОНТЕЙНЕРЫ подальше от выхода и держите MISSILE или TESLA для зачистки осколков.
+RU: Убивайте вдали от базы. Держите ракетницы наготове для зачистки мелочи.
 EN: Kill CONTAINERS far from the exit and keep MISSILE or TESLA ready to sweep the shards.
 
 ### key: enemy.fragment
-RU: ФОРМА-10 «ОСКОЛОК»
+RU: ОСКОЛОК
 EN: FORM-10 "SHARD"
 
 ### key: enemy.fragment.desc
-RU: Обрывок кода из разрушенного контейнера: слабый, быстрый, многочисленный.
+RU: Мелкий, быстрый и берет числом. Появляется из убитого контейнера.
 EN: A scrap of code from a destroyed container: weak, fast, numerous.
 
 ### key: enemy.fragment.strat
-RU: Площадной урон MISSILE и цепи TESLA снимают их пачками.
+RU: Урон по площади и цепные молнии сносят их пачками.
 EN: MISSILE splash and TESLA chains clear them in batches.
