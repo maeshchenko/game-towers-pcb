@@ -257,9 +257,12 @@ const TRANSLATIONS = {
     'tower.tesla.desc': 'Электрическая башня. Бьёт разрядами, которые перескакивают с одной цели на другую.',
 
     'tutorial.step0': 'Энергетические пакеты пойдут от зеленого входа (START) к красному выходу (FINISH) по дорожкам платы. Ваша задача — защитить финиш!',
-    'tutorial.step1': 'Кликните по этой золотой монтажной площадке, чтобы открыть круговое меню постройки чипа, и выберите PULSE ($40).',
-    'tutorial.step2': 'Бирюзовые восьмиугольные контакты дают чипам мощный буст (+35% к дальности атаки и урону). Размещайте чипы с умом!',
-    'tutorial.step3': 'Теперь запустите волну, нажав "START WAVE"! Уничтожение волн приносит кредиты, утечки стоят жизней. Удачи!',
+    'tutorial.step1': 'Кликните по этой площадке и поставьте PULSE ($40) — ваш основной урон. Она на сгибе дорожки: враги пройдут через её радиус дважды.',
+    'tutorial.step2': 'Теперь SLOW ($35) на соседнюю площадку. Урона не наносит, но тормозит пакеты — ваши чипы успеют выстрелить больше раз.',
+    'tutorial.step3': 'И TESLA ($60) на бирюзовый контакт в центре — она бьёт молнией по цепочке врагов. Бирюзовые контакты дают +35% к дальности и урону.',
+    'tutorial.step4': 'Готово! Запустите волну кнопкой «START WAVE». За уничтожение дают кредиты, за утечки теряете жизни.',
+    'tutorial.step5': 'Отлично! Продержитесь ещё одну волну — накопите кредиты на улучшение чипа.',
+    'tutorial.step6': 'Теперь выберите свою пушку PULSE и нажмите «Улучшить» — чипы усиливаются с каждым уровнем.',
     'tutorial.next': 'ДАЛЕЕ',
     'tutorial.skip': 'пропустить обучение',
 
@@ -781,9 +784,12 @@ const TRANSLATIONS = {
     'tower.tesla.desc': 'Generates electrical discharges jumping between targets.',
 
     'tutorial.step0': 'Energy packets will flow from the green input (START) to the red output (FINISH) along the board traces. Your goal is to protect the finish!',
-    'tutorial.step1': 'Click this gold mounting pad to open the circular chip build menu, and select PULSE ($40).',
-    'tutorial.step2': 'Cyan octagonal pads give chips a powerful boost (+35% range and damage). Position your chips wisely!',
-    'tutorial.step3': 'Now start the wave by clicking "START WAVE"! Clearing waves grants credits, leaks cost lives. Good luck!',
+    'tutorial.step1': 'Click this pad and place a PULSE ($40) — your main damage. It sits on a bend in the trace, so enemies pass through its range twice.',
+    'tutorial.step2': 'Now a SLOW ($35) on the pad beside it. It deals no damage but drags the packets down — your chips land more shots.',
+    'tutorial.step3': 'And a TESLA ($60) on the cyan pad in the middle — it arcs lightning across chained enemies. Cyan pads grant +35% range and damage.',
+    'tutorial.step4': 'Ready! Launch the wave with "START WAVE". Kills grant credits; leaks cost lives.',
+    'tutorial.step5': 'Nice! Hold through one more wave — bank the credits for an upgrade.',
+    'tutorial.step6': 'Now select your PULSE chip and hit "Upgrade" — chips grow stronger each level.',
     'tutorial.next': 'NEXT',
     'tutorial.skip': 'skip tutorial',
 

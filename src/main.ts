@@ -43,6 +43,7 @@ import { showAlert } from './ui/confirmModal'
 import { showHint, showInfoToast } from './ui/hints'
 import { Graphics } from 'pixi.js'
 import { TOWER_DEFS } from './game/towerTypes'
+import type { TowerKind } from './game/towerTypes'
 import { mountUi, uiRoot } from './ui/uiRoot'
 import { enemyGlyphSvg, icon } from './ui/icons'
 import { waveComposition } from './game/WaveManager'
@@ -615,6 +616,40 @@ async function boot() {
   let activeTutorial: TutorialOverlay | null = null
   let tutorialStep = 0
   let tutorialSpotIndex = -1
+  // Level-01 tutorial guides three opening chips onto the row-4 "fold" pads: they sit between the
+  // top lane (y=2) and the return lane (y=6), so one chip's range covers the road on BOTH passes.
+  // Empirically clears waves 1-2 (see sim). Tesla takes the special centre pad (chain + range boost
+  // hits both lanes best); cannon the highest-coverage pad; slow the third.
+  const TUT_FOLD = { cannon: [16, 4], slow: [9, 4], tesla: [12, 4] } as const
+  let tutTargets: { cannon: number; slow: number; tesla: number } | null = null
+  function computeTutorialTargets(): { cannon: number; slow: number; tesla: number } | null {
+    if (!game) return null
+    const cells = game.spotCells()
+    const find = (cell: readonly number[]): number =>
+      cells.findIndex((c) => c[0] === cell[0] && c[1] === cell[1])
+    const cannon = find(TUT_FOLD.cannon), slow = find(TUT_FOLD.slow), tesla = find(TUT_FOLD.tesla)
+    if (cannon >= 0 && slow >= 0 && tesla >= 0) return { cannon, slow, tesla }
+    // Fallback if the placer ever re-lays this level: top-3 coverage spots, concentrated or not.
+    const order = game.buildOrder()
+    if (order.length < 3) return null
+    return { cannon: order[0], slow: order[1], tesla: order[2] }
+  }
+  /** Build-step (1-3) target: which chip goes on which pad. */
+  function tutStepTarget(step: number): { spot: number; kind: TowerKind } | null {
+    if (!tutTargets) return null
+    if (step === 1) return { spot: tutTargets.cannon, kind: 'cannon' }
+    if (step === 2) return { spot: tutTargets.slow, kind: 'slow' }
+    if (step === 3) return { spot: tutTargets.tesla, kind: 'tesla' }
+    return null
+  }
+  /** The final tutorial step ends the moment a chip is actually upgraded (both upgrade paths). */
+  function finishTutorialOnUpgrade(): void {
+    if (activeTutorial && tutorialStep === 6) {
+      completeTutorial()
+      activeTutorial.destroy()
+      activeTutorial = null
+    }
+  }
   // Persisted like every other setting (it silently reset to ON each session before).
   let autoWaveEnabled = storageGet('pcb_td_autowave_v1') !== '0'
   /** Pre-endless auto-wave value; non-null only while an endless run forces it on. */
@@ -634,62 +669,46 @@ async function boot() {
     tutorialStep = step
     const r = app.canvas.getBoundingClientRect()
     const pitch = editor.state.board.pitch
+    const screenOf = (cx: number, cy: number): [number, number] => [
+      (cx * pitch + pitch / 2) * camera.zoom + camera.x + r.left,
+      (cy * pitch + pitch / 2) * camera.zoom + camera.y + r.top,
+    ]
+    const pointAtStartButton = (textKey: string): void => {
+      const startBtn = document.querySelector('.pcb-hud-btn.active') as HTMLElement | null
+      if (startBtn) {
+        const rect = startBtn.getBoundingClientRect()
+        activeTutorial!.showStep(i18n.t(textKey as any), rect.left + rect.width / 2, rect.top + rect.height / 2, null)
+      } else {
+        activeTutorial!.hide()
+      }
+    }
 
     if (step === 0) {
       const waypoints = editor.state.level?.paths?.[0]?.waypoints || []
       if (waypoints.length > 0) {
-        const startC = waypoints[0]
-        const sx = (startC[0] * pitch + pitch / 2) * camera.zoom + camera.x + r.left
-        const sy = (startC[1] * pitch + pitch / 2) * camera.zoom + camera.y + r.top
-        activeTutorial.showStep(
-          i18n.t('tutorial.step0'),
-          sx,
-          sy,
-          () => runTutorialStep(1)
-        )
+        const [sx, sy] = screenOf(waypoints[0][0], waypoints[0][1])
+        activeTutorial.showStep(i18n.t('tutorial.step0'), sx, sy, () => runTutorialStep(1))
       }
-    } else if (step === 1) {
+    } else if (step >= 1 && step <= 3) {
+      // Build steps: guide cannon → slow → tesla onto the fold cluster. Advance happens on build.
+      if (step === 1) tutTargets = computeTutorialTargets()
+      const target = tutStepTarget(step)
       const cells = game?.spotCells() || []
-      const targetIndex = cells.findIndex((c) => {
-        return editor.state.level?.spots.some(s => s.cell[0] === c[0] && s.cell[1] === c[1])
-      })
-      tutorialSpotIndex = targetIndex >= 0 ? targetIndex : 0
-      const targetCell = cells[tutorialSpotIndex]
-      if (targetCell) {
-        const sx = (targetCell[0] * pitch + pitch / 2) * camera.zoom + camera.x + r.left
-        const sy = (targetCell[1] * pitch + pitch / 2) * camera.zoom + camera.y + r.top
-        activeTutorial.showStep(
-          i18n.t('tutorial.step1'),
-          sx,
-          sy,
-          null
-        )
+      if (target && cells[target.spot]) {
+        tutorialSpotIndex = target.spot
+        const [sx, sy] = screenOf(cells[target.spot][0], cells[target.spot][1])
+        activeTutorial.showStep(i18n.t(`tutorial.step${step}` as any), sx, sy, null)
       }
-    } else if (step === 2) {
-      const specSpots = editor.state.level?.specialSpots || []
-      if (specSpots.length > 0) {
-        const specCell = specSpots[0].cell
-        const sx = (specCell[0] * pitch + pitch / 2) * camera.zoom + camera.x + r.left
-        const sy = (specCell[1] * pitch + pitch / 2) * camera.zoom + camera.y + r.top
-        activeTutorial.showStep(
-          i18n.t('tutorial.step2'),
-          sx,
-          sy,
-          () => runTutorialStep(3)
-        )
-      } else {
-        runTutorialStep(3)
-      }
-    } else if (step === 3) {
-      const startBtn = document.querySelector('.pcb-hud-btn.active') as HTMLElement
-      if (startBtn) {
-        const rect = startBtn.getBoundingClientRect()
-        activeTutorial.showStep(
-          i18n.t('tutorial.step3'),
-          rect.left + rect.width / 2,
-          rect.top + rect.height / 2,
-          null
-        )
+    } else if (step === 4) {
+      pointAtStartButton('tutorial.step4') // launch wave 1
+    } else if (step === 5) {
+      pointAtStartButton('tutorial.step5') // hold through wave 2 (accrue upgrade gold)
+    } else if (step === 6) {
+      // Upgrade lesson: point the ring at the cannon chip. Advance happens on a successful upgrade.
+      const cannon = game?.towers.find((t) => t.kind === 'cannon')
+      if (cannon) {
+        const [sx, sy] = screenOf(cannon.pos.x / pitch - 0.5, cannon.pos.y / pitch - 0.5)
+        activeTutorial.showStep(i18n.t('tutorial.step6'), sx, sy, null)
       } else {
         activeTutorial.hide()
       }
@@ -700,8 +719,10 @@ async function boot() {
     onBuild: (kind, spotIndex) => {
       if (game) {
         if (!game.build(kind, spotIndex)) audioEngine.playError() // can't afford / spot taken
-        else if (activeTutorial && tutorialStep === 1 && kind === 'cannon') {
-          runTutorialStep(2)
+        else if (activeTutorial && tutorialStep >= 1 && tutorialStep <= 3) {
+          // Advance only when the RIGHT chip lands on the step's target pad.
+          const target = tutStepTarget(tutorialStep)
+          if (target && kind === target.kind && spotIndex === target.spot) runTutorialStep(tutorialStep + 1)
         }
       }
     },
@@ -727,7 +748,7 @@ async function boot() {
         ui.selectSpeed(m)
       }
     },
-    onUpgrade: () => { if (game && selectedTower) { game.upgrade(selectedTower); ui.showTower(selectedTower, game.sellValue(selectedTower)) } },
+    onUpgrade: () => { if (game && selectedTower) { const ok = game.upgrade(selectedTower); ui.showTower(selectedTower, game.sellValue(selectedTower)); if (ok) finishTutorialOnUpgrade() } },
     onUpgradeBranch: (b) => { if (game && selectedTower) { game.upgradeBranch(selectedTower, b); ui.showTower(selectedTower, game.sellValue(selectedTower)) } },
     onAbility: () => {
       if (!game || game.dischargeCooldown > 0 || game.state.phase !== 'wave') return
@@ -1148,7 +1169,8 @@ async function boot() {
 
     // Tutorial blocking logic
     if (activeTutorial) {
-      if (tutorialStep === 1) {
+      if (tutorialStep >= 1 && tutorialStep <= 3) {
+        // Build steps: only the current step's target pad accepts a click.
         const r = app.canvas.getBoundingClientRect()
         const wx = (e.clientX - r.left - camera.x) / camera.zoom
         const wy = (e.clientY - r.top - camera.y) / camera.zoom
@@ -1161,6 +1183,8 @@ async function boot() {
           if (d < bestD) { bestD = d; bestI = i }
         })
         if (bestI !== tutorialSpotIndex) return
+      } else if (tutorialStep === 6) {
+        // Upgrade step: let the click through so the player can SELECT the cannon chip.
       } else {
         return
       }
@@ -1168,7 +1192,7 @@ async function boot() {
 
     ui.closeRadialMenu() // Close menu on any click first
     // If the tutorial bubble was hidden for the ring and no chip was built, bring it back.
-    if (activeTutorial && tutorialStep === 1) runTutorialStep(1)
+    if (activeTutorial && tutorialStep >= 1 && tutorialStep <= 3) runTutorialStep(tutorialStep)
 
     const r = app.canvas.getBoundingClientRect()
     const wx = (e.clientX - r.left - camera.x) / camera.zoom
@@ -1188,18 +1212,15 @@ async function boot() {
       const wy_c = spotCell[1] * pitch + pitch / 2
       const clientX = wx_c * camera.zoom + camera.x + r.left
       const clientY = wy_c * camera.zoom + camera.y + r.top
-      ui.openRadialMenu(bestI, clientX, clientY, game.state.gold, activeTutorial && tutorialStep === 1 ? 'cannon' : undefined, !activeTutorial, game.banned)
+      const forcedKind = activeTutorial ? tutStepTarget(tutorialStep)?.kind : undefined
+      ui.openRadialMenu(bestI, clientX, clientY, game.state.gold, forcedKind, !activeTutorial, game.banned)
       // The instruction bubble sits right next to the pad — hide it while the chip ring is
       // open so they never overlap; it comes back if the ring closes without a build.
-      if (activeTutorial && tutorialStep === 1) activeTutorial.hide()
+      if (activeTutorial && tutorialStep >= 1 && tutorialStep <= 3) activeTutorial.hide()
     } else {
       const t = game.towers.find((tw) => Math.hypot(tw.pos.x - wx, tw.pos.y - wy) <= pitch)
       selectedTower = t ?? null
       ui.showTower(selectedTower, selectedTower ? game.sellValue(selectedTower) : 0)
-      // Teachable moments, first occurrence only (tutorial handles L1 basics; these add depth).
-      if (selectedTower && !activeTutorial) {
-        showHint(selectedTower.canBranch ? 'branch' : 'upgrade')
-      }
     }
   }
 
@@ -1236,8 +1257,9 @@ async function boot() {
       case 'KeyU':
         if (selectedTower) {
           if (selectedTower.canBranch) break // branch choice must be a deliberate click
-          game.upgrade(selectedTower)
+          const ok = game.upgrade(selectedTower)
           ui.showTower(selectedTower, game.sellValue(selectedTower))
+          if (ok) finishTutorialOnUpgrade()
         }
         break
       case 'KeyM': audioEngine.toggleMute(); break
@@ -1381,6 +1403,9 @@ async function boot() {
     const currentPhase = game.state.phase
     if (lastPhase === 'wave' && currentPhase === 'build') {
       startBuildPhaseCountdown()
+      // Tutorial: wave 1 cleared → prompt wave 2; wave 2 cleared → the upgrade lesson.
+      if (activeTutorial && tutorialStep === 4) runTutorialStep(5)
+      else if (activeTutorial && tutorialStep === 5) runTutorialStep(6)
     }
     lastPhase = currentPhase
 
@@ -1638,11 +1663,9 @@ async function boot() {
         showFloatingBonusText(frozenBonus)
       }
       game.startWave()
-      if (activeTutorial && tutorialStep === 3) {
-        completeTutorial()
-        activeTutorial.destroy()
-        activeTutorial = null
-      }
+      // Wave launched during the tutorial (step 4 = wave 1, step 5 = wave 2): tuck the ring/bubble
+      // away for the fight. The wave→build hook re-surfaces the next step when the wave clears.
+      if (activeTutorial && (tutorialStep === 4 || tutorialStep === 5)) activeTutorial.hide()
       ui.update(game, editor.state.level?.meta.difficulty ?? 1)
     })
   }
@@ -1703,7 +1726,6 @@ async function boot() {
       if (game.canCallNextWave()) {
         startBtn.textContent = `${i18n.t('hud.next_wave')} +${5 * (6 + game.state.waveNumber)}⚡`
         if (earlyCallReadyAt === null) earlyCallReadyAt = performance.now() // stamp when it lights up
-        if (!activeTutorial) showHint('earlycall') // first time the early call lights up
       } else {
         startBtn.textContent = i18n.t('hud.start_wave')
         earlyCallReadyAt = null // reset each wave — the availability window is per-wave
