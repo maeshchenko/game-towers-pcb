@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { Tower } from '../../src/game/Tower'
 import { Enemy } from '../../src/game/Enemy'
 import { ENEMY_DEFS } from '../../src/game/enemyTypes'
+import { TOWER_DEFS } from '../../src/game/towerTypes'
 
 const PITCH = 24
 const near = () => new Enemy(ENEMY_DEFS.normal, [{ x: 30, y: 0 }, { x: 31, y: 0 }], 1, 0)
@@ -34,5 +35,77 @@ describe('Tower', () => {
     const t = new Tower('cannon', { x: 24, y: 0 }, PITCH)
     expect(t.upgrade()).toBe(true)
     expect(t.stats.damage).toBe(22)
+  })
+  it('special spot boosts aura range but never weakens the slow factor', () => {
+    const base = new Tower('slow', { x: 24, y: 0 }, PITCH)
+    const boosted = new Tower('slow', { x: 24, y: 0 }, PITCH)
+    boosted.special = true
+    const a = base.update(0.1, [near()])!.aura!
+    const b = boosted.update(0.1, [near()])!.aura!
+    // slow is a speed MULTIPLIER (lower = stronger): the boost must not raise it
+    expect(b.slow).toBeLessThanOrEqual(a.slow)
+    expect(b.range).toBeCloseTo(TOWER_DEFS.slow[0].range * PITCH * 1.35, 5)
+  })
+  it('keeps the exact fire rate over time (cooldown remainder is not dropped)', () => {
+    const t = new Tower('cannon', { x: 24, y: 0 }, PITCH)
+    const e = near()
+    let shots = 0
+    // 10 s in 1000 substeps; fireRate 1.5/s → period 2/3 s → 15 shots with exact remainder
+    // carry (the old reset-to-full-period behaviour dropped the remainder and gave 14)
+    for (let i = 0; i < 1000; i++) if (t.update(0.01, [e])) shots++
+    expect(shots).toBe(15)
+  })
+  it('tier-4 branch: only at max linear level, changes stats, locks the other branch', () => {
+    const t = new Tower('tesla', { x: 24, y: 0 }, PITCH)
+    expect(t.canBranch).toBe(false)
+    expect(t.chooseBranch(0)).toBe(false)      // not at max linear level yet
+    t.upgrade(); t.upgrade()
+    expect(t.level).toBe(2)
+    expect(t.canBranch).toBe(true)
+    expect(t.upgrade()).toBe(false)            // linear path ends at 2 — tier 4 is a branch
+    expect(t.chooseBranch(0)).toBe(true)       // arcmatrix
+    expect(t.level).toBe(3)
+    expect(t.stats.chainCount).toBe(8)
+    expect(t.chooseBranch(1)).toBe(false)      // branch choice is permanent
+    expect(t.canBranch).toBe(false)
+  })
+
+  it('first/last target by remaining distance to the base, not by absolute traveled', () => {
+    // Multi-entrance scenario: A walked far along a LONG path (still far from the base),
+    // B barely started a SHORT path (almost at the base). "first" must pick B.
+    const zigzag: { x: number; y: number }[] = [
+      { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 10 }, { x: 0, y: 10 },
+      { x: 0, y: 20 }, { x: 100, y: 20 }, { x: 100, y: 30 }, { x: 0, y: 30 },
+      { x: 0, y: 40 }, { x: 100, y: 40 }, { x: 100, y: 50 },
+    ] // total length 550
+    const a = new Enemy(ENEMY_DEFS.normal, zigzag, 1, 300)
+    a.update(1) // traveled 300 → 250 px left to the base
+    const b = new Enemy(ENEMY_DEFS.normal, [{ x: 10, y: 60 }, { x: 110, y: 60 }], 1, 60)
+    b.update(1) // traveled 60 → only 40 px left
+    expect(a.traveled).toBeGreaterThan(b.traveled)
+    expect(a.distToBase).toBeGreaterThan(b.distToBase)
+    const t = new Tower('sniper', { x: 50, y: 30 }, PITCH)
+    const shot = t.update(10, [a, b])
+    expect(shot?.target).toBe(b)
+    const t2 = new Tower('sniper', { x: 50, y: 30 }, PITCH)
+    t2.targetMode = 'last'
+    expect(t2.update(10, [a, b])?.target).toBe(a)
+  })
+  it('strong targets max HP, not current HP: a wounded tank keeps the focus', () => {
+    const t = new Tower('sniper', { x: 24, y: 0 }, PITCH)
+    t.targetMode = 'strong'
+    const big = new Enemy(ENEMY_DEFS.tank, [{ x: 30, y: 0 }, { x: 31, y: 0 }], 1, 0)
+    const small = new Enemy(ENEMY_DEFS.normal, [{ x: 40, y: 0 }, { x: 41, y: 0 }], 1, 0)
+    big.takeDamage(big.maxHp - 1, 999) // nearly dead, but still the biggest FORM on the track
+    expect(big.hp).toBeLessThan(small.hp)
+    expect(t.update(10, [big, small])?.target).toBe(big)
+  })
+
+  it('does not bank shots while idle: no burst after a long dry spell', () => {
+    const t = new Tower('cannon', { x: 24, y: 0 }, PITCH)
+    t.update(10, [far()]) // long idle, nothing in range
+    const e = near()
+    expect(t.update(0.001, [e])).not.toBeNull()  // fires once immediately
+    expect(t.update(0.001, [e])).toBeNull()      // but only once — no banked backlog
   })
 })

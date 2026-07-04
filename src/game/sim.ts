@@ -1,6 +1,6 @@
 import type { Level } from '../model/level'
 import type { TowerKind } from './towerTypes'
-import { TOWER_DEFS } from './towerTypes'
+import { TOWER_DEFS, TOWER_BRANCHES } from './towerTypes'
 import { Game } from './Game'
 import { startLives } from './difficulty'
 
@@ -10,36 +10,42 @@ import { startLives } from './difficulty'
  * Stops when the current spot's tower is unaffordable or all spots are filled.
  */
 export function basicPlacement(game: Game): void {
-  // Competent reference defense: builds a strategic mixture of towers to deal with all enemy types.
-  // Special spots get long-range and heavy damage towers (sniper/mortar).
-  // Regular spots get a distribution of slow (20%), tesla (20%), mortar (20%), sniper (20%), and cannon (20%).
+  // Human-like reference defense: CONCENTRATE, don't sprawl. Real players build a few towers
+  // on the best-coverage spots and upgrade them before expanding — that is far stronger per
+  // gold than spreading level-0 towers everywhere, so difficulty must be calibrated against it.
+  // Special spots get long-range/heavy towers (sniper/mortar); regular spots rotate
+  // slow/tesla/mortar/sniper/cannon for full counter-play coverage.
   const order = game.buildOrder()
-  for (let r = 0; r < order.length; r++) {
-    const i = order[r]
-    if (!game.canBuild(i)) continue
-
-    let kind: TowerKind = 'cannon'
-    if (game.isSpecial(i)) {
-      kind = r % 2 === 0 ? 'sniper' : 'mortar'
-    } else {
-      const mod = r % 5
-      if (mod === 0) kind = 'slow'
-      else if (mod === 1) kind = 'tesla'
-      else if (mod === 2) kind = 'mortar'
-      else if (mod === 3) kind = 'sniper'
-      else kind = 'cannon'
-    }
-
-    if (game.state.gold < TOWER_DEFS[kind][0].cost) continue
-    game.build(kind, i)
+  // A player realistically uses the top-coverage spots plus a little sprawl on huge maps.
+  const cap = Math.min(order.length, 7 + Math.floor(order.length / 5))
+  const kindFor = (r: number, special: boolean): TowerKind => {
+    if (special) return r % 2 === 0 ? 'sniper' : 'mortar'
+    // Damage first: a lone zero-damage SLOW as the opening tower is a guaranteed wave-1 wipe.
+    const mod = r % 5
+    return mod === 0 ? 'cannon' : mod === 1 ? 'tesla' : mod === 2 ? 'mortar' : mod === 3 ? 'slow' : 'sniper'
   }
   let progressed = true
   while (progressed) {
     progressed = false
-    for (const t of game.towers) {
+    // Upgrades first once a base exists: players build 3-4 towers for coverage, THEN concentrate.
+    // Pure upgrade-first starves multi-spawn maps of coverage (one L3 cannon vs three entrances).
+    if (game.towers.length >= Math.min(4, cap)) for (const t of game.towers) {
       if (t.level >= t.maxLevel) continue
+      // Reference bot must SEE tier-4 power, or balance calibration lies about strong players.
+      // It always picks branch 0 — branch choice is player expression, not bot strategy.
+      if (t.canBranch) {
+        if (game.state.gold >= TOWER_BRANCHES[t.kind][0].cost && game.upgradeBranch(t, 0)) progressed = true
+        continue
+      }
       const cost = TOWER_DEFS[t.kind][t.level + 1].cost
       if (game.state.gold >= cost && game.upgrade(t)) progressed = true
+    }
+    // Then the single next-best spot.
+    for (let r = 0; r < cap; r++) {
+      const i = order[r]
+      if (!game.canBuild(i)) continue
+      const kind = kindFor(r, game.isSpecial(i))
+      if (game.state.gold >= TOWER_DEFS[kind][0].cost && game.build(kind, i)) { progressed = true; break }
     }
   }
 }

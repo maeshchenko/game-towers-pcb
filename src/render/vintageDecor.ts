@@ -22,16 +22,24 @@ export const VFOOT: Record<VintageKind, { w: number; h: number }> = {
 }
 
 const C = {
-  wire: 0xb8c0c0, solder: 0xe4eaea, solderMid: 0x7e8884, shadow: 0x000000, white: 0xffffff,
-  resTan: 0xc8a86a, disc: 0xcf8a3c, filmRed: 0xb83a2e,
-  elecBlue: 0x2747a0, elecTop: 0x14306a, stripe: 0xd8dee0,
-  tantal: 0xd8b13a, to92: 0x1b1b1f, to220: 0x171717, tab: 0xb0b8b4,
-  diodeBody: 0x1b1b1f, diodeBand: 0xcdd2cf, ledRed: 0xe23a3a, ledGreen: 0x3ad26a, trim: 0x2f5fa8, brass: 0xc8a84c,
-  can: 0xaab2ad, dip: 0x18181c, silk: 0xc9d2cc,
-  battBody: 0x1b1b1f, battLabel: 0x2a4a8a, jackBody: 0x26262b, jackRing: 0x8a9290,
-  pad: 0xb9c2bd, hole: 0x0a1712, term: 0x2f6fd0,
+  wire: 0x5f6a66, solder: 0x8b958f, solderMid: 0x4d5652, shadow: 0x000000, white: 0xffffff,
+  resTan: 0x8f7d54, disc: 0x8f6a3c, filmRed: 0xb83a2e,
+  elecBlue: 0x2a3a5c, elecTop: 0x14306a, stripe: 0x8c9092, // was 0xd8dee0 — darkened ~35% (bright metallic fill)
+  tantal: 0xd8b13a, to92: 0x1b1b1f, to220: 0x171717, tab: 0x727875, // was 0xb0b8b4 — darkened ~35%
+  diodeBody: 0x1b1b1f, diodeBand: 0x858987, ledRed: 0x6a3838, ledGreen: 0x2f7a4a, trim: 0x2f5fa8, brass: 0xc8a84c, // diodeBand was 0xcdd2cf
+  can: 0x6f7470, dip: 0x18181c, silk: 0xc9d2cc, // can was 0xaab2ad — darkened ~35% (silver capsule)
+  battBody: 0x1b1b1f, battLabel: 0x2a4a8a, jackBody: 0x26262b, jackRing: 0x5a5f5e, // jackRing was 0x8a9290
+  pad: 0x7d8a82, hole: 0x0a1712, term: 0x2f6fd0,
 }
-const BANDS = [0x6b3a12, 0x101010, 0xc23b22, 0xc8a84c] // brown,black,red,gold
+// Dim a color's RGB channels toward black (muted band colors — quiet background decor).
+function dim(c: number, f = 0.7): number {
+  const r = Math.round(((c >> 16) & 0xff) * f), g = Math.round(((c >> 8) & 0xff) * f), b = Math.round((c & 0xff) * f)
+  return (r << 16) | (g << 8) | b
+}
+// brown,black,red,gold — dim(0.7) toward black, then hand-blended a further ~40% toward the body tone
+// (C.resTan 0x8f7d54) so bands stay quiet against the resistor body: 0x6b3a12->0x664b29,
+// 0x101010->0x403928, 0xc23b22->0x8b4b30, 0xc8a84c->0x8d7941.
+const BANDS = [0x664b29, 0x403928, 0x8b4b30, 0x8d7941]
 
 function r(s: ShapeSpec[], x: number, y: number, w: number, h: number, color: number, alpha = 1): void { s.push({ type: 'rect', x, y, w, h, color, alpha }) }
 function rr(s: ShapeSpec[], x: number, y: number, w: number, h: number, rad: number, color: number, alpha = 1): void { s.push({ type: 'roundRect', x, y, w, h, r: rad, color, alpha }) }
@@ -46,7 +54,7 @@ function padHole(s: ShapeSpec[], x: number, y: number, p: number): void {
   ci(s, x, y, R * 0.82, C.pad, 1)                         // bright tin annular ring
   ci(s, x, y, R * 0.44, C.solderMid, 1)                   // concave dip toward the lead
   ci(s, x, y, R * 0.27, C.wire, 1)                        // cut silver lead in the joint
-  ci(s, x - R * 0.3, y - R * 0.32, R * 0.34, C.white, 0.55) // concave specular catch-light (top-left)
+  ci(s, x - R * 0.3, y - R * 0.32, R * 0.34, C.white, 0.275) // concave specular catch-light (top-left)
 }
 /** Pseudo-3D disc from top: cast shadow → side wall → top face → rim shade → highlight. */
 function topDisc(s: ShapeSpec[], cx: number, cy: number, rad: number, color: number, wall = 3): void {
@@ -54,7 +62,7 @@ function topDisc(s: ShapeSpec[], cx: number, cy: number, rad: number, color: num
   ci(s, cx, cy + wall, rad, color, 1); ci(s, cx, cy + wall, rad, C.shadow, 0.5)  // darker side wall
   ci(s, cx, cy, rad, color, 1)
   ci(s, cx + rad * 0.28, cy + rad * 0.3, rad * 0.6, C.shadow, 0.22)              // bottom-right cylinder shade
-  ci(s, cx - rad * 0.3, cy - rad * 0.32, rad * 0.46, C.white, 0.22)             // top-left highlight
+  ci(s, cx - rad * 0.3, cy - rad * 0.32, rad * 0.46, C.white, 0.11)             // top-left highlight
 }
 /** Pseudo-3D box from top: cast shadow → side wall → top face → edge shade → highlight band. */
 function topBox(s: ShapeSpec[], x: number, y: number, w: number, h: number, color: number, rad = 2, wall = 3): void {
@@ -62,7 +70,7 @@ function topBox(s: ShapeSpec[], x: number, y: number, w: number, h: number, colo
   rr(s, x, y + wall, w, h, rad, color, 1); rr(s, x, y + wall, w, h, rad, C.shadow, 0.5)  // darker side wall
   rr(s, x, y, w, h, rad, color, 1)
   rr(s, x, y + h * 0.62, w, h * 0.38, rad, C.shadow, 0.18)                        // bottom edge shade (volume)
-  rr(s, x + w * 0.08, y + h * 0.1, w * 0.62, Math.max(1.5, h * 0.18), rad, C.white, 0.2) // top highlight band
+  rr(s, x + w * 0.08, y + h * 0.1, w * 0.62, Math.max(1.5, h * 0.18), rad, C.white, 0.1) // top highlight band
 }
 
 // --- pad geometry shared by leadEnds + draw (top-down: pads at the footprint, near the body) ---
@@ -119,7 +127,7 @@ export function pin(kind: VintageKind, name: string): number { return vintagePin
 // helper: short lead wire entering a pad from the body — two-tone for a rounded metallic look
 function leadWire(s: ShapeSpec[], fromX: number, fromY: number, toX: number, toY: number, p: number): void {
   ln(s, fromX, fromY, toX, toY, Math.max(2.2, p * 0.18), C.solderMid, 0.95) // wire body (darker tin)
-  ln(s, fromX, fromY, toX, toY, Math.max(1, p * 0.08), C.solder, 0.95)       // bright centre highlight
+  ln(s, fromX, fromY, toX, toY, Math.max(1, p * 0.08), C.solder, 0.475)      // bright centre highlight
 }
 
 function silkLabel(s: ShapeSpec[], ref: string | undefined, cx: number, y: number, p: number): void {
@@ -142,9 +150,9 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       leadWire(s, bx + bodyW, cy, W - 2, cy, pitch); padHole(s, W - 2, cy, pitch)
       const body = kind === 'resAxial' ? C.resTan : kind === 'inductorAxial' ? 0x2f7d6a : C.diodeBody
       topBox(s, bx, by, bodyW, bh, body, bh / 2)
-      r(s, bx, by + bh * 0.12, bodyW, bh * 0.18, C.white, 0.15)
+      r(s, bx, by + bh * 0.12, bodyW, bh * 0.18, C.white, 0.075)
       if (kind === 'diodeAxial') r(s, bx + bodyW * 0.76, by + bh * 0.08, bodyW * 0.1, bh * 0.84, C.diodeBand, 0.95)
-      else (kind === 'resAxial' ? BANDS : [0x2f7d6a, 0xc8a84c, 0x6b3a12]).forEach((col, i) =>
+      else (kind === 'resAxial' ? BANDS : [0x2f7d6a, 0xc8a84c, 0x6b3a12].map((c) => dim(c))).forEach((col, i) =>
         r(s, bx + bodyW * (0.22 + i * 0.16), by + bh * 0.08, bodyW * 0.08, bh * 0.84, col, 0.95))
       return s
     }
@@ -157,7 +165,7 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       leadWire(s, bx + bw, cy, cx + dx, cy, pitch); padHole(s, cx + dx, cy, pitch)
       topBox(s, bx, by, bw, bh, kind === 'tantalum' ? C.tantal : C.disc, bh / 2, 2)
       if (kind === 'tantalum') r(s, bx + bw * 0.7, by + bh * 0.2, bw * 0.1, bh * 0.6, C.shadow, 0.4)
-      s.push({ type: 'text', x: cx, y: by + bh * 0.15, text: kind === 'tantalum' ? '+' : '104', size: Math.max(4, bh * 0.45), color: 0x4a3212, align: 'center' })
+      s.push({ type: 'text', x: kind === 'tantalum' ? bx + bw * 0.18 : cx, y: by + bh * 0.15, text: kind === 'tantalum' ? '+' : '104', size: Math.max(4, bh * 0.45), color: 0x4a3212, align: 'center' }) // '+' sits by the positive (left) lead
       return s
     }
 
@@ -192,14 +200,14 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       silkLabel(s, opts.ref, cx, cy - rad, pitch)
       padHole(s, cx - dx, cy, pitch); padHole(s, cx + dx, cy, pitch)
       const lfy = cy + rad * 0.15
-      r(s, cx - rad * 0.35, lfy - rad * 0.3, rad * 0.3, rad * 0.4, 0x8a9290, 0.8) // cathode
-      ln(s, cx + rad * 0.15, lfy + rad * 0.1, cx + rad * 0.15, lfy - rad * 0.2, 1.2, 0x8a9290, 0.8) // anode
-      if (on) ci(s, cx, cy, rad * 1.7, col, 0.18)
+      r(s, cx + rad * 0.05, lfy - rad * 0.3, rad * 0.3, rad * 0.4, 0x8a9290, 0.8) // cathode flag = RIGHT lead (pad idx1)
+      ln(s, cx - rad * 0.15, lfy + rad * 0.1, cx - rad * 0.15, lfy - rad * 0.2, 1.2, 0x8a9290, 0.8) // anode post = LEFT lead (pad idx0)
+      // no outer glow halo — LED reads as a small dome + darker rim only (no additive ring)
       ci(s, cx + 2, cy + 4, rad, C.shadow, 0.4)
       ci(s, cx, cy, rad, col, on ? 0.92 : 0.5)
       r(s, cx + rad * 0.7, cy - rad * 0.7, rad * 0.4, rad * 1.4, C.shadow, 0.5) // clip shadow
-      if (on) ci(s, cx, cy, rad * 0.45, 0xffffff, 0.92); else ci(s, cx, cy, rad * 0.5, C.shadow, 0.3)
-      ci(s, cx - rad * 0.32, cy - rad * 0.32, rad * 0.3, C.white, on ? 0.6 : 0.3)
+      if (on) ci(s, cx, cy, rad * 0.45, 0xffffff, 0.46); else ci(s, cx, cy, rad * 0.5, C.shadow, 0.3)
+      ci(s, cx - rad * 0.32, cy - rad * 0.32, rad * 0.3, C.white, on ? 0.3 : 0.15)
       return s
     }
 
@@ -235,7 +243,7 @@ export function buildVintageShapes(kind: VintageKind, pitch: number, opts: Vinta
       rr(s, bx + 2, by + 4, bw, bh, bw * 0.45, C.shadow, 0.4)
       rr(s, bx, by + 3, bw, bh, bw * 0.45, C.to92, 1); r(s, bx, by + bh * 0.5, bw, bh * 0.5 + 3, C.to92, 1)
       rr(s, bx, by, bw, bh, bw * 0.45, C.to92, 1); r(s, bx, by + bh * 0.5, bw, bh * 0.5, C.to92, 1)
-      rr(s, bx + bw * 0.2, by + bh * 0.1, bw * 0.5, bh * 0.16, 2, C.white, 0.14)
+      rr(s, bx + bw * 0.2, by + bh * 0.1, bw * 0.5, bh * 0.16, 2, C.white, 0.07)
       s.push({ type: 'text', x: cx, y: by + bh * 0.25, text: 'BC547', size: Math.max(5, bh * 0.4), color: 0x8a948c, align: 'center' })
       return s
     }

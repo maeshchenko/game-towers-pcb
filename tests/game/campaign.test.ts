@@ -1,7 +1,7 @@
 // tests/game/campaign.test.ts
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { loadProgress, saveProgress, registerVictory, resetProgress, completeTutorial } from '../../src/game/campaign'
+import { loadProgress, saveProgress, registerVictory, resetProgress, completeTutorial, migrateSave, exportProgressCode, importProgressCode, SAVE_VERSION, starsAvailable, buyMetaUpgrade, respecMetaUpgrades } from '../../src/game/campaign'
 import { startLives } from '../../src/game/difficulty'
 
 let store: Record<string, string> = {}
@@ -31,16 +31,39 @@ describe('campaign', () => {
   })
 
   it('saves and loads progress', () => {
-    const custom = { unlockedLevelIndex: 3, stars: { 0: 3, 1: 2 }, highscores: { 0: 20, 1: 12 }, tutorialCompleted: true, seenIntroductions: {} }
+    const custom = { unlockedLevelIndex: 3, stars: { 0: 3, 1: 2 }, highscores: { 0: 20, 1: 12 }, tutorialCompleted: true, seenIntroductions: {}, storyIntroSeen: false, storyBriefSeen: {} }
     saveProgress(custom)
     const loaded = loadProgress()
-    expect(loaded).toEqual(custom)
+    // v3 migration adds the meta fields with empty defaults.
+    expect(loaded).toEqual({ ...custom, metaUpgrades: {}, achievements: [] })
+  })
+
+  it('workshop: stars buy meta tiers, respec refunds everything', () => {
+    saveProgress({ unlockedLevelIndex: 5, stars: { 0: 3, 1: 3 }, highscores: {}, tutorialCompleted: true })
+    expect(starsAvailable()).toBe(6)
+    expect(buyMetaUpgrade('reserve')).toBe(true)   // cost 1
+    expect(buyMetaUpgrade('firmware')).toBe(true)  // cost 2
+    expect(starsAvailable()).toBe(3)
+    expect(loadProgress().metaUpgrades).toEqual({ reserve: 1, firmware: 1 })
+    expect(buyMetaUpgrade('firmware')).toBe(true)  // tier 2, cost 3 — exactly affordable
+    expect(buyMetaUpgrade('reserve')).toBe(false)  // 0 stars left
+    respecMetaUpgrades()
+    expect(starsAvailable()).toBe(6)
+    expect(loadProgress().metaUpgrades).toEqual({})
   })
 
   it('calculates stars rating correctly', () => {
     // 3 stars for max lives
     const r3 = registerVictory(0, startLives)
     expect(r3.stars).toBe(3)
+
+    // 3 stars still forgives up to 2 leaked lives
+    const r3b = registerVictory(0, startLives - 2)
+    expect(r3b.stars).toBe(3)
+
+    // 3 leaks is no longer perfect → 2 stars (>= 50% lives)
+    const r2a = registerVictory(0, startLives - 3)
+    expect(r2a.stars).toBe(2)
 
     // 2 stars for >= 50% lives (e.g. 10 lives)
     const r2 = registerVictory(0, 10)
@@ -89,5 +112,43 @@ describe('campaign', () => {
     expect(loadProgress().tutorialCompleted).toBe(false)
     completeTutorial()
     expect(loadProgress().tutorialCompleted).toBe(true)
+  })
+
+  describe('save versioning & migration', () => {
+    it('stamps the current version into stored JSON', () => {
+      saveProgress(loadProgress())
+      const raw = JSON.parse(store['pcb_td_campaign_progress_v1'])
+      expect(raw.v).toBe(SAVE_VERSION)
+    })
+
+    it('migrates a legacy unstamped (v1) save without losing progress', () => {
+      store['pcb_td_campaign_progress_v1'] = JSON.stringify({ unlockedLevelIndex: 4, stars: { 2: 3 }, highscores: { 2: 20 } })
+      const p = loadProgress()
+      expect(p.unlockedLevelIndex).toBe(4)
+      expect(p.stars[2]).toBe(3)
+      expect(p.storyBriefSeen).toEqual({})
+    })
+
+    it('rejects garbage and clamps out-of-range level index', () => {
+      expect(migrateSave(null)).toBeNull()
+      expect(migrateSave('nope')).toBeNull()
+      expect(migrateSave({ unlockedLevelIndex: 'x' })).toBeNull()
+      expect(migrateSave({ unlockedLevelIndex: 999 })!.unlockedLevelIndex).toBe(11)
+    })
+
+    it('export/import round-trips progress through a code', () => {
+      registerVictory(0, startLives)
+      const code = exportProgressCode()
+      resetProgress()
+      expect(loadProgress().unlockedLevelIndex).toBe(0)
+      expect(importProgressCode(code)).toBe(true)
+      expect(loadProgress().unlockedLevelIndex).toBe(1)
+      expect(loadProgress().stars[0]).toBe(3)
+    })
+
+    it('import rejects malformed codes', () => {
+      expect(importProgressCode('%%% not base64 %%%')).toBe(false)
+      expect(importProgressCode(btoa('{"broken": true}'))).toBe(false)
+    })
   })
 })

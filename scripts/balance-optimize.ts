@@ -40,12 +40,14 @@ function solveHpMul(build: (b: Board) => Level, board: Board, target: number): {
   // many of our levels are "cliffs" (defence holds perfectly until it suddenly collapses), so when no
   // sample reaches target this naturally selects the hardest still-winnable HP = max achievable tension.
   const won: { hpMul: number; pressure: number; won: boolean }[] = []
-  for (let hp = 0.4; hp <= 3.0001; hp += 0.05) {
+  // Floor 0.2: multi-spawn maps can be unwinnable for the reference defence at 0.4 already —
+  // a floor that high silently recommends a LOSING hpMul (bit us on level 11).
+  for (let hp = 0.2; hp <= 4.0001; hp += 0.05) {
     const r = pressureAt(build, board, hp)
     if (!r.won) break
     won.push({ hpMul: Math.round(hp * 100) / 100, ...r })
   }
-  if (!won.length) return { hpMul: 0.4, ...pressureAt(build, board, 0.4) }
+  if (!won.length) return { hpMul: 0.2, ...pressureAt(build, board, 0.2) }
   const score = (p: number) => Math.abs(p - target) + Math.max(0, p - target) * 0.6 // small overshoot penalty
   let best = won[0]
   for (const w of won) {

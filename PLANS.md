@@ -1,13 +1,27 @@
-# PLANS — roadmap (live)
+# PLANS — живой roadmap
 
-> **Keep this file current.** When something is finished, DELETE it from here (its record lives in git + `MEMORY.md`). When new work appears, ADD it. This file = only what is NOT done yet. Done ≠ documented here; done = gone from here.
+Правило: сделано — строку УДАЛИТЬ (история живёт в git и MEMORY.md); новое — добавить.
+Переписан с нуля 2026-07-02.
 
-Order = rough priority, top first. Tick `[x]` only as a momentary marker before deleting the line.
+## В работе
 
-## Next up
-- [ ] **Re-enable campaign decor.** Decor is hidden now (`SHOW_DECOR=false` in `Renderer.ts`) to focus on track+towers. Place it AROUND the tower spots via `LevelBuilder.fillBlocks` (footprint keeps a gap from path AND from spots), then flip `SHOW_DECOR=true` and tune density per level. (`src/levels/`, `src/render/Renderer.ts`.)
-- [ ] **Finish T0 tile track.** Bridge over/under render (crossing visual), tile editor palette in `/editor`, save/load tile grids. (`src/tiles/`, `src/editor/`.)
+- Этапы 0–3 + сюжет «Сигнал извне» готовы (терминальные брифинги, глитч, телетайп,
+  статусы карты, бестиарий-«формы», финальный твист). Следующий крупный блок — мета
+  (дерево звёзд + Heroic/Iron).
 
-## Polish backlog
-- [ ] **Real enemy art** — enemies are simple neon tokens now; design themed glyphs/sprites per type.
+## Следующее (по порядку)
 
+## Бэклог (мета и контент, по анализу 2026-07-02)
+
+- Декор: вернуть плотность уровням 05–09 кластерными шаблонами под новые правила (границы,
+  отступ от трассы, не на спотах) — после 2b местами пустовато. LED-мигание (у `led5mm`
+  анимации нет вовсе). Подписи-обозначения (R1/C4) как опция.
+- Мета: дерево прокачки за звёзды (4–6 веток, ~60★, бесплатный респек) + драфт-карты
+  1-из-3 каждые 3 волны (loadout-контроль пула).
+- Режимы Heroic/Iron после 3★ уровня (36 испытаний из 12 карт).
+- Тир-визуалы башен (HASL → ENIG → золото+свечение), уникальная способность на L3.
+- Авторские волны уровней 4/8/12; босс с фазами; новые враги (сплиттер, щитовик, стелс).
+- 1–2 глобальные способности с кулдауном («перегрузка», «hotfix»).
+- Датащит-бестиарий с юмором; пасхалки на платах.
+- Тех-долг: разбить `main.ts`, свести `getEnemyColor` к theme.ts, state machine экранов;
+  z-order overlayG (ауры поверх врагов — принято допустимым, вернуться при жалобах).

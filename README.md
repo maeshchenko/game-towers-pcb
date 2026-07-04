@@ -1,32 +1,49 @@
-# PCB Tower Defense
+# PCB TD
 
-A 2D tower-defense game styled as a printed circuit board: dark-green substrate, thick multi-lane glowing octilinear traces (the enemy path is the visual hero), gold build-spot brackets, cyan special-spot octagons, green START / red FINISH pads, and realistic procedural vintage through-hole PCB decor.
+Tower defense на печатной плате: враги — пакеты данных, бегущие по медным дорожкам от входа
+к выходу; башни — чипы, которые ставятся на монтажные площадки. 12 уровней кампании,
+5 типов башен, 7 типов врагов, туториал, бестиарий, встроенный редактор уровней.
 
-**Stack:** Pixi.js v8 (WebGL2) · TypeScript (strict) · Vite (multi-page) · Vitest. True-2D; depth is faked with 2D shading (bevel/shadow/specular/glow) — no 3D engine.
+Стек: Pixi.js v8, TypeScript (strict), Vite, Vitest.
 
-## Run
+## Запуск
 
 ```bash
 npm install
-npm run dev              # http://localhost:5173
-npm run build            # tsc (noEmit) + vite build
-npm test                 # vitest
-npm run balance:optimize # per-map balance: recommends meta.tune.hpMul per campaign level
+npm run dev        # dev-сервер (http://localhost:5173)
+npm run build      # tsc + vite build (hidden sourcemaps)
+npm run test       # юнит-тесты (Vitest)
+npm run balance:optimize  # headless-балансировщик кампании
 ```
 
-## Routes (dev)
+Редактор уровней: открыть `/editor`.
 
-| URL | What |
-| --- | --- |
-| `/` | Game — plays immediately on a fresh random level; "Новая карта" rolls the next. |
-| `/editor` | Level editor (author / generate / save levels). |
-| `/kit2` | Component library: parts, connections, hand-laid board, large circuits. |
-| `/kit` | Archive of the earlier component page. |
+## Проверки (CI-гейты)
 
-## Reproducible tracks
+```bash
+npm run check          # tsc --noEmit + eslint + vitest (полный гейт)
+npm run lint           # ESLint (bug-net, не стайл-полиция)
+npm run test:coverage  # покрытие sim-ядра (src/game), порог 88%/85%
+npm run e2e            # Playwright smoke: бут прод-бандла (desktop+mobile), 0 консольных ошибок
+```
 
-Every random track is deterministic from a code `COLSxROWS.DIFF.SEED` (e.g. `60x45.4.882641`). The code shows bottom-right (copyable) and lives in the URL as `?t=...` — open the same URL to get the exact same track. The **12 campaign levels are hand-authored** (`src/levels/`, not seed-generated) and deep-link as `?t=authored-N` (N = 1..12).
+CI (`.github/workflows/ci.yml`) прогоняет check + e2e на каждый push/PR и деплоит на GitHub
+Pages с дефолтной ветки. Публикация на itch.io вооружается секретом `BUTLER_API_KEY` +
+переменной `ITCH_TARGET` (`user/game:html5`). Sentry/PostHog подключаются, когда появятся DSN/ключ.
 
-## Project notes
+## Структура
 
-`MEMORY.md` (repo root) is the single source of truth for architecture, decisions, invariants, conventions, and gotchas. `AGENTS.md` holds the working rules. Read `MEMORY.md` first.
+- `src/game` — симуляция (framework-free, headless-прогоняемая): башни, враги, волны,
+  экономика, события.
+- `src/render` — Pixi-рендер: плата, трассы, view-объекты игры.
+- `src/ui` — DOM HUD, меню кампании, звук (WebAudio-синтез), i18n (RU/EN).
+- `src/pipeline`, `src/tiles`, `src/geom` — генерация уровней и геометрия трасс.
+- `src/levels/campaign` — 12 авторских уровней (DSL).
+- `tests` — Vitest-сьют.
+
+## Документация
+
+- `MEMORY.md` — канонические заметки: решения, конвенции, гочи.
+- `PLANS.md` — живой roadmap.
+- `docs/superpowers/specs/` — дизайн-спеки, `docs/superpowers/plans/` — планы имплементации.
+- `AGENTS.md` — правила работы агентов в репо.

@@ -1,12 +1,12 @@
 import type { Board, Level } from '../../model/level'
 import { LevelBuilder } from '../dsl'
-import { ledIndicator, passiveBank } from '../../pipeline/circuits'
+import { ledIndicator, passiveBank, railSpine } from '../../pipeline/circuits'
 
 // Level 02 «Поворот ключа» — 24×18, difficulty 2.
 // 4-lane serpentine with ONE tight hairpin (lanes 3 cells apart) → an S-tier double-coverage spot in
 // the fold. START top-left → FINISH bottom-right. Decor: LED indicator + a passive bank in the corners.
 export function buildLevel02(board: Board): Level {
-  const b = new LevelBuilder(board, 102, { name: 'campaign.level1.name', difficulty: 2, archetype: 'serpentine', tune: { hpMul: 1.25 } })
+  const b = new LevelBuilder(board, 102, { name: 'campaign.level1.name', difficulty: 2, archetype: 'serpentine', tune: { hpMul: 3.80 } })
   b.path([
     [0, 2], [20, 2], [20, 5], [4, 5], [4, 8], [20, 8], [20, 11], [4, 11], [4, 14], [21, 14], [23, 14],
   ])
@@ -14,16 +14,25 @@ export function buildLevel02(board: Board): Level {
       b.block(ledIndicator([1, 16], b.alloc))
   b.block(passiveBank([14, 16], 3, b.alloc))
   // ── Fill the 2-row bands between lanes with short wired fragments ──
-  b.block(passiveBank([6, 3], 0, b.alloc));
-  b.block(passiveBank([12, 3], 2, b.alloc));
-  b.block(ledIndicator([16, 3], b.alloc));
-  b.block(passiveBank([8, 6], 4, b.alloc));
-  b.block(passiveBank([14, 6], 1, b.alloc));
-  b.block(passiveBank([8, 9], 6, b.alloc));
-  b.block(passiveBank([14, 9], 5, b.alloc));
-  b.block(passiveBank([8, 12], 0, b.alloc));
-  b.block(passiveBank([14, 12], 2, b.alloc));
+  b.block(passiveBank([6, 0], 0, b.alloc));
+  b.block(passiveBank([12, 0], 2, b.alloc));
+  b.block(ledIndicator([17, 0], b.alloc));
+  b.block(railSpine([8, 16], b.alloc, 4, 3)); // short D→L→C rail replaces three clumped banks
   // Tower spots from the coverage-greedy placer → always BESIDE the lanes, never on them.
+  // Authored wave script — this level's own dramaturgy (see W2 design notes).
+  b.waves([
+    // «Поворот ключа»: SIGNALS debut — speed pressure grows into a flood finale.
+    [{ kind: 'normal', count: 6, interval: 1.0 }],
+    [{ kind: 'normal', count: 4, interval: 1.0 }, { kind: 'fast', count: 4, interval: 0.5, delay: 6 }],
+    [{ kind: 'fast', count: 6, interval: 0.45 }, { kind: 'normal', count: 4, interval: 1.0, delay: 5 }],
+    [{ kind: 'normal', count: 5, interval: 0.9, jitter: 0.4 }, { kind: 'fast', count: 5, interval: 0.4, delay: 7 }, { kind: 'fast', count: 5, interval: 0.35, delay: 14 }],
+    [{ kind: 'fast', count: 8, interval: 0.5, jitter: 0.6 }],
+    [{ kind: 'normal', count: 8, interval: 0.7 }, { kind: 'fast', count: 6, interval: 0.4, delay: 9 }],
+    [{ kind: 'fast', count: 5, interval: 0.3 }, { kind: 'fast', count: 5, interval: 0.3, delay: 6 }, { kind: 'fast', count: 5, interval: 0.3, delay: 12 }],
+    [{ kind: 'normal', count: 10, interval: 0.6, jitter: 0.5 }, { kind: 'fast', count: 6, interval: 0.35, delay: 10 }],
+    [{ kind: 'normal', count: 14, interval: 0.5, jitter: 0.5, mix: { normal: 2, fast: 3 } }, { kind: 'fast', count: 8, interval: 0.25, delay: 12 }],
+  ])
+
   // Tower spots: strategic, off-path (gap from trace), and clear of all decor (computed last).
   b.patrolSpots({ spacing: 5 })
   return b.build()

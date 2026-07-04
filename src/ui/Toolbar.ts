@@ -3,6 +3,7 @@ import type { Level } from '../model/level'
 import { serializeLevel, parseLevel } from '../model/level'
 import { MAP_PRESETS } from '../app/viewport'
 import { i18n } from './i18n'
+import { mountUi } from './uiRoot'
 
 export function levelToBlobUrl(level: Level): string {
   return URL.createObjectURL(new Blob([serializeLevel(level)], { type: 'application/json' }))
@@ -48,7 +49,7 @@ export function mountToolbar(opts: {
   }
   colsIn.onchange = apply; rowsIn.onchange = apply
 
-  document.body.appendChild(bar)
+  mountUi(bar)
   return bar
 }
 

@@ -1,0 +1,124 @@
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+
+# Allow the Pages deploy job to publish.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: typecheck · lint · test · build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Lint
+        run: npm run lint
+      - name: Unit tests + coverage gate
+        run: npm run test:coverage
+      - name: Build
+        run: npm run build
+      - name: Upload dist
+        uses: actions/upload-artifact@v4
+        with:
+          name: pcb-td-dist
+          path: dist/
+          retention-days: 14
+
+  e2e:
+    name: playwright smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+      - name: E2E smoke (builds + previews the bundle)
+        run: npm run e2e
+
+  deploy-pages:
+    name: deploy to GitHub Pages
+    # Only from the default branch on direct pushes (not PRs / forks).
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      # 'hidden' sourcemaps carry no URL comment, but the .map files still exist; a proprietary
+      # game should not publish source. Strip them from anything served publicly. (In a real
+      # release these would be uploaded to Sentry first, once a DSN is configured.)
+      - name: Drop sourcemaps before publishing
+        run: find dist -name '*.map' -delete
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+      - id: deploy
+        uses: actions/deploy-pages@v4
+
+  # itch.io publish — arms itself once a BUTLER_API_KEY secret and an ITCH_TARGET repo variable
+  # (form: user/game:html5) are configured. Until then it no-ops so CI stays green.
+  deploy-itch:
+    name: deploy to itch.io
+    if: github.event_name == 'push' && github.ref_name == github.event.repository.default_branch
+    needs: [check, e2e]
+    runs-on: ubuntu-latest
+    env:
+      BUTLER_API_KEY: ${{ secrets.BUTLER_API_KEY }}
+      ITCH_TARGET: ${{ vars.ITCH_TARGET }}
+    steps:
+      - name: Check for butler key
+        id: gate
+        run: |
+          if [ -z "$BUTLER_API_KEY" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "BUTLER_API_KEY not set — skipping itch.io publish."
+          else
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.enabled == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.enabled == 'true'
+        run: npm run build && find dist -name '*.map' -delete
+      - name: Push to itch via butler
+        if: steps.gate.outputs.enabled == 'true'
+        run: |
+          curl -sL -o butler.zip https://broth.itch.zone/butler/linux-amd64/LATEST/archive/default
+          unzip -q butler.zip && chmod +x butler
+          ./butler push dist "$ITCH_TARGET"

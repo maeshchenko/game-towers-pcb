@@ -3,7 +3,7 @@ import type { Pt } from '../geom/types'
 import { filletPath } from '../geom/fillet'
 import { PALETTE, RENDER } from '../style/palette'
 
-export interface StrokeSpec { points: Pt[]; width: number; color: number; alpha: number; blur: number }
+export interface StrokeSpec { points: Pt[]; width: number; color: number; alpha: number }
 export interface ChevronSpec { x: number; y: number; angle: number }
 
 // The path is the visual hero: a thick multi-lane glowing ribbon. Rendered as nested concentric
@@ -13,11 +13,14 @@ export interface ChevronSpec { x: number; y: number; angle: number }
 export function buildTraceStrokes(trace: Trace, pitch: number): StrokeSpec[] {
   const pts = filletPath(trace.waypoints, trace.cornerRadius, pitch)
   const B = pitch * RENDER.traceBandMul
-  const lane = (w: number, color: number, alpha = 1): StrokeSpec => ({ points: pts, width: w, color, alpha, blur: 0 })
+  const lane = (w: number, color: number, alpha = 1): StrokeSpec => ({ points: pts, width: w, color, alpha })
   // Dark channel + 3 crisp teal conductor lanes carved by alternating bright/groove concentric
-  // strokes (round joins = rounded corners). Subtle outer glow only — no fat green bloom.
+  // strokes (round joins = rounded corners). The halo is THREE nested strokes with falling
+  // alpha — a filterless pseudo-gradient glow (a single flat band read as a hard-edged smear).
   return [
-    { points: pts, width: B + pitch * 0.5, color: PALETTE.traceHalo, alpha: 0.18, blur: RENDER.haloBlur },
+    { points: pts, width: B + pitch * 1.1, color: PALETTE.traceHalo, alpha: 0.05 },
+    { points: pts, width: B + pitch * 0.75, color: PALETTE.traceHalo, alpha: 0.08 },
+    { points: pts, width: B + pitch * 0.45, color: PALETTE.traceHalo, alpha: 0.12 },
     lane(B, PALETTE.traceBand),               // dark channel base
     lane(B * 0.82, PALETTE.traceLane),        // outer lane (bright)
     lane(B * 0.60, PALETTE.traceGroove),      // dark gap

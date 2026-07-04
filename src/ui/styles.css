@@ -1,11 +1,25 @@
 /* src/ui/styles.css */
+/* Single z-order scale — NO inline zIndex in TS. Backdrop sits above the HUD (the old 90
+ * let players click START WAVE "through" the radial dimmer) but below the radial itself. */
+:root {
+  --z-panel: 11;
+  --z-hud: 100;
+  --z-campaign: 150;
+  --z-tutorial: 151;
+  --z-overlay: 180;
+  --z-backdrop: 190;
+  --z-radial: 200;
+  --z-tooltip: 250;
+  --z-modal: 300;
+  --z-story: 400;
+}
 .pcb-toolbar { position: fixed; top: 8px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; z-index: 10; }
 .pcb-toolbar button { background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 6px 12px; font: 12px monospace; cursor: pointer; }
 .pcb-toolbar button:hover { background: #14140f; }
 .pcb-toolbar .pcb-size { width: 46px; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; font: 12px monospace; padding: 5px 4px; }
 .pcb-toolbar { align-items: center; color: #6f8f7e; font: 12px monospace; }
 .pcb-panels { position: fixed; inset: 0; pointer-events: none; }
-.pcb-panel { position: fixed; background: rgba(13,31,23,0.85); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 14px; font: 12px monospace; }
+.pcb-panel { position: fixed; background: rgba(13,31,23,0.85); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 14px; font: 12px monospace; pointer-events: auto; } /* the .pcb-panels wrapper is pointer-events:none — panels must opt back in or nothing in them is clickable */
 .pcb-legend { top: 70px; left: 16px; } .pcb-info { top: 16px; right: 16px; } .pcb-tips { bottom: 16px; left: 16px; max-width: 200px; }
 .pcb-panel h3 { color: #6cf2a0; margin: 0 0 6px; letter-spacing: 2px; }
 .pcb-panel ul { list-style: none; margin: 0; padding: 0; } .pcb-panel li { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
@@ -23,28 +37,35 @@
 .sw.start::before { content: ''; position: absolute; inset: 28%; background: #0a1611; border-radius: 50%; }
 .sw.finish { background: #e8503a; border: 1px solid #fff; border-radius: 2px; position: relative; box-sizing: border-box; }
 .sw.finish::before { content: ''; position: absolute; inset: 28%; background: #0a1611; border-radius: 50%; }
-.pcb-tophud { position: fixed; top: 0; left: 0; right: 0; height: 50px; background: rgba(10,22,17,0.92); border-bottom: 2px solid #1f8f4d; box-shadow: 0 4px 20px rgba(43,208,106,0.18); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 100; font: 13px monospace; box-sizing: border-box; color: #6cf2a0; pointer-events: auto; }
+.pcb-tophud { position: fixed; top: 0; left: 0; right: 0; height: 50px; background: rgba(10,22,17,0.92); border-bottom: 2px solid #1f8f4d; box-shadow: 0 4px 20px rgba(43,208,106,0.18); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: var(--z-hud); font: 13px monospace; box-sizing: border-box; color: #6cf2a0; pointer-events: auto; }
 .pcb-hud-left, .pcb-hud-center, .pcb-hud-right { display: flex; align-items: center; gap: 16px; }
 .pcb-hud-badge { background: #071510; border: 1px solid #1f8f4d; padding: 4px 8px; border-radius: 3px; font-weight: bold; }
 .pcb-hud-badge.easy { color: #35e07a; border-color: #35e07a; box-shadow: 0 0 5px rgba(53,224,122,0.3); }
 .pcb-hud-badge.medium { color: #f0c43a; border-color: #f0c43a; box-shadow: 0 0 5px rgba(240,196,58,0.3); }
 .pcb-hud-badge.hard { color: #ff4d4d; border-color: #ff4d4d; box-shadow: 0 0 5px rgba(255,77,77,0.3); }
 .pcb-hud-val { font-weight: bold; color: #fff; }
-.pcb-hud-btn { background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 6px 12px; font: 12px monospace; cursor: pointer; border-radius: 3px; transition: all 0.15s; }
+.pcb-hud-btn { position: relative; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 6px 12px; font: 12px monospace; cursor: pointer; border-radius: 3px; transition: all 0.15s; }
 .pcb-hud-btn:hover { background: #1f8f4d; color: #000; box-shadow: 0 0 8px rgba(108,242,160,0.5); }
 .pcb-hud-btn.active { background: #2bd06a; color: #000; border-color: #2bd06a; font-weight: bold; box-shadow: 0 0 10px rgba(43,208,106,0.6); }
 
-.pcb-radialmenu { position: fixed; width: 0; height: 0; z-index: 200; pointer-events: none; }
-.pcb-radial-backdrop { position: fixed; inset: 0; background: rgba(4,9,7,0.6); z-index: 90; pointer-events: none; opacity: 0; transition: opacity 0.18s ease-out; }
+.pcb-radialmenu { position: fixed; width: 0; height: 0; z-index: var(--z-radial); pointer-events: none; }
+.pcb-radial-backdrop { position: fixed; inset: 0; background: rgba(4,9,7,0.6); z-index: var(--z-backdrop); pointer-events: none; opacity: 0; transition: opacity 0.18s ease-out; }
 .pcb-radial-backdrop.show { opacity: 1; pointer-events: auto; }
 .pcb-radialmenu-item { position: absolute; pointer-events: auto; width: 68px; height: 68px; transform: translate(-50%, -50%) scale(0); border-radius: 50%; background: #0a1712; border: 2px solid var(--neon-color); color: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; font: bold 9px monospace; cursor: pointer; transition: transform 0.22s cubic-bezier(0.175, 0.885, 0.32, 1.2), box-shadow 0.2s, background 0.2s; box-shadow: 0 0 10px var(--neon-glow); }
 .pcb-radialmenu.open .pcb-radialmenu-item { transform: translate(var(--dx), var(--dy)) scale(1); }
 .pcb-radialmenu-item:hover { background: var(--neon-color); color: #000; box-shadow: 0 0 16px var(--neon-color); }
 .pcb-radialmenu-item span { font-size: 8px; font-weight: normal; opacity: 0.8; margin-top: 2px; }
 
-.pcb-towerpanel { position: fixed; top: 120px; right: 16px; width: 190px; background: rgba(13,31,23,0.92); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 12px; font: 12px monospace; z-index: 11; }
+.pcb-towerpanel { position: fixed; top: 120px; right: 16px; width: 190px; background: rgba(13,31,23,0.92); border: 1px solid #1f8f4d; color: #6f8f7e; padding: 10px 12px; font: 12px monospace; z-index: var(--z-panel); }
 .pcb-towerpanel h3 { color: #6cf2a0; margin: 0 0 6px; letter-spacing: 1px; }
 .pcb-towerpanel button { display: block; width: 100%; margin-top: 6px; background: #0d1f17; color: #6cf2a0; border: 1px solid #1f8f4d; padding: 5px; font: 11px monospace; cursor: pointer; }
+/* Tier-4 branch choice: gold accent — a permanent, role-defining decision */
+.pcb-towerpanel .pcb-branch-btn { display: flex; justify-content: space-between; gap: 6px; border-color: #b98a2e; color: #f0c43a; }
+.pcb-towerpanel .pcb-branch-btn:hover { background: #1a2a12; box-shadow: 0 0 8px rgba(240,196,58,0.25); }
+.pcb-towerpanel .pcb-branch-cost { opacity: 0.8; }
+/* Discharge ability: crosshair while aiming, gold pulse on the armed button */
+body.pcb-aiming canvas { cursor: crosshair; }
+.pcb-hud-btn.ability-btn.active { border-color: #f0c43a; color: #f0c43a; box-shadow: 0 0 10px rgba(240,196,58,0.4); }
 
 .pcb-modebar { position: fixed; top: 62px; left: 8px; display: flex; gap: 6px; z-index: 12; }
 .pcb-modebar button { background: #0d1f17; color: #6cf2a0; border: 1px solid #2bd06a; padding: 6px 12px; font: 12px monospace; cursor: pointer; }
@@ -52,11 +73,31 @@
 
 .pcb-seed { position: fixed; right: 8px; bottom: 6px; z-index: 12; color: #5b7a68; font: 11px monospace; user-select: all; cursor: text; background: rgba(10,22,17,0.6); padding: 2px 6px; border: 1px solid #1c3a2b; }
 
+/* Achievement toasts — bottom-right stack, above the HUD but below modals */
+.pcb-ach-toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: var(--z-tooltip); pointer-events: none; }
+.pcb-ach-toast { display: flex; gap: 10px; align-items: center; background: rgba(10,22,17,0.95); border: 1px solid #f0c43a; border-radius: 6px; padding: 8px 14px 8px 8px; box-shadow: 0 0 14px rgba(240,196,58,0.25); animation: achToastIn 0.35s ease-out; font-family: monospace; }
+.pcb-ach-toast.out { opacity: 0; transform: translateX(20px); transition: all 0.35s ease-in; }
+.pcb-ach-toast-title { font-size: 8.5px; letter-spacing: 2px; color: #f0c43a; }
+.pcb-ach-toast-name { font-size: 11.5px; font-weight: bold; color: #fff; margin-top: 2px; }
+@keyframes achToastIn { from { opacity: 0; transform: translateX(30px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pcb-ach-toast { animation: none; } }
+
+/* Contextual hints — left side, cyan, wider (they carry a sentence, not a name). */
+.pcb-hint-toasts { position: fixed; left: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 8px; z-index: var(--z-tooltip); pointer-events: none; max-width: 340px; }
+.pcb-hint-toast { display: flex; gap: 10px; align-items: flex-start; background: rgba(10,22,17,0.95); border: 1px solid #36e0e0; border-radius: 6px; padding: 10px 14px; box-shadow: 0 0 14px rgba(54,224,224,0.22); animation: hintToastIn 0.35s ease-out; font-family: monospace; }
+.pcb-hint-toast.out { opacity: 0; transform: translateX(-20px); transition: all 0.35s ease-in; }
+.pcb-hint-toast-icon { font-size: 16px; line-height: 1.2; }
+.pcb-hint-toast-title { font-size: 8.5px; letter-spacing: 2px; color: #36e0e0; }
+.pcb-hint-toast-body { font-size: 11px; line-height: 1.4; color: #d9e6dc; margin-top: 3px; }
+@keyframes hintToastIn { from { opacity: 0; transform: translateX(-30px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .pcb-hint-toast { animation: none; } }
+
 /* Экран Кампании */
-.pcb-campaign-screen { position: fixed; inset: 0; background: rgba(8,19,14,0.97); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding: 40px 20px; z-index: 150; font-family: monospace; box-sizing: border-box; }
+.pcb-campaign-screen { position: fixed; inset: 0; background: rgba(8,19,14,0.97); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; overflow-y: auto; padding: 40px 20px; z-index: var(--z-campaign); font-family: monospace; box-sizing: border-box; }
 .pcb-campaign-header { text-align: center; margin-bottom: 30px; }
 .pcb-campaign-header h1 { color: #6cf2a0; font-size: 38px; margin: 0; letter-spacing: 6px; text-shadow: 0 0 10px rgba(108,242,160,0.6); }
 .pcb-campaign-header h2 { color: #6f8f7e; font-size: 14px; margin: 5px 0 0; letter-spacing: 2px; }
+.pcb-campaign-station { color: #2bd06a; font-size: 12px; margin-top: 8px; letter-spacing: 1px; opacity: 0.85; }
 .pcb-campaign-levels { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 20px; width: 100%; max-width: 1000px; margin-bottom: 40px; }
 .pcb-level-card { background: rgba(13,31,23,0.85); border: 2px solid #1f8f4d; border-radius: 6px; padding: 16px; cursor: pointer; transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1); box-sizing: border-box; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.3); }
 .pcb-level-card:hover { transform: translateY(-4px); border-color: #2bd06a; box-shadow: 0 0 15px rgba(43,208,106,0.35); background: rgba(16,40,29,0.9); }
@@ -67,12 +108,21 @@
 .pcb-level-stars { font-size: 14px; color: #f0c43a; font-weight: bold; margin-top: 4px; letter-spacing: 2px; }
 .pcb-level-card.locked .pcb-level-stars { color: #6f8f7e; font-size: 11px; letter-spacing: 0; }
 .pcb-level-score { font-size: 10px; color: #5b7a68; margin-top: 2px; text-align: right; }
+.pcb-level-status { align-self: flex-start; font-size: 9px; font-weight: bold; letter-spacing: 1px; padding: 2px 7px; border-radius: 3px; }
+.pcb-level-status.isolated { color: #2bd06a; background: rgba(43,208,106,0.08); border: 1px solid rgba(43,208,106,0.35); }
+.pcb-level-status.infected { color: #ff4d4d; background: rgba(255,77,77,0.1); border: 1px solid rgba(255,77,77,0.4); animation: statusPulse 1.8s ease-in-out infinite; }
+.pcb-level-log-btn { align-self: flex-start; margin-top: 2px; background: rgba(43,208,106,0.08); border: 1px solid #1f8f4d; color: #6cf2a0; font: 10px monospace; padding: 3px 9px; border-radius: 3px; cursor: pointer; letter-spacing: 1px; transition: all 0.15s; }
+.pcb-level-log-btn:hover { background: #1f8f4d; color: #000; }
 .pcb-campaign-footer { width: 100%; max-width: 1000px; display: flex; justify-content: center; }
-.pcb-campaign-reset { background: rgba(30,10,10,0.6); color: #ff6b6b; border: 1px solid #992222; padding: 10px 20px; font: 12px monospace; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+/* Shared base for the campaign footer buttons; .pcb-campaign-reset is now UNIQUE to the
+ * reset button (it used to be the shared class — querySelector('.pcb-campaign-reset')
+ * grabbed the daily button and the real reset was left without a handler). */
+.pcb-campaign-footer-btn { background: rgba(30,10,10,0.6); color: #ff6b6b; border: 1px solid #992222; padding: 10px 20px; font: 12px monospace; cursor: pointer; border-radius: 4px; transition: all 0.2s; }
+.pcb-campaign-footer-btn:hover { filter: brightness(1.35); box-shadow: 0 0 10px rgba(255,255,255,0.15); }
 .pcb-campaign-reset:hover { background: #992222; color: #fff; box-shadow: 0 0 10px rgba(255,107,107,0.4); }
 
 /* Оверлей результатов Победы / Поражения */
-.pcb-game-overlay { position: fixed; inset: 0; background: rgba(5,12,9,0.85); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 180; font-family: monospace; animation: fadeIn 0.2s ease-out; }
+.pcb-game-overlay { position: fixed; inset: 0; background: rgba(5,12,9,0.85); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: var(--z-overlay); font-family: monospace; animation: fadeIn 0.2s ease-out; }
 .pcb-overlay-card { background: rgba(10,22,17,0.95); border: 3px solid #1f8f4d; border-radius: 8px; padding: 30px 40px; text-align: center; max-width: 420px; width: 90%; box-sizing: border-box; }
 .pcb-game-overlay.victory .pcb-overlay-card { border-color: #2bd06a; box-shadow: 0 0 30px rgba(43,208,106,0.4); }
 .pcb-game-overlay.defeat .pcb-overlay-card { border-color: #ff4d4d; box-shadow: 0 0 30px rgba(255,77,77,0.4); }
@@ -81,7 +131,54 @@
 .pcb-game-overlay.victory h3 { color: #2bd06a; text-shadow: 0 0 8px rgba(43,208,106,0.5); }
 .pcb-game-overlay.defeat h3 { color: #ff4d4d; text-shadow: 0 0 8px rgba(255,77,77,0.5); }
 .pcb-victory-stars { font-size: 32px; color: #f0c43a; margin-bottom: 20px; letter-spacing: 8px; text-shadow: 0 0 12px rgba(240,196,58,0.5); }
+.pcb-star { display: inline-block; color: #3a3a2a; opacity: 0.5; }
+.pcb-star-earned { color: #f0c43a; opacity: 1; animation: star-slam 0.35s ease-out backwards; }
+
+@keyframes star-slam {
+  0% { transform: scale(2.2); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes statusPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+/* Wave-start banner: top-center, non-interactive, self-dismissing */
+.pcb-wave-banner {
+  position: fixed;
+  top: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: rgba(10,22,17,0.92);
+  border: 1.5px solid #2bd06a;
+  border-radius: 4px;
+  padding: 8px 20px;
+  box-shadow: 0 0 16px rgba(43,208,106,0.35);
+  font: 12px monospace;
+  color: #fff;
+  letter-spacing: 1px;
+  text-align: center;
+  pointer-events: none;
+  animation: wave-banner-life 1.6s ease-out forwards;
+}
+.pcb-wave-banner-title { font-size: 16px; font-weight: bold; color: #6cf2a0; letter-spacing: 2px; }
+.pcb-wave-banner-chips { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+.pcb-wave-banner-chip { font-weight: bold; }
+
+@keyframes wave-banner-life {
+  0% { transform: translateX(-50%) translateY(-16px); opacity: 0; }
+  15% { transform: translateX(-50%) translateY(0); opacity: 1; }
+  80% { transform: translateX(-50%) translateY(0); opacity: 1; }
+  100% { transform: translateX(-50%) translateY(-10px); opacity: 0; }
+}
 .pcb-overlay-score { color: #6f8f7e; font-size: 13px; margin-bottom: 30px; }
+.pcb-victory-debrief { color: #4a7a5e; font-size: 11px; font-family: monospace; letter-spacing: 0.5px; line-height: 1.5em; margin: 0 0 22px; }
 .pcb-overlay-actions { display: flex; flex-direction: column; gap: 10px; }
 .pcb-overlay-actions button { width: 100%; font-size: 13px; padding: 10px; font-weight: bold; }
 
@@ -91,8 +188,8 @@
 }
 
 /* Обучение */
-.pcb-tutorial-bubble { position: fixed; width: 250px; padding: 12px 16px; background: rgba(10,22,17,0.96); border: 2px solid #2bd06a; border-radius: 6px; box-shadow: 0 0 15px rgba(43,208,106,0.4); z-index: 151; font: 12px monospace; color: #fff; pointer-events: auto; box-sizing: border-box; }
-.pcb-tutorial-spotlight { position: fixed; width: 50px; height: 50px; border-radius: 50%; border: 3px dashed #f0c43a; transform: translate(-50%, -50%); pointer-events: none; z-index: 152; animation: tutorialPulse 1.5s infinite; }
+.pcb-tutorial-bubble { position: fixed; width: 250px; padding: 12px 16px; background: rgba(10,22,17,0.96); border: 2px solid #2bd06a; border-radius: 6px; box-shadow: 0 0 15px rgba(43,208,106,0.4); z-index: var(--z-tutorial); font: 12px monospace; color: #fff; pointer-events: auto; box-sizing: border-box; }
+.pcb-tutorial-spotlight { position: fixed; width: 50px; height: 50px; border-radius: 50%; border: 3px dashed #f0c43a; transform: translate(-50%, -50%); pointer-events: none; z-index: calc(var(--z-tutorial) + 1); animation: tutorialPulse 1.5s infinite; }
 
 @keyframes tutorialPulse {
   0% { transform: translate(-50%, -50%) scale(0.9); opacity: 0.6; }
@@ -101,7 +198,7 @@
 }
 
 /* Превью волны */
-.pcb-wavepreview { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; background: rgba(10,22,17,0.92); border: 1.5px solid #36e0e0; border-radius: 4px; padding: 6px 16px; z-index: 100; box-shadow: 0 0 10px rgba(54,224,224,0.25); font: 11px monospace; color: #fff; letter-spacing: 1px; pointer-events: none; }
+.pcb-wavepreview { position: fixed; top: 56px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 14px; background: rgba(10,22,17,0.92); border: 1.5px solid #36e0e0; border-radius: 4px; padding: 6px 16px; z-index: var(--z-hud); box-shadow: 0 0 10px rgba(54,224,224,0.25); font: 11px monospace; color: #fff; letter-spacing: 1px; pointer-events: none; }
 .pcb-wavepreview-title { color: #6f8f7e; font-weight: bold; margin-right: 4px; }
 .pcb-wavepreview-item { display: flex; align-items: center; gap: 6px; }
 .pcb-wavepreview-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; }
@@ -109,14 +206,14 @@
 .pcb-wavepreview-count { color: #36e0e0; }
 
 /* Тултипы постройки */
-.pcb-radial-tooltip { position: fixed; transform: translate(-50%, 0); width: 220px; padding: 10px 12px; background: rgba(10,22,17,0.96); border: 1.5px solid #fff; border-radius: 6px; z-index: 250; font: 10px monospace; color: #fff; pointer-events: none; text-align: left; }
+.pcb-radial-tooltip { position: fixed; transform: translate(-50%, 0); width: 220px; padding: 10px 12px; background: rgba(10,22,17,0.96); border: 1.5px solid #fff; border-radius: 6px; z-index: var(--z-tooltip); font: 10px monospace; color: #fff; pointer-events: none; text-align: left; }
 
 #app canvas {
   touch-action: none;
 }
 
 /* Модалка настроек */
-.pcb-settings-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: 200; animation: fadeIn 0.25s ease-out; }
+.pcb-settings-modal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(5px); display: flex; align-items: center; justify-content: center; z-index: var(--z-modal); animation: fadeIn 0.25s ease-out; }
 .pcb-settings-card { width: 320px; background: rgba(10,22,17,0.96); border: 2px solid #36e0e0; border-radius: 8px; padding: 20px 24px; box-shadow: 0 0 25px rgba(54,224,224,0.3); font: 12px monospace; color: #fff; box-sizing: border-box; }
 .pcb-settings-card h2 { margin: 0 0 20px 0; font-size: 18px; letter-spacing: 2px; text-align: center; color: #36e0e0; text-shadow: 0 0 8px rgba(54,224,224,0.4); }
 .settings-row { display: flex; flex-direction: column; gap: 6px; margin-bottom: 16px; text-align: left; }
@@ -163,28 +260,52 @@ body.pcb-portrait #game-container {
     display: none !important;
   }
 
-  /* Compact HUD */
+  /* Compact HUD — but every control keeps a ≥40px touch target (padding grows the hit
+     area even where the visual stays slim). Fonts never dip below 11px. */
   .pcb-tophud {
-    padding: 0 8px;
-    height: 44px;
+    padding: 0 max(8px, env(safe-area-inset-left)) 0 max(8px, env(safe-area-inset-right));
+    height: 48px;
     font-size: 11px;
   }
   .pcb-hud-left, .pcb-hud-center, .pcb-hud-right {
-    gap: 6px;
+    gap: 5px;
   }
   .pcb-hud-badge {
-    padding: 2px 4px;
+    padding: 4px 5px;
     font-size: 11px;
   }
   .pcb-hud-btn {
-    padding: 4px 8px;
+    padding: 0 9px;
     font-size: 11px;
+    min-height: 40px;
+    min-width: 40px;
   }
   .hud-level-label {
     display: none;
   }
   .next-wave-btn {
-    padding: 4px 6px;
+    padding: 0 8px;
+  }
+  /* Radial build items: bigger finger targets + readable captions */
+  .pcb-radialmenu-item {
+    width: 76px;
+    height: 76px;
+    font-size: 10px;
+  }
+  .pcb-radialmenu-item span {
+    font-size: 10px;
+  }
+  .pcb-radial-tooltip {
+    font-size: 11px;
+  }
+  /* Tower panel buttons must be tappable */
+  .pcb-towerpanel button {
+    min-height: 40px;
+    font-size: 12px;
+  }
+  /* Settings rows breathe on touch */
+  .pcb-settings-card button {
+    min-height: 40px;
   }
 
   /* Reposition and compact the tower panel */
@@ -246,7 +367,7 @@ body.pcb-portrait #game-container {
   .pcb-campaign-footer {
     gap: 10px !important;
   }
-  .pcb-campaign-reset {
+  .pcb-campaign-footer-btn {
     padding: 6px 12px !important;
     font-size: 10px !important;
   }
@@ -291,6 +412,189 @@ body.pcb-portrait #game-container {
   .settings-row {
     margin-bottom: 10px;
   }
+  .settings-row input[type="range"]::-webkit-slider-thumb {
+    width: 22px;
+    height: 22px;
+  }
+  .settings-row input[type="range"]::-moz-range-thumb {
+    width: 22px;
+    height: 22px;
+  }
+}
+
+/* Терминальный оверлей истории кампании (typewriter log) — выше любого другого оверлея,
+   включая экран победы/поражения (z-index 180) и разовые модалки (z-index 300). */
+.pcb-story-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 12, 9, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: var(--z-story);
+  font-family: monospace;
+  cursor: pointer;
+  animation: fadeIn 0.25s ease-out;
+  padding: 20px;
+  box-sizing: border-box;
+}
+.pcb-story-column {
+  width: 100%;
+  max-width: 640px;
+  max-height: 80vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  cursor: default;
+}
+.pcb-story-title {
+  color: #4a7a5e;
+  font-size: 13px;
+  letter-spacing: 2px;
+  margin-bottom: 14px;
+  line-height: 1.6em;
+}
+.pcb-story-line {
+  color: #6cf2a0;
+  font-size: 14px;
+  line-height: 1.6em;
+  min-height: 1.6em;
+  white-space: pre-wrap;
+  word-break: break-word;
+  text-shadow: 0 0 6px rgba(108, 242, 160, 0.25);
+}
+.pcb-story-cursor {
+  display: inline-block;
+  margin-left: 1px;
+  color: #6cf2a0;
+  animation: pcb-story-cursor-blink 1s steps(1, start) infinite;
+}
+@keyframes pcb-story-cursor-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+.pcb-story-continue {
+  display: block;
+  margin-top: 24px;
+  background: transparent;
+  color: #6cf2a0;
+  border: none;
+  font: bold 14px monospace;
+  letter-spacing: 2px;
+  cursor: pointer;
+  padding: 6px 0;
+  text-shadow: 0 0 8px rgba(108, 242, 160, 0.5);
+}
+.pcb-story-continue:hover {
+  color: #fff;
+  text-shadow: 0 0 10px rgba(108, 242, 160, 0.9);
+}
+
+/* Floating bonus text */
+.pcb-floating-bonus {
+  position: absolute;
+  left: 50%;
+  top: -24px;
+  transform: translate(-50%, 0);
+  color: #f0c43a;
+  font: bold 14px monospace;
+  text-shadow: 0 0 8px rgba(240,196,58,0.6);
+  z-index: 120;
+  pointer-events: none;
+  animation: floatUpFade 1s forwards ease-out;
+}
+
+@keyframes floatUpFade {
+  0% { transform: translate(-50%, 0) scale(0.8); opacity: 0; }
+  20% { transform: translate(-50%, -8px) scale(1.1); opacity: 1; }
+  100% { transform: translate(-50%, -30px) scale(0.9); opacity: 0; }
 }
 
 
+
+/* Result-screen run stats */
+.pcb-overlay-stats { display: flex; gap: 18px; justify-content: center; margin: 0 0 18px; }
+.pcb-stat { text-align: center; }
+.pcb-stat-val { color: #6cf2a0; font-size: 16px; font-weight: bold; }
+.pcb-stat-label { color: #6f8f7e; font-size: 9px; letter-spacing: 1px; text-transform: uppercase; margin-top: 2px; }
+
+.pcb-tutorial-skip { background: none; border: none; color: #5b7a68; font: 10px monospace; cursor: pointer; text-decoration: underline; padding: 2px; }
+.pcb-tutorial-skip:hover { color: #8fb3a0; }
+/* A11y: visible keyboard focus everywhere */
+button:focus-visible, input:focus-visible { outline: 2px solid #2bd06a; outline-offset: 2px; }
+
+/* Freshly unlocked ability: draw the eye until first use */
+.pcb-hud-btn.ability-btn.fresh { animation: pcbAbilityPulse 1.1s ease-in-out infinite; border-color: #f0c43a; color: #f0c43a; }
+@keyframes pcbAbilityPulse { 50% { box-shadow: 0 0 16px rgba(240,196,58,0.8); } }
+
+/* ── Title screen: retro phosphor monitor ─────────────────────────────── */
+.pcb-title-screen { position: fixed; inset: 0; z-index: var(--z-story); display: flex; align-items: center; justify-content: center; background: radial-gradient(ellipse at 50% 42%, #0d1a12 0%, #050a07 75%); font-family: monospace; }
+/* The title IS a circuit board: full-screen traces (SVG) + a central IC package (DOM). */
+.pcb-title-board { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+.pcb-title-traces { position: absolute; inset: 0; width: 100%; height: 100%; transition: filter 0.45s ease-out; }
+.pcb-title-chip { position: relative; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 42px 60px 46px; background: linear-gradient(165deg, #161a15 0%, #0b0e0a 70%); border: 1px solid #2c332b; border-radius: 8px; box-shadow: 0 18px 55px rgba(0,0,0,0.7), 0 0 46px rgba(43,208,106,0.09), inset 0 1px 0 rgba(255,255,255,0.05); }
+/* DIP pins along both sides of the package */
+.pcb-title-chip::before, .pcb-title-chip::after { content: ''; position: absolute; top: 26px; bottom: 26px; width: 12px; background: repeating-linear-gradient(180deg, #d8b45a 0 9px, rgba(216,180,90,0.15) 9px 12px, transparent 12px 26px); }
+.pcb-title-chip::before { left: -12px; border-radius: 2px 0 0 2px; }
+.pcb-title-chip::after { right: -12px; border-radius: 0 2px 2px 0; }
+/* IC pin-1 notch */
+.pcb-chip-notch { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); width: 26px; height: 13px; background: #050a07; border: 1px solid #2c332b; border-top: none; border-radius: 0 0 26px 26px; }
+.pcb-title-presents { color: #6f8f7e; font-size: 12px; letter-spacing: 5px; animation: pcbFlicker 4s infinite; }
+.pcb-title-logo { color: #d9e6dc; font-size: clamp(40px, 8vw, 76px); font-weight: bold; letter-spacing: 12px; text-shadow: 0 0 16px rgba(43,208,106,0.55), 0 0 44px rgba(43,208,106,0.25); animation: pcbFlicker 7s infinite; }
+.pcb-title-sub { color: #4a7a5e; font-size: 11px; letter-spacing: 2px; margin-bottom: 10px; }
+/* START as a gold contact pad */
+.pcb-title-start { background: none; border: 1.5px solid #b98a2e; color: #f0c43a; font: bold 15px monospace; letter-spacing: 3px; padding: 12px 34px; cursor: pointer; border-radius: 3px; box-shadow: 0 0 14px rgba(240,196,58,0.22); animation: pcbBlink2 1.6s steps(2) infinite; }
+.pcb-title-start:hover, .pcb-title-start:focus-visible { background: #f0c43a; color: #0b0e0a; animation: none; box-shadow: 0 0 22px rgba(240,196,58,0.55); }
+/* Board silkscreen marking */
+.pcb-title-silk { position: absolute; left: 20px; bottom: 14px; color: #3f5748; font-size: 10px; letter-spacing: 3px; }
+@keyframes pcbFlicker { 0%,100% { opacity: 1; } 92% { opacity: 1; } 93% { opacity: 0.6; } 94% { opacity: 1; } 97% { opacity: 0.85; } 98% { opacity: 1; } }
+@keyframes pcbBlink2 { 50% { box-shadow: 0 0 22px rgba(240,196,58,0.5); } }
+/* Power surge on START: the whole board flares, the chip flashes and dissolves */
+.pcb-title-screen.power-surge .pcb-title-traces { filter: brightness(2.3) saturate(1.5); }
+.pcb-title-screen.power-surge .pcb-title-chip { animation: chipSurge 0.62s ease-in forwards; }
+.pcb-title-screen.power-surge .pcb-title-silk { opacity: 0; transition: opacity 0.4s; }
+@keyframes chipSurge {
+  35% { filter: brightness(1.9); box-shadow: 0 0 70px rgba(43,208,106,0.5); transform: scale(1.015); }
+  100% { filter: brightness(2.6); opacity: 0; transform: scale(0.94); }
+}
+@media (max-width: 700px) {
+  .pcb-title-chip { padding: 30px 30px 34px; }
+  .pcb-title-logo { letter-spacing: 7px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pcb-title-pkt { display: none; }
+  .pcb-title-presents, .pcb-title-logo, .pcb-title-start { animation: none; }
+  .pcb-title-screen.power-surge .pcb-title-chip { animation: none; opacity: 0; transition: opacity 0.3s; }
+  /* Comic prologue: land panels immediately, no CRT sweep or blinking prompt. */
+  .pcb-comic-panel { opacity: 1 !important; transform: none !important; transition: none; }
+  .crt-on { animation: none; }
+  .pcb-comic-hint { animation: none; }
+  /* Blanket safety net: neutralize any long-running decorative animation/transition we didn't
+     name explicitly. Kept as 0.01ms (not 0) so animationend/transitionend handlers still fire. */
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+/* CRT power-on for the comic: expands from a line with a flash */
+.crt-on { animation: crtOn 0.55s cubic-bezier(0.2, 0.8, 0.3, 1); transform-origin: center; }
+@keyframes crtOn {
+  0% { transform: scale(1, 0.01); filter: brightness(8); }
+  60% { transform: scale(1, 1.03); filter: brightness(1.8); }
+  100% { transform: scale(1, 1); filter: brightness(1); }
+}
+/* ── Comic prologue ────────────────────────────────────────────────────── */
+.pcb-comic { display: flex; flex-direction: column; align-items: center; gap: 22px; width: min(860px, 94vw); }
+.pcb-comic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; }
+.pcb-comic-panel { border: 1px solid #1f8f4d; border-radius: 6px; background: rgba(10,22,17,0.92); padding: 12px; opacity: 0; transform: scale(0.92); transition: opacity 0.35s ease-out, transform 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.3); box-shadow: 0 0 18px rgba(43,208,106,0.12); }
+.pcb-comic-panel.shown { opacity: 1; transform: scale(1); }
+.pcb-comic-panel svg { width: 100%; height: auto; display: block; }
+.pcb-comic-caption { color: #8fb3a0; font: 11px monospace; line-height: 1.5; margin-top: 8px; letter-spacing: 0.5px; }
+.pcb-comic-next { min-width: 220px; min-height: 42px; }
+@media (max-width: 700px) { .pcb-comic-grid { grid-template-columns: 1fr; } .pcb-comic { max-height: 92vh; overflow-y: auto; } }
+
+.pcb-comic-hint { color: #6f8f7e; font: 12px monospace; letter-spacing: 2px; animation: pcbBlink 1.6s steps(2) infinite; min-height: 42px; display: flex; align-items: center; }
+.pcb-comic { cursor: pointer; }

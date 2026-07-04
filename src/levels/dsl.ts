@@ -9,22 +9,7 @@ import { computeTowerSpots } from '../pipeline/spots'
 import { pathSamples } from '../geom/sampling'
 import { cellToPx, dist } from '../geom/grid'
 import type { BlockResult, RefAlloc } from '../pipeline/circuits'
-
-// Decor footprints in cells (mirrors render/decorBuilder FOOTPRINT — kept here so the levels layer
-// stays framework-free). Used to keep tower spots OFF components, with a gap.
-const FOOTPRINT: Record<string, { w: number; h: number }> = {
-  soic: { w: 3, h: 2 }, qfp: { w: 4, h: 4 }, qfn: { w: 3, h: 3 }, dip: { w: 5, h: 2 },
-  electrolytic: { w: 2, h: 2 }, elec: { w: 2, h: 2 }, smdRes: { w: 2, h: 1 }, res: { w: 2, h: 1 },
-  smdCap: { w: 1, h: 1 }, mlcc: { w: 1, h: 1 }, via: { w: 1, h: 1 }, tant: { w: 2, h: 1 },
-  tantalum: { w: 2, h: 1 }, diode: { w: 2, h: 1 }, led: { w: 2, h: 1 }, sot23: { w: 3, h: 2 },
-  crystal: { w: 2, h: 2 }, xtal: { w: 2, h: 2 }, inductor: { w: 2, h: 1 }, pwrind: { w: 3, h: 3 },
-  testpoint: { w: 1, h: 1 }, mount: { w: 2, h: 2 }, header: { w: 2, h: 1 },
-}
-function decorFootprint(kind: string, variant: number, rot: 0 | 90 | 180 | 270): { w: number; h: number } {
-  let base = FOOTPRINT[kind] ?? { w: 2, h: 2 }
-  if (kind === 'header') base = { w: Math.max(2, variant || 4), h: 1 }
-  return rot === 90 || rot === 270 ? { w: base.h, h: base.w } : { w: base.w, h: base.h }
-}
+import { footprintCells as decorFootprint } from '../render/decorBuilder'
 
 export function makeAlloc(): RefAlloc {
   let c = 1, r = 1, u = 1, d = 1, q = 1, l = 1, j = 1, y = 1
@@ -46,6 +31,14 @@ export class LevelBuilder {
 
   path(waypoints: Cell[], cornerRadius: number = RENDER.cornerRadiusCells): this {
     this.paths.push({ waypoints, cornerRadius }); return this
+  }
+  /**
+   * Hand-authored wave script for this level (overrides the shared mapWaves template).
+   * Outer array = waves, inner = spawn groups; group.pathIndex directs a group to a specific
+   * entrance on multi-path maps. Enemy kinds are validated by Game on load.
+   */
+  waves(script: NonNullable<Level['meta']['waves']>): this {
+    this.meta.waves = script; return this
   }
   buildSpot(...cells: Cell[]): this {
     for (const c of cells) this.spots.push({ cell: c, score: 1, kind: 'build' }); return this
@@ -126,7 +119,7 @@ export class LevelBuilder {
    * road or another component. Spots placed afterwards (autoSpots) then keep clear of this decor too.
    */
   fillBlocks(makers: Array<(origin: Cell, alloc: RefAlloc) => BlockResult>, opts: { gap?: number; margin?: number; stride?: number } = {}): this {
-    const gap = opts.gap ?? 1, margin = opts.margin ?? 1, stride = opts.stride ?? 2
+    const gap = opts.gap ?? 2, margin = opts.margin ?? 1, stride = opts.stride ?? 2
     const blocked = this.pathBlocked(gap)
     for (const k of this.occupiedByDecor(gap)) blocked.add(k)   // respect already hand-placed decor
     const { cols, rows } = this.board
@@ -180,6 +173,7 @@ export class LevelBuilder {
     const spacing = opts.spacing ?? (opts.count ? Math.max(2, totalLen / opts.count) : 4)
     const { cols, rows } = this.board
     const blocked = this.pathBlocked(1)
+    for (const k of this.occupiedByDecor(1)) blocked.add(k)   // spots must never land on a component
     const chosen: Cell[] = []
     const tryPlace = (x: number, y: number): boolean => {
       if (x < 0 || y < 0 || x >= cols || y >= rows || blocked.has(`${x},${y}`)) return false
@@ -267,12 +261,31 @@ export class LevelBuilder {
 
   build(): Level {
     if (this.paths.length === 0) throw new Error('level has no path')
+    // Composition invariants (user rule): every segment is 0/45/90° — PCB traces never slur —
+    // and every waypoint stays on the board. Fails the BUILD, not silently ships broken art.
+    for (const p of this.paths) {
+      for (let i = 1; i < p.waypoints.length; i++) {
+        const [ax, ay] = p.waypoints[i - 1], [bx, by] = p.waypoints[i]
+        const dx = Math.abs(bx - ax), dy = Math.abs(by - ay)
+        if (!(dx === 0 || dy === 0 || dx === dy)) {
+          throw new Error(`level "${this.meta.name}": segment [${ax},${ay}]→[${bx},${by}] is not octilinear (dx=${dx}, dy=${dy})`)
+        }
+      }
+      for (const [x, y] of p.waypoints) {
+        if (x < 0 || y < 0 || x >= this.board.cols || y >= this.board.rows) {
+          throw new Error(`level "${this.meta.name}": waypoint [${x},${y}] is outside the ${this.board.cols}x${this.board.rows} board`)
+        }
+      }
+    }
     const fin = new Set(this.paths.map((p) => {
       const w = p.waypoints[p.waypoints.length - 1]; return `${w[0]},${w[1]}`
     }))
     if (fin.size !== 1) throw new Error(`level must have exactly ONE finish, got ${fin.size}`)
     const trace = this.paths[0]
-    const copper = routeCopper({ board: this.board, decor: this.decor, nets: this.nets, trace, paths: this.paths })
+    const copper = routeCopper({
+      board: this.board, decor: this.decor, nets: this.nets, trace, paths: this.paths,
+      spots: [...this.spots, ...this.specials].map((s) => s.cell),
+    })
     return {
       version: 1, board: this.board, seed: this.seed, trace, paths: this.paths,
       spots: this.spots, specialSpots: this.specials, decor: this.decor,
