@@ -1089,9 +1089,8 @@ export class I18nManager {
     if (saved === 'ru' || saved === 'en') {
       this.currentLang = saved
     } else {
-      // First launch: follow the browser locale — RU for Russian, EN for everyone else.
-      const nav = typeof navigator !== 'undefined' ? navigator.language ?? '' : ''
-      this.currentLang = nav.toLowerCase().startsWith('ru') ? 'ru' : 'en'
+      // First launch: default to Russian. The title screen lets the player switch.
+      this.currentLang = 'ru'
     }
     this.syncDocumentLang()
   }

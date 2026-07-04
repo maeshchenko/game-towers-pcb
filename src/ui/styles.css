@@ -546,6 +546,11 @@ button:focus-visible, input:focus-visible { outline: 2px solid #2bd06a; outline-
 /* START as a gold contact pad */
 .pcb-title-start { background: none; border: 1.5px solid #b98a2e; color: #f0c43a; font: bold 15px monospace; letter-spacing: 3px; padding: 12px 34px; cursor: pointer; border-radius: 3px; box-shadow: 0 0 14px rgba(240,196,58,0.22); animation: pcbBlink2 1.6s steps(2) infinite; }
 .pcb-title-start:hover, .pcb-title-start:focus-visible { background: #f0c43a; color: #0b0e0a; animation: none; box-shadow: 0 0 22px rgba(240,196,58,0.55); }
+/* Language toggle — quiet silkscreen pills, deliberately dimmer than the START pad */
+.pcb-title-lang { display: flex; gap: 6px; margin-top: 2px; }
+.pcb-title-lang-btn { background: none; border: 1px solid #2c332b; color: #4a7a5e; font: 10px monospace; letter-spacing: 2px; padding: 4px 12px; cursor: pointer; border-radius: 3px; transition: color 0.15s, border-color 0.15s, box-shadow 0.15s; }
+.pcb-title-lang-btn:hover, .pcb-title-lang-btn:focus-visible { color: #6f8f7e; border-color: #3f5748; }
+.pcb-title-lang-btn.active { color: #2bd06a; border-color: #1f8f4d; box-shadow: 0 0 10px rgba(43,208,106,0.18); }
 /* Board silkscreen marking */
 .pcb-title-silk { position: absolute; left: 20px; bottom: 14px; color: #3f5748; font-size: 10px; letter-spacing: 3px; }
 @keyframes pcbFlicker { 0%,100% { opacity: 1; } 92% { opacity: 1; } 93% { opacity: 0.6; } 94% { opacity: 1; } 97% { opacity: 0.85; } 98% { opacity: 1; } }

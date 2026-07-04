@@ -103,11 +103,30 @@ export class TitleScreen {
           <div class="pcb-title-logo">PCB&nbsp;TD</div>
           <div class="pcb-title-sub">${i18n.t('title.tagline')}</div>
           <button class="pcb-title-start">[ ${i18n.t('title.start')} ]</button>
+          <div class="pcb-title-lang" role="group" aria-label="Language / Язык">
+            <button class="pcb-title-lang-btn lang-ru ${i18n.lang === 'ru' ? 'active' : ''}" data-lang="ru">RU</button>
+            <button class="pcb-title-lang-btn lang-en ${i18n.lang === 'en' ? 'active' : ''}" data-lang="en">EN</button>
+          </div>
         </div>
         <div class="pcb-title-silk">MIZHGAN GAMES&nbsp;&nbsp;·&nbsp;&nbsp;MZG-8000&nbsp;&nbsp;·&nbsp;&nbsp;REV 2.6</div>
       </div>`
     mountUi(root)
     this.root = root
+
+    // Language switch, right on the first screen. Swapping updates the title texts in place.
+    const langBtns = Array.from(root.querySelectorAll('.pcb-title-lang-btn')) as HTMLButtonElement[]
+    for (const btn of langBtns) {
+      btn.onclick = (e) => {
+        e.stopPropagation() // don't trigger the comic/board click handlers
+        const next = btn.dataset.lang as 'ru' | 'en'
+        if (i18n.lang === next) return
+        i18n.lang = next
+        audioEngine.playClick()
+        for (const b of langBtns) b.classList.toggle('active', b.dataset.lang === next)
+        this.retranslate(root)
+      }
+    }
+
     const startBtn = root.querySelector('.pcb-title-start') as HTMLButtonElement
     startBtn.onclick = () => {
       audioEngine.playClick()
@@ -117,6 +136,17 @@ export class TitleScreen {
         else this.finish(opts.onDone)
       }, 620)
     }
+  }
+
+  /** Refresh the localized title texts after a language swap (board isn't rebuilt). */
+  private retranslate(root: HTMLElement): void {
+    const set = (sel: string, text: string) => {
+      const el = root.querySelector(sel)
+      if (el) el.textContent = text
+    }
+    set('.pcb-title-presents', i18n.t('title.presents'))
+    set('.pcb-title-sub', i18n.t('title.tagline'))
+    set('.pcb-title-start', `[ ${i18n.t('title.start')} ]`)
   }
 
   private showComic(root: HTMLElement, onDone: () => void): void {
