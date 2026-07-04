@@ -6,6 +6,7 @@ import { CAMPAIGN_STORY } from '../../src/story/campaignStory'
 import { CAMPAIGN_LEVELS } from '../../src/game/campaign'
 import { TOWER_BRANCHES } from '../../src/game/towerTypes'
 import { ENEMY_DEFS } from '../../src/game/enemyTypes'
+import { ACHIEVEMENTS } from '../../src/game/achievements'
 
 function expectKey(key: string): void {
   for (const lang of ['ru', 'en'] as const) {
@@ -41,6 +42,26 @@ describe('i18n completeness', () => {
       expectKey(`enemy.${kind}`)
       expectKey(`enemy.${kind}.desc`)
       expectKey(`enemy.${kind}.strat`)
+    }
+  })
+
+  it('daily modifier name/desc exist in both locales', () => {
+    for (const id of ['swarm', 'blackout', 'windfall', 'embargo', 'iron']) {
+      expectKey(`daily.mod.${id}.name`)
+      expectKey(`daily.mod.${id}.desc`)
+    }
+  })
+
+  it('contextual hint bodies exist in both locales', () => {
+    for (const id of ['branch', 'earlycall', 'upgrade', 'sell', 'ability', 'backup']) {
+      expectKey(`hint.${id}`)
+    }
+  })
+
+  it('every achievement name + desc exists in both locales', () => {
+    for (const a of ACHIEVEMENTS) {
+      expectKey(`ach.${a.id}.name`)
+      expectKey(`ach.${a.id}.desc`)
     }
   })
 })

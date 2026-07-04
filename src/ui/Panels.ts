@@ -15,6 +15,11 @@ function startTipRotation() {
   }, 8000) // cycle every 8 seconds
 }
 
+/** The rotation must not tick forever behind a dismissed panel. */
+function stopTipRotation() {
+  if (tipInterval) { clearInterval(tipInterval); tipInterval = null }
+}
+
 export function mountPanels(level: Level | null): HTMLElement {
   const wrap = document.createElement('div')
   wrap.className = 'pcb-panels'
@@ -61,6 +66,7 @@ export function mountPanels(level: Level | null): HTMLElement {
       const dismiss = (e: Event) => {
         e.stopPropagation()
         tipsPanel.style.display = 'none'
+        stopTipRotation()
       }
       close.addEventListener('pointerdown', dismiss)
       close.addEventListener('click', dismiss)
@@ -104,7 +110,7 @@ export function updateLevelName(name: string): void {
 /** Re-show the tips panel (called on every level entry — dismissal is per-level only). */
 export function showTipsPanel(): void {
   const el = document.querySelector('.pcb-tips') as HTMLElement | null
-  if (el) el.style.display = ''
+  if (el) { el.style.display = ''; startTipRotation() }
 }
 
 export function retranslatePanels(levelName = 'LEVEL --'): void {

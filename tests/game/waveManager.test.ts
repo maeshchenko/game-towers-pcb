@@ -56,7 +56,7 @@ describe('WaveManager', () => {
       { kind: 'fast', count: 2, interval: 0.5, delay: 5 },
     ]], 1, 50, 1)
     wm.startWave(0)
-    let spawned: string[] = []
+    const spawned: string[] = []
     for (let t = 0; t < 8; t++) spawned.push(...wm.update(0.5).map((e) => e.kind)) // 4 s total
     expect(spawned).toEqual(['normal', 'normal'])          // fast phase not started yet
     for (let t = 0; t < 6; t++) spawned.push(...wm.update(0.5).map((e) => e.kind)) // to 7 s

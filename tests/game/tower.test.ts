@@ -70,6 +70,37 @@ describe('Tower', () => {
     expect(t.canBranch).toBe(false)
   })
 
+  it('first/last target by remaining distance to the base, not by absolute traveled', () => {
+    // Multi-entrance scenario: A walked far along a LONG path (still far from the base),
+    // B barely started a SHORT path (almost at the base). "first" must pick B.
+    const zigzag: { x: number; y: number }[] = [
+      { x: 0, y: 0 }, { x: 100, y: 0 }, { x: 100, y: 10 }, { x: 0, y: 10 },
+      { x: 0, y: 20 }, { x: 100, y: 20 }, { x: 100, y: 30 }, { x: 0, y: 30 },
+      { x: 0, y: 40 }, { x: 100, y: 40 }, { x: 100, y: 50 },
+    ] // total length 550
+    const a = new Enemy(ENEMY_DEFS.normal, zigzag, 1, 300)
+    a.update(1) // traveled 300 → 250 px left to the base
+    const b = new Enemy(ENEMY_DEFS.normal, [{ x: 10, y: 60 }, { x: 110, y: 60 }], 1, 60)
+    b.update(1) // traveled 60 → only 40 px left
+    expect(a.traveled).toBeGreaterThan(b.traveled)
+    expect(a.distToBase).toBeGreaterThan(b.distToBase)
+    const t = new Tower('sniper', { x: 50, y: 30 }, PITCH)
+    const shot = t.update(10, [a, b])
+    expect(shot?.target).toBe(b)
+    const t2 = new Tower('sniper', { x: 50, y: 30 }, PITCH)
+    t2.targetMode = 'last'
+    expect(t2.update(10, [a, b])?.target).toBe(a)
+  })
+  it('strong targets max HP, not current HP: a wounded tank keeps the focus', () => {
+    const t = new Tower('sniper', { x: 24, y: 0 }, PITCH)
+    t.targetMode = 'strong'
+    const big = new Enemy(ENEMY_DEFS.tank, [{ x: 30, y: 0 }, { x: 31, y: 0 }], 1, 0)
+    const small = new Enemy(ENEMY_DEFS.normal, [{ x: 40, y: 0 }, { x: 41, y: 0 }], 1, 0)
+    big.takeDamage(big.maxHp - 1, 999) // nearly dead, but still the biggest FORM on the track
+    expect(big.hp).toBeLessThan(small.hp)
+    expect(t.update(10, [big, small])?.target).toBe(big)
+  })
+
   it('does not bank shots while idle: no burst after a long dry spell', () => {
     const t = new Tower('cannon', { x: 24, y: 0 }, PITCH)
     t.update(10, [far()]) // long idle, nothing in range

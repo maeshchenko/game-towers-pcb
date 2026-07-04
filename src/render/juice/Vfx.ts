@@ -17,8 +17,12 @@ const RGB_SPLIT_OFFSET = 3
 
 /** Radial hurt-gradient baked once into a canvas texture: soft red bleeding in from the
  * edges instead of four flat debug-looking bars. Falls back to a 1px texture when no 2D
- * context exists (headless tests). */
+ * context exists (headless tests).
+ * Cached module-level: a Vfx is built per level entry, and Sprite.destroy() does not free
+ * the shared texture — without the cache every level leaked a 256×256 GPU texture. */
+let vignetteTexture: Texture | null = null
 function makeVignetteTexture(): Texture {
+  if (vignetteTexture && !vignetteTexture.destroyed) return vignetteTexture
   const c = document.createElement('canvas')
   c.width = c.height = 256
   const ctx = c.getContext('2d')
@@ -29,7 +33,8 @@ function makeVignetteTexture(): Texture {
   g.addColorStop(1, 'rgba(255,32,32,0.9)')
   ctx.fillStyle = g
   ctx.fillRect(0, 0, 256, 256)
-  return Texture.from(c)
+  vignetteTexture = Texture.from(c)
+  return vignetteTexture
 }
 
 export class Vfx {

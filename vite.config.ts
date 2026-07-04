@@ -19,6 +19,10 @@ export default defineConfig(({ mode }) => ({
   plugins: [kitRoutes],
   server: { port: 5173 },
   build: {
+    // 'hidden' emits .map files for error-tracking upload (Sentry) but does NOT append the
+    // //# sourceMappingURL comment — so the browser never fetches them and the source stays
+    // effectively private in production, while stack traces remain de-minifiable server-side.
+    sourcemap: 'hidden',
     rollupOptions: {
       // Engine libs change rarely — a separate vendor chunk lets browsers cache them across
       // game updates and downloads both chunks in parallel on first load.

@@ -4,15 +4,16 @@ import type { Cell, Pt } from '../geom/types'
 import { cellToPx } from '../geom/grid'
 import { filletPath } from '../geom/fillet'
 import type { Enemy } from './Enemy'
-import { Tower } from './Tower'
+import { Tower, type TargetMode } from './Tower'
 import type { TowerKind } from './towerTypes'
 import { TOWER_DEFS, TOWER_BRANCHES } from './towerTypes'
-import { applyShot } from './combat'
+import { applyShot, applyStatuses } from './combat'
 import { Projectile } from './Projectile'
 import { WaveManager, mapWaves, type WaveEntry } from './WaveManager'
 import { ENEMY_DEFS } from './enemyTypes'
 import { GameState } from './GameState'
-import { hpScale, SPEED_SCALE } from './difficulty'
+import { hpScale, startLives, SPEED_SCALE } from './difficulty'
+import { NO_META, type MetaEffects } from './metaUpgrades'
 import { EventBus } from './events'
 import { SpatialGrid } from './SpatialGrid'
 
@@ -23,8 +24,19 @@ export interface RunSnapshot {
   wave: number
   lives: number
   gold: number
-  towers: { kind: TowerKind; spot: number; level: number; branch: 0 | 1 | null; targetMode: import('./Tower').TargetMode; spent: number }[]
+  /** Seconds left on the discharge cooldown. Absent in saves written before it was added
+   * (a reload used to reset the 45 s cooldown — free save-scumming). */
+  dischargeCd?: number
+  /** Seconds left on the overload cooldown (same save-scum guard). */
+  overloadCd?: number
+  /** Debrief counters. Absent in older saves — the debrief simply starts from zero. */
+  stats?: { kills: number; leaks: number; goldEarned: number; earlyCalls?: number; dischargeKills?: number }
+  towers: { kind: TowerKind; spot: number; level: number; branch: 0 | 1 | null; targetMode: TargetMode; spent: number }[]
 }
+
+const TARGET_MODES: readonly TargetMode[] = ['first', 'last', 'strong', 'weak']
+/** Sanity ceiling for restored gold — anything above is a corrupt/hand-edited save. */
+const MAX_SAVED_GOLD = 1_000_000
 
 /** A pulse bullet whose target died retargets the nearest live enemy within this many cells. */
 const RETARGET_RADIUS_CELLS = 1.5
@@ -32,8 +44,8 @@ const RETARGET_RADIUS_CELLS = 1.5
 export class Game {
   readonly state: GameState
   readonly towers: Tower[] = []
-  /** Run statistics for the victory/defeat debrief. */
-  readonly runStats = { kills: 0, leaks: 0, goldEarned: 0 }
+  /** Run statistics for the victory/defeat debrief (and achievement checks). */
+  readonly runStats = { kills: 0, leaks: 0, goldEarned: 0, earlyCalls: 0, dischargeKills: 0 }
   speed = 1
   readonly events = new EventBus()
   private wm: WaveManager
@@ -47,7 +59,19 @@ export class Game {
   /** World-space (px) filleted polylines — same recipe WaveManager uses, exposed for view-layer juice (Task 10 TracePulse). */
   get paths(): Pt[][] { return this._paths }
 
-  constructor(level: Level, seed = 1, opts?: { hpMul?: number; endless?: boolean }) {
+  /** Station meta-upgrades (identity when absent). Campaign/endless pass the player's tree;
+   * daily deliberately does NOT — the shared board must stay a level playing field. */
+  private readonly meta: MetaEffects
+
+  /** Tower kind banned for this run (daily "embargo" modifier). */
+  readonly banned: TowerKind | null
+
+  constructor(level: Level, seed = 1, opts?: {
+    hpMul?: number; endless?: boolean; meta?: MetaEffects
+    /** daily modifiers */ countMul?: number; goldDelta?: number; banned?: TowerKind | null
+  }) {
+    this.meta = opts?.meta ?? NO_META
+    this.banned = opts?.banned ?? null
     this.pitch = level.board.pitch
     this.grid = new SpatialGrid<Enemy>(this.pitch)
     const paths = levelPaths(level).map((t: Trace) => filletPath(t.waypoints, t.cornerRadius, this.pitch))
@@ -56,22 +80,34 @@ export class Game {
     // Hand-authored wave script wins over the shared difficulty template. Kinds are validated
     // here because meta.waves is structurally typed (model must not depend on game).
     const script: WaveEntry[][] = level.meta.waves
-      ? level.meta.waves.map((entries) => entries.map((e) => {
-          if (!(e.kind in ENEMY_DEFS)) throw new Error(`level "${level.meta.name}": unknown enemy kind "${e.kind}" in meta.waves`)
+      ? level.meta.waves.map((entries, wi) => entries.map((e) => {
+          const bad = (what: string): never => { throw new Error(`level "${level.meta.name}": ${what} in meta.waves[${wi}]`) }
+          if (!(e.kind in ENEMY_DEFS)) bad(`unknown enemy kind "${e.kind}"`)
           for (const mk of Object.keys(e.mix ?? {})) {
-            if (!(mk in ENEMY_DEFS)) throw new Error(`level "${level.meta.name}": unknown mix kind "${mk}" in meta.waves`)
+            if (!(mk in ENEMY_DEFS)) bad(`unknown mix kind "${mk}"`)
           }
+          // Value sanity — an authoring typo must fail the build, not silently become an
+          // "instant wall" (interval 0 dumps the whole group into one substep; jitter ≥ 1
+          // allows zero/negative gaps).
+          if (!(e.count >= 1)) bad(`count ${e.count} < 1`)
+          if (!(e.interval > 0)) bad(`interval ${e.interval} ≤ 0`)
+          if (e.jitter !== undefined && !(e.jitter >= 0 && e.jitter < 1)) bad(`jitter ${e.jitter} outside [0, 1)`)
+          if (e.delay !== undefined && !(e.delay >= 0)) bad(`negative delay ${e.delay}`)
           return { ...e, kind: e.kind as WaveEntry['kind'] }
         }))
       : mapWaves(diff)
     // countMul: multi-spawn maps split the defense across entrances, so the same wave size is
     // effectively N× harder there — such levels scale wave COUNTS down instead of gutting HP.
-    const countMul = level.meta.tune?.countMul ?? 1
+    const countMul = (level.meta.tune?.countMul ?? 1) * (opts?.countMul ?? 1)
     const waves = script.map((entries) =>
       entries.map((e) => ({ ...e, count: Math.max(1, Math.round(e.count * countMul)) })),
     )
     this.state = new GameState(diff, waves.length)
     this.state.endless = opts?.endless ?? false
+    if (this.meta.startGold > 0) this.state.add(this.meta.startGold)
+    if (this.meta.lives > 0) this.state.lives += this.meta.lives
+    // Daily budget twist — floor keeps the cheapest opening (one cannon) always affordable.
+    if (opts?.goldDelta) this.state.gold = Math.max(40, this.state.gold + opts.goldDelta)
     this.wm = new WaveManager(paths, waves, hpScale(diff) * (level.meta.tune?.hpMul ?? 1) * (opts?.hpMul ?? 1), this.pitch * SPEED_SCALE, seed, diff)
     this.spots = [
       ...level.spots.map((s) => ({ cell: s.cell, pos: cellToPx(s.cell, this.pitch), tower: null, special: false, score: s.score ?? 0 })),
@@ -87,11 +123,13 @@ export class Game {
   isSpecial(i: number): boolean { return !!this.spots[i]?.special }
 
   build(kind: TowerKind, i: number): boolean {
+    if (kind === this.banned) return false
     if (!this.canBuild(i)) return false
     const cost = TOWER_DEFS[kind][0].cost
     if (!this.state.spend(cost)) return false
     const t = new Tower(kind, this.spots[i].pos, this.pitch)
     t.special = this.spots[i].special
+    t.damageMul = this.meta.damageMul
     this.spots[i].tower = t
     this.towers.push(t)
     this.spent.set(t, cost)
@@ -115,7 +153,7 @@ export class Game {
     this.events.emit({ type: 'towerUpgraded', kind: t.kind, pos: t.pos, level: t.level })
     return true
   }
-  sellValue(t: Tower): number { return Math.floor((this.spent.get(t) ?? 0) * 0.6) }
+  sellValue(t: Tower): number { return Math.floor((this.spent.get(t) ?? 0) * this.meta.sellRefund) }
   sell(t: Tower): void {
     this.state.add(this.sellValue(t))
     this.spent.delete(t)
@@ -141,16 +179,59 @@ export class Game {
 
   useDischarge(at: Pt): boolean {
     if (this.dischargeCd > 0 || this.state.phase !== 'wave') return false
+    // The grid is normally rebuilt inside step(); fired between startWave and the first
+    // substep it would query the PREVIOUS wave's stale grid and hit nothing.
+    this.grid.rebuild(this.wm.active)
     const r = Game.DISCHARGE.radiusCells * this.pitch
     for (const e of this.grid.queryCircle(at, r)) {
       if (!e.alive) continue
-      e.takeDamage(Game.DISCHARGE.damage, 999)
+      const dealt = e.takeDamage(Game.DISCHARGE.damage, 999)
+      if (dealt > 0 && e.hp <= 0) {
+        // The finishing blow was the player's, not a tower's.
+        this.runStats.dischargeKills += 1
+        e.lastHitBy = null
+      }
       e.applySlow(Game.DISCHARGE.slow, Game.DISCHARGE.slowDur)
       this.events.emit({ type: 'enemyDamaged', kind: e.kind, amount: Game.DISCHARGE.damage, pos: { x: e.pos.x, y: e.pos.y }, enemy: e, from: at })
     }
-    this.dischargeCd = Game.DISCHARGE.cooldown
+    this.dischargeCd = this.dischargeCooldownMax
     this.events.emit({ type: 'abilityUsed', ability: 'discharge', pos: { x: at.x, y: at.y }, radius: r })
     return true
+  }
+
+  /** Full cooldown for this run — the capacitor meta track shaves seconds off the base 45. */
+  get dischargeCooldownMax(): number {
+    return Math.max(5, Game.DISCHARGE.cooldown - this.meta.dischargeCdReduction)
+  }
+
+  /** Second active: OVERLOAD — a targeted fire-rate surge for towers in the radius.
+   * Discharge is the panic button against a breach; overload is the PLANNED power play
+   * (pop it as the boss enters your kill-zone). Long cooldown keeps it once-per-siege. */
+  static readonly OVERLOAD = { radiusCells: 3.2, rateMul: 1.7, dur: 6, cooldown: 60 }
+  private overloadCd = 0
+  get overloadCooldown(): number { return this.overloadCd }
+
+  useOverload(at: Pt): boolean {
+    if (this.overloadCd > 0 || this.state.phase !== 'wave') return false
+    const r = Game.OVERLOAD.radiusCells * this.pitch
+    let any = false
+    for (const t of this.towers) {
+      if (Math.hypot(t.pos.x - at.x, t.pos.y - at.y) <= r) {
+        t.applyRateBuff(Game.OVERLOAD.rateMul, Game.OVERLOAD.dur)
+        any = true
+      }
+    }
+    if (!any) return false // an empty click must not eat the 60 s cooldown
+    this.overloadCd = Game.OVERLOAD.cooldown
+    this.events.emit({ type: 'abilityUsed', ability: 'overload', pos: { x: at.x, y: at.y }, radius: r })
+    return true
+  }
+
+  /** Per-tower stat bookkeeping for hits resolved outside combat.applyShot (projectiles). */
+  private creditHit(tower: Tower | undefined, enemy: Enemy, dealt: number): void {
+    if (!tower) return
+    tower.damageDealt += dealt
+    enemy.lastHitBy = tower
   }
 
   /** Energy bonus for summoning the next wave onto the tail of the current one. Lives in the
@@ -162,6 +243,7 @@ export class Game {
     const bonus = this.earlyCallBonus()         // priced off the CURRENT wave number, pre-advance
     this.state.advanceWaveEarly()               // banks the running wave's clear reward + advances counter
     this.state.add(bonus)
+    this.runStats.earlyCalls += 1
     const index = this.state.wave
     this.wm.startWave(index)                    // spawner queue is empty (guarded) → safe to load next wave
     this.events.emit({ type: 'waveStart', index })
@@ -192,23 +274,51 @@ export class Game {
     if (this.state.phase !== 'build') return null
     const towers = this.towers.map((t) => ({
       kind: t.kind,
+      // Linear level only — the tier-4 step is replayed via `branch` on restore.
       spot: this.spots.findIndex((s) => s.tower === t),
-      level: Math.min(t.level, 2),
+      level: Math.min(t.level, TOWER_DEFS[t.kind].length - 1),
       branch: t.branch,
       targetMode: t.targetMode,
       spent: this.spent.get(t) ?? 0,
     })).filter((t) => t.spot >= 0)
-    return { wave: this.state.wave, lives: this.state.lives, gold: this.state.gold, towers }
+    return {
+      wave: this.state.wave, lives: this.state.lives, gold: this.state.gold,
+      dischargeCd: this.dischargeCd, overloadCd: this.overloadCd, stats: { ...this.runStats }, towers,
+    }
+  }
+
+  /** True when the snapshot is internally consistent AND applicable to THIS game — checked
+   * in full before any mutation so a corrupt save can never leave half a board behind. */
+  private validSnapshot(snap: RunSnapshot): boolean {
+    const int = (n: unknown, lo: number, hi: number): boolean =>
+      typeof n === 'number' && Number.isInteger(n) && n >= lo && n <= hi
+    const waveMax = this.state.endless ? Number.MAX_SAFE_INTEGER : Math.max(0, this.state.waveCount - 1)
+    if (!int(snap.wave, 0, waveMax) || !int(snap.lives, 1, startLives) || !int(snap.gold, 0, MAX_SAVED_GOLD)) return false
+    if (snap.dischargeCd !== undefined && !(typeof snap.dischargeCd === 'number' && snap.dischargeCd >= 0)) return false
+    if (!Array.isArray(snap.towers)) return false
+    const seen = new Set<number>()
+    for (const ts of snap.towers) {
+      if (!(ts.kind in TOWER_DEFS)) return false
+      if (!int(ts.spot, 0, this.spots.length - 1) || seen.has(ts.spot) || this.spots[ts.spot].tower) return false
+      seen.add(ts.spot)
+      if (!int(ts.level, 0, TOWER_DEFS[ts.kind].length - 1)) return false
+      if (ts.branch !== null && ts.branch !== 0 && ts.branch !== 1) return false
+      if (!TARGET_MODES.includes(ts.targetMode)) return false
+      if (typeof ts.spent !== 'number' || !Number.isFinite(ts.spent) || ts.spent < 0) return false
+    }
+    return true
   }
 
   /** Rebuild a build-phase state from a snapshot. Costs are bypassed (the snapshot's gold is
-   * already post-purchase); sell values stay honest via the recorded per-tower spend. */
+   * already post-purchase); sell values stay honest via the recorded per-tower spend.
+   * Validates everything up front — returns false with the game UNTOUCHED on corrupt data. */
   restore(snap: RunSnapshot): boolean {
     if (this.state.phase !== 'build' || this.towers.length > 0) return false
+    if (!this.validSnapshot(snap)) return false
     for (const ts of snap.towers) {
-      if (!this.spots[ts.spot] || this.spots[ts.spot].tower) return false
       const t = new Tower(ts.kind, this.spots[ts.spot].pos, this.pitch)
       t.special = this.spots[ts.spot].special
+      t.damageMul = this.meta.damageMul
       for (let l = 0; l < ts.level; l++) t.upgrade()
       if (ts.branch !== null) t.chooseBranch(ts.branch)
       t.targetMode = ts.targetMode
@@ -219,13 +329,29 @@ export class Game {
     this.state.wave = snap.wave
     this.state.lives = snap.lives
     this.state.gold = snap.gold
+    if (snap.dischargeCd !== undefined) this.dischargeCd = Math.min(snap.dischargeCd, Game.DISCHARGE.cooldown)
+    if (snap.overloadCd !== undefined && snap.overloadCd >= 0) this.overloadCd = Math.min(snap.overloadCd, Game.OVERLOAD.cooldown)
+    if (snap.stats) {
+      this.runStats.kills = snap.stats.kills || 0
+      this.runStats.leaks = snap.stats.leaks || 0
+      this.runStats.goldEarned = snap.stats.goldEarned || 0
+      this.runStats.earlyCalls = snap.stats.earlyCalls || 0
+      this.runStats.dischargeKills = snap.stats.dischargeKills || 0
+    }
     return true
   }
 
+  /** Largest total sim time one tick() may consume. rAF can hand back MINUTES after a
+   * background tab wakes up — without a cap that whole stretch plays out "off screen"
+   * (leaks, defeat) in a single frozen frame. 1 s never throttles real frames (even 4×
+   * speed at 20 fps is 0.2 s) but caps the hidden-tab catch-up at one lost second. */
+  private static readonly MAX_FRAME = 1
+
   tick(dt: number): void {
-    const total = dt * this.speed
+    const total = Math.min(dt * this.speed, Game.MAX_FRAME)
     // Ability recharge runs through build phases too — being between waves shouldn't stall it.
     if (this.dischargeCd > 0) this.dischargeCd = Math.max(0, this.dischargeCd - total)
+    if (this.overloadCd > 0) this.overloadCd = Math.max(0, this.overloadCd - total)
     if (this.state.phase !== 'wave') return
     const n = Math.max(1, Math.ceil(total / Game.MAX_STEP))
 
@@ -312,7 +438,8 @@ export class Game {
         const hit = this.grid.queryCircle(p.pos, r)
         for (const e of hit) {
           if (!e.alive) continue
-          e.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0)
+          this.creditHit(p.shot.tower, e, e.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0))
+          applyStatuses(p.shot, e)
           this.events.emit({ type: 'enemyDamaged', kind: e.kind, amount: p.shot.damage ?? 0, pos: { x: e.pos.x, y: e.pos.y }, enemy: e, from: { x: p.pos.x, y: p.pos.y } })
         }
       } else {
@@ -324,7 +451,8 @@ export class Game {
           victim = near[0] ?? null
         }
         if (victim) {
-          victim.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0)
+          this.creditHit(p.shot.tower, victim, victim.takeDamage(p.shot.damage ?? 0, p.shot.pierce ?? 0))
+          applyStatuses(p.shot, victim)
           this.events.emit({ type: 'enemyDamaged', kind: victim.kind, amount: p.shot.damage ?? 0, pos: { x: victim.pos.x, y: victim.pos.y }, enemy: victim, from: { x: p.from.x, y: p.from.y } })
           if (p.shot.slow && p.shot.slow < 1) victim.applySlow(p.shot.slow, 1.5)
         }
@@ -340,6 +468,7 @@ export class Game {
         this.wm.remove(e)
         this.runStats.kills += 1
         this.runStats.goldEarned += e.bounty
+        if (e.lastHitBy) e.lastHitBy.kills += 1 // discharge kills carry no tower — uncredited
         this.events.emit({ type: 'enemyDied', kind: e.kind, pos: { x: e.pos.x, y: e.pos.y }, bounty: e.bounty, enemy: e })
         const split = e.abilities.splitInto
         if (split) {

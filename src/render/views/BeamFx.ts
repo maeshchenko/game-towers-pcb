@@ -72,8 +72,13 @@ export class BeamFx {
   }
 
   update(dt: number): void {
-    this.beams = this.beams.filter((b) => (b.ttl -= dt) > 0)
-    this.impacts = this.impacts.filter((i) => (i.ttl -= dt) > 0)
+    // In-place swap-remove instead of .filter — no new arrays every frame.
+    for (let k = this.beams.length - 1; k >= 0; k--) {
+      if ((this.beams[k].ttl -= dt) <= 0) { this.beams[k] = this.beams[this.beams.length - 1]; this.beams.pop() }
+    }
+    for (let k = this.impacts.length - 1; k >= 0; k--) {
+      if ((this.impacts[k].ttl -= dt) <= 0) { this.impacts[k] = this.impacts[this.impacts.length - 1]; this.impacts.pop() }
+    }
     for (const b of this.beams) {
       if (b.kind !== 'tesla' || b.sinceRefresh === undefined) continue
       b.sinceRefresh += dt

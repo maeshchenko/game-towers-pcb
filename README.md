@@ -11,12 +11,25 @@ Tower defense на печатной плате: враги — пакеты да
 ```bash
 npm install
 npm run dev        # dev-сервер (http://localhost:5173)
-npm run build      # tsc + vite build
-npm run test       # юнит-тесты
+npm run build      # tsc + vite build (hidden sourcemaps)
+npm run test       # юнит-тесты (Vitest)
 npm run balance:optimize  # headless-балансировщик кампании
 ```
 
 Редактор уровней: открыть `/editor`.
+
+## Проверки (CI-гейты)
+
+```bash
+npm run check          # tsc --noEmit + eslint + vitest (полный гейт)
+npm run lint           # ESLint (bug-net, не стайл-полиция)
+npm run test:coverage  # покрытие sim-ядра (src/game), порог 88%/85%
+npm run e2e            # Playwright smoke: бут прод-бандла (desktop+mobile), 0 консольных ошибок
+```
+
+CI (`.github/workflows/ci.yml`) прогоняет check + e2e на каждый push/PR и деплоит на GitHub
+Pages с дефолтной ветки. Публикация на itch.io вооружается секретом `BUTLER_API_KEY` +
+переменной `ITCH_TARGET` (`user/game:html5`). Sentry/PostHog подключаются, когда появятся DSN/ключ.
 
 ## Структура
 

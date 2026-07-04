@@ -9,7 +9,9 @@ import { exportProgressCode, importProgressCode } from '../game/campaign'
 import { waveComposition } from '../game/WaveManager'
 import { loadPlayerDifficulty, savePlayerDifficulty } from '../game/playerPrefs'
 import { mountUi } from './uiRoot'
+import { installFocusTrap } from './focusTrap'
 import { icon } from './icons'
+import { enemyColorHex } from '../render/theme'
 
 export function formatHud(s: { wave: number; waveCount: number; lives: number; gold: number; phase: string }) {
   const total = Number.isFinite(s.waveCount) ? String(s.waveCount) : '∞'
@@ -36,9 +38,15 @@ export class GameUI {
   private wavePreview!: HTMLElement
   private radialTooltip!: HTMLElement
   private settingsModal!: HTMLElement
+  private reducedFxCheck: HTMLInputElement | null = null
+  private pauseTrapOff: (() => void) | null = null
+  private settingsTrapOff: (() => void) | null = null
+  /** Reflect an external reduced-fx change (perf auto-degrade) in the settings checkbox. */
+  syncReducedFx(on: boolean): void { if (this.reducedFxCheck) this.reducedFxCheck.checked = on }
   private speedBtns: Record<number, HTMLButtonElement> = {}
   private btnPause!: HTMLButtonElement
   private btnAbility: HTMLButtonElement | null = null
+  private btnAbility2: HTMLButtonElement | null = null
   private autoWaveActive = true
   private waveBanner: HTMLElement | null = null
   private waveBannerTimer: number | null = null
@@ -48,6 +56,7 @@ export class GameUI {
     onSpeed(mult: number): void; onUpgrade(): void; onSell(): void; onTargetMode(): void
     onUpgradeBranch?(b: 0 | 1): void
     onAbility?(): void
+    onAbility2?(): void
     onMenu?(): void
     onLanguageChanged?(): void
     onAutoWaveChanged?(val: boolean): void
@@ -153,6 +162,14 @@ export class GameUI {
     btnAbility.onclick = () => { audioEngine.playClick(); this.opts.onAbility?.() }
     this.btnAbility = btnAbility
 
+    const btnAbility2 = document.createElement('button')
+    btnAbility2.className = 'pcb-hud-btn ability-btn ability2-btn'
+    btnAbility2.innerHTML = icon('overload')
+    btnAbility2.title = i18n.t('ability.overload.hint')
+    btnAbility2.setAttribute('aria-label', 'overload')
+    btnAbility2.onclick = () => { audioEngine.playClick(); this.opts.onAbility2?.() }
+    this.btnAbility2 = btnAbility2
+
     const btnBestiary = document.createElement('button')
     btnBestiary.className = 'pcb-hud-btn'
     btnBestiary.innerHTML = icon('book')
@@ -172,7 +189,7 @@ export class GameUI {
       this.showSettings()
     }
 
-    right.append(btnStart, btnPause, btn1x, btn2x, btn4x, btnAbility, btnBestiary, btnSettings)
+    right.append(btnStart, btnPause, btn1x, btn2x, btn4x, btnAbility, btnAbility2, btnBestiary, btnSettings)
     hud.append(left, center, right)
     mountUi(hud)
 
@@ -199,9 +216,18 @@ export class GameUI {
     // Robust tutorial zoom/pan freeze: capturing blockers that detect the tutorial via the DOM (no
     // dependency on main.ts), so the camera can't move while the guided ring is anchored to a spot.
     // Lives in GameUI (a hot-reloadable module) so it applies even when main.ts isn't re-evaluated.
+    // Cached lookup: the raw version ran querySelector + getComputedStyle on EVERY
+    // pointermove. The bubble is re-queried at most every 150 ms; style is only read
+    // while a bubble actually exists (i.e. during the tutorial).
+    let tutorialBubble: HTMLElement | null = null
+    let tutorialCheckAt = 0
     const tutorialActive = (): boolean => {
-      const b = document.querySelector('.pcb-tutorial-bubble') as HTMLElement | null
-      return !!b && getComputedStyle(b).display !== 'none'
+      const now = performance.now()
+      if (now - tutorialCheckAt > 150 || (tutorialBubble && !tutorialBubble.isConnected)) {
+        tutorialCheckAt = now
+        tutorialBubble = document.querySelector('.pcb-tutorial-bubble')
+      }
+      return !!tutorialBubble && getComputedStyle(tutorialBubble).display !== 'none'
     }
     window.addEventListener('wheel', (e) => {
       if (tutorialActive()) { e.preventDefault(); e.stopImmediatePropagation() }
@@ -252,6 +278,7 @@ export class GameUI {
     if (lvlEl) lvlEl.textContent = lvlNum
 
     this.updateDiffBadge(difficulty)
+    this.invalidateHudCache() // localized HUD text just changed — force update() to rewrite
   }
 
   private updateDiffBadge(difficulty: number): void {
@@ -267,13 +294,20 @@ export class GameUI {
     }
   }
 
-  showSettings(): void {
+  /** returnToPause: opened from the pause menu — closing must go BACK there, not resume
+   * the game (the player paused deliberately; settings must not silently unpause). */
+  private settingsReturnToPause = false
+
+  showSettings(returnToPause = false): void {
+    this.settingsReturnToPause = returnToPause
     this.settingsModal.style.display = 'flex'
     this.renderSettings()
     // Click on the dark backdrop (not the card) dismisses — standard modal behaviour.
     this.settingsModal.onclick = (e) => {
       if (e.target === this.settingsModal) { audioEngine.playClick(); this.closeSettings() }
     }
+    this.settingsTrapOff?.()
+    this.settingsTrapOff = installFocusTrap(this.settingsModal)
     this.opts.onModalOpen?.()
   }
 
@@ -358,6 +392,7 @@ export class GameUI {
     reducedFxCheck.onchange = () => {
       setReducedFx(reducedFxCheck.checked)
     }
+    this.reducedFxCheck = reducedFxCheck
 
     const btnRu = this.settingsModal.querySelector('.lang-ru') as HTMLButtonElement
     btnRu.onclick = () => {
@@ -384,8 +419,7 @@ export class GameUI {
     const btnClose = this.settingsModal.querySelector('.close-settings-btn') as HTMLButtonElement
     btnClose.onclick = () => {
       audioEngine.playClick()
-      this.settingsModal.style.display = 'none'
-      this.opts.onModalClose?.()
+      this.closeSettings()
     }
 
     // Global difficulty: persists immediately, applies from the next level start.
@@ -436,9 +470,14 @@ export class GameUI {
     }
   }
 
-  /** Ability button state: hidden until unlocked, cooldown countdown, armed highlight. */
+  /** Ability button state: hidden until unlocked, cooldown countdown, armed highlight.
+   * Called every frame — every DOM write is guarded by a change check. */
+  private abilityKey = ''
   setAbilityState(cooldownSec: number, armed: boolean, unlocked = true): void {
     if (!this.btnAbility) return
+    const key = `${unlocked}|${armed}|${cooldownSec > 0 ? Math.ceil(cooldownSec) : 0}`
+    if (this.abilityKey === key) return
+    this.abilityKey = key
     this.btnAbility.style.display = unlocked ? '' : 'none'
     if (!unlocked) return
     const label = cooldownSec > 0 ? `${icon('bolt')}${Math.ceil(cooldownSec)}` : icon('bolt')
@@ -448,10 +487,27 @@ export class GameUI {
     this.btnAbility.style.opacity = cooldownSec > 0 ? '0.5' : ''
   }
 
-  /** One-shot attention pulse on the ability button (first unlock). */
-  pulseAbilityButton(): void {
-    this.btnAbility?.classList.add('fresh')
-    window.setTimeout(() => this.btnAbility?.classList.remove('fresh'), 6000)
+  /** Second ability (overload) — same guarded per-frame update as setAbilityState. */
+  private ability2Key = ''
+  setAbility2State(cooldownSec: number, armed: boolean, unlocked = true): void {
+    if (!this.btnAbility2) return
+    const key = `${unlocked}|${armed}|${cooldownSec > 0 ? Math.ceil(cooldownSec) : 0}`
+    if (this.ability2Key === key) return
+    this.ability2Key = key
+    this.btnAbility2.style.display = unlocked ? '' : 'none'
+    if (!unlocked) return
+    const label = cooldownSec > 0 ? `${icon('overload')}${Math.ceil(cooldownSec)}` : icon('overload')
+    if (this.btnAbility2.dataset.label !== label) { this.btnAbility2.dataset.label = label; this.btnAbility2.innerHTML = label }
+    this.btnAbility2.disabled = cooldownSec > 0
+    this.btnAbility2.classList.toggle('active', armed)
+    this.btnAbility2.style.opacity = cooldownSec > 0 ? '0.5' : ''
+  }
+
+  /** One-shot attention pulse on an ability button (first unlock). */
+  pulseAbilityButton(which: 1 | 2 = 1): void {
+    const btn = which === 1 ? this.btnAbility : this.btnAbility2
+    btn?.classList.add('fresh')
+    window.setTimeout(() => btn?.classList.remove('fresh'), 6000)
   }
 
   public selectSpeed(mult: number): void {
@@ -469,42 +525,56 @@ export class GameUI {
   /** set the campaign level number shown top-left (stays fixed for all waves of the level) */
   setLevelNumber(n: number): void {
     this.levelNumber = n
+    this.previewKey = '' // new level → same wave index means DIFFERENT content; drop the cache
     const el = document.querySelector('.level-num')
     if (el) el.textContent = String(n).padStart(2, '0')
   }
 
   update(game: Game, difficulty = 1): void {
     const s = game.state
-    const h = formatHud({ wave: s.waveNumber, waveCount: s.endless ? Infinity : s.waveCount, lives: s.lives, gold: s.gold, phase: s.phase })
-    
-    this.elWave.textContent = h.wave
-    this.elLives.textContent = `❤ ${s.lives}`
-    this.elGold.textContent = `⚡ ${s.gold}`
+    // update() runs 60×/s — every DOM write here is dirty-checked so a steady frame touches
+    // nothing (no textContent churn, no formatHud alloc, no querySelector). Lossless: identical
+    // output, just skipped when unchanged.
+    if (s.lives !== this.lastLives) { this.elLives.textContent = `❤ ${s.lives}`; this.lastLives = s.lives }
+    if (s.gold !== this.lastGold) { this.elGold.textContent = `⚡ ${s.gold}`; this.lastGold = s.gold }
+    if (s.waveNumber !== this.lastWave || s.phase !== this.lastPhase || s.waveCount !== this.lastWaveCount) {
+      const h = formatHud({ wave: s.waveNumber, waveCount: s.endless ? Infinity : s.waveCount, lives: s.lives, gold: s.gold, phase: s.phase })
+      this.elWave.textContent = h.wave
+      this.lastWave = s.waveNumber; this.lastPhase = s.phase; this.lastWaveCount = s.waveCount
+    }
     this.refreshRadialAffordability(s.gold)   // open build ring tracks gold live
 
-    // Update level name/number in HUD
-    const lvlEl = document.querySelector('.level-num')
-    if (lvlEl) lvlEl.textContent = String(this.levelNumber).padStart(2, '0') // LEVEL #, not wave
+    // Level number in HUD — cache the element (query once) and write only when it changes.
+    if (this.levelNumber !== this.lastLevelNumShown) {
+      this.levelNumEl ??= document.querySelector('.level-num')
+      if (this.levelNumEl) this.levelNumEl.textContent = String(this.levelNumber).padStart(2, '0') // LEVEL #, not wave
+      this.lastLevelNumShown = this.levelNumber
+    }
 
-    this.updateDiffBadge(difficulty)
+    if (difficulty !== this.lastDiff) { this.updateDiffBadge(difficulty); this.lastDiff = difficulty }
 
-    // Update Wave Preview
+    // Update Wave Preview. update() runs every frame — rebuild the DOM only when the wave
+    // (or language) actually changes; the old unconditional innerHTML churned 60×/s.
     if (s.phase === 'build') {
       const nextWave = game.peekWave(s.wave)
       if (nextWave.length > 0) {
+        const key = `${s.wave}|${i18n.lang}`
         this.wavePreview.style.display = 'flex'
-        this.wavePreview.innerHTML = `<span class="pcb-wavepreview-title">${i18n.t('enemy.next_wave')}</span>`
-        // Aggregated totals (mixed groups split by weight) — the preview shows the real mix.
-        for (const [kind, count] of waveComposition(nextWave)) {
-          const t = { name: i18n.tk(`enemy.${kind}`), color: getEnemyColor(kind) }
-          const item = document.createElement('div')
-          item.className = 'pcb-wavepreview-item'
-          item.innerHTML = `
-            <span class="pcb-wavepreview-dot" style="background: ${t.color}; box-shadow: 0 0 6px ${t.color};"></span>
-            <span class="pcb-wavepreview-name">${t.name}</span>
-            <span class="pcb-wavepreview-count">×${count}</span>
-          `
-          this.wavePreview.appendChild(item)
+        if (this.previewKey !== key) {
+          this.previewKey = key
+          this.wavePreview.innerHTML = `<span class="pcb-wavepreview-title">${i18n.t('enemy.next_wave')}</span>`
+          // Aggregated totals (mixed groups split by weight) — the preview shows the real mix.
+          for (const [kind, count] of waveComposition(nextWave)) {
+            const t = { name: i18n.tk(`enemy.${kind}`), color: enemyColorHex(kind) }
+            const item = document.createElement('div')
+            item.className = 'pcb-wavepreview-item'
+            item.innerHTML = `
+              <span class="pcb-wavepreview-dot" style="background: ${t.color}; box-shadow: 0 0 6px ${t.color};"></span>
+              <span class="pcb-wavepreview-name">${t.name}</span>
+              <span class="pcb-wavepreview-count">×${count}</span>
+            `
+            this.wavePreview.appendChild(item)
+          }
         }
       } else {
         this.wavePreview.style.display = 'none'
@@ -512,6 +582,22 @@ export class GameUI {
     } else {
       this.wavePreview.style.display = 'none'
     }
+  }
+  private previewKey = ''
+  // Dirty-check caches for update() — sentinel NaN forces the first write.
+  private lastLives = NaN
+  private lastGold = NaN
+  private lastWave = NaN
+  private lastWaveCount = NaN
+  private lastPhase = ''
+  private lastDiff = NaN
+  private lastLevelNumShown = NaN
+  private levelNumEl: Element | null = null
+  /** Invalidate the HUD dirty-check caches so the next update() rewrites everything (call after
+   * a language switch or level change — localized/renumbered text must refresh). */
+  private invalidateHudCache(): void {
+    this.lastLives = this.lastGold = this.lastWave = this.lastWaveCount = this.lastDiff = this.lastLevelNumShown = NaN
+    this.lastPhase = ''
   }
 
   /** enable/grey a single radial item from its cost + current gold (kind-restriction is fixed) */
@@ -526,7 +612,7 @@ export class GameUI {
     for (const btn of Array.from(this.radial.children)) this.setRadialItemAffordable(btn as HTMLElement, gold)
   }
 
-  openRadialMenu(spotIndex: number, clientX: number, clientY: number, goldAvailable: number, allowedTowerKind?: TowerKind, showTooltips = true): void {
+  openRadialMenu(spotIndex: number, clientX: number, clientY: number, goldAvailable: number, allowedTowerKind?: TowerKind, showTooltips = true, bannedKind?: TowerKind | null): void {
     this.radial.style.left = `${clientX}px`
     this.radial.style.top = `${clientY}px`
     this.radial.innerHTML = ''
@@ -540,12 +626,13 @@ export class GameUI {
       btn.style.setProperty('--dy', theme.dy)
       btn.style.setProperty('--neon-color', theme.color)
       btn.style.setProperty('--neon-glow', theme.glow)
-      btn.innerHTML = `${theme.name}<span>$${cost}</span>`
+      const banned = k === bannedKind
+      btn.innerHTML = banned ? `${theme.name}<span>${i18n.t('daily.embargoed')}</span>` : `${theme.name}<span>$${cost}</span>`
 
       // remember cost + the fixed kind-restriction so affordability can be refreshed LIVE while the menu
       // stays open (gold earned mid-build must unlock items without closing/reopening the ring).
       btn.dataset.cost = String(cost)
-      btn.dataset.kindBlocked = allowedTowerKind && k !== allowedTowerKind ? '1' : '0'
+      btn.dataset.kindBlocked = (allowedTowerKind && k !== allowedTowerKind) || banned ? '1' : '0'
       this.setRadialItemAffordable(btn, goldAvailable)
 
       btn.onclick = (e) => {
@@ -641,8 +728,12 @@ export class GameUI {
     const next = !t.canBranch && t.level < t.maxLevel ? TOWER_DEFS[t.kind][t.level + 1] : null
     const delta = (cur: number, nxt: number | undefined) =>
       nxt !== undefined && nxt !== cur ? ` <span style="color:#f0c43a">→${nxt}</span>` : ''
+    // Lifetime line: what this specific chip has actually contributed (skip for auras — they deal no damage).
+    const statsLine = s.aura ? '' :
+      `<div style="margin-bottom: 8px; color: #8fb3a0;">${i18n.t('panel.dmg_dealt')} ${Math.round(t.damageDealt)} · ${i18n.t('panel.kills')} ${t.kills}</div>`
     this.panel.innerHTML = `<h3>${TOWER_THEMES[t.kind].name} L${t.level + 1}${branchName}</h3>
       <div style="margin-bottom: 8px;">DMG ${s.damage}${delta(s.damage, next?.damage)} · RATE ${s.fireRate}${delta(s.fireRate, next?.fireRate)} · RNG ${s.range}${delta(s.range, next?.range)}</div>
+      ${statsLine}
       <div style="margin-bottom: 8px;">MODE ${i18n.tk(`target.${t.targetMode}`)}</div>`
     const mk = (label: string, fn: () => void, sfxType: 'click' | 'upgrade' | 'sell') => {
       const b = document.createElement('button')
@@ -766,6 +857,7 @@ export class GameUI {
         <div class="pcb-overlay-actions">
           ${onNext ? `<button class="pcb-hud-btn active next-btn">${i18n.t('result.next_level')}</button>` : ''}
           <button class="pcb-hud-btn retry-btn">${i18n.t('result.retry')}</button>
+          ${this.shareBtnHtml()}
           <button class="pcb-hud-btn menu-btn">${i18n.t('result.campaign_map')}</button>
         </div>
       </div>
@@ -777,6 +869,7 @@ export class GameUI {
     }
     (this.overlay.querySelector('.retry-btn') as HTMLElement).onclick = withClick(onRetry);
     (this.overlay.querySelector('.menu-btn') as HTMLElement).onclick = withClick(onMenu)
+    this.wireShareBtn()
   }
 
   showDefeatScreen(onRetry: () => void, onMenu: () => void): void {
@@ -794,17 +887,38 @@ export class GameUI {
         ${this.statsHtml()}
         <div class="pcb-overlay-actions">
           <button class="pcb-hud-btn active retry-btn">${i18n.t('result.retry')}</button>
+          ${this.shareBtnHtml()}
           <button class="pcb-hud-btn menu-btn">${i18n.t('result.campaign_map')}</button>
         </div>
       </div>
     `;
     (this.overlay.querySelector('.retry-btn') as HTMLElement).onclick = () => { audioEngine.playClick(); onRetry() };
     (this.overlay.querySelector('.menu-btn') as HTMLElement).onclick = () => { audioEngine.playClick(); onMenu() }
+    this.wireShareBtn()
+  }
+
+  /** Share line for daily/endless result screens (null = no share button). */
+  private shareText: string | null = null
+  setShareText(t: string | null): void { this.shareText = t }
+  private shareBtnHtml(): string {
+    return this.shareText ? `<button class="pcb-hud-btn share-btn">${i18n.t('share.btn')}</button>` : ''
+  }
+  private wireShareBtn(): void {
+    const b = this.overlay.querySelector('.share-btn') as HTMLElement | null
+    if (!b || !this.shareText) return
+    const text = this.shareText
+    b.onclick = () => {
+      audioEngine.playClick()
+      navigator.clipboard?.writeText(text).then(
+        () => { b.textContent = i18n.t('share.copied') },
+        () => {}, // clipboard denied (some iframes) — button just stays as-is
+      )
+    }
   }
 
   /** Run stats supplied by main.ts right before showing a result screen. */
-  private lastStats: { kills: number; leaks: number; goldEarned: number; wave: number; waveCount: number } | null = null
-  setRunStats(s: { kills: number; leaks: number; goldEarned: number; wave: number; waveCount: number }): void {
+  private lastStats: { kills: number; leaks: number; goldEarned: number; wave: number; waveCount: number; bestTower?: { kind: TowerKind; damage: number } | null } | null = null
+  setRunStats(s: { kills: number; leaks: number; goldEarned: number; wave: number; waveCount: number; bestTower?: { kind: TowerKind; damage: number } | null }): void {
     this.lastStats = s
   }
 
@@ -813,11 +927,14 @@ export class GameUI {
     if (!s) return ''
     const cell = (label: string, value: string | number) =>
       `<div class="pcb-stat"><div class="pcb-stat-val">${value}</div><div class="pcb-stat-label">${label}</div></div>`
+    const best = s.bestTower
+      ? `<div style="margin-top: 6px; font-size: 11px; color: #8fb3a0;">${i18n.t('result.best_tower')}: <span style="color: ${TOWER_THEMES[s.bestTower.kind].color}; font-weight: bold;">${TOWER_THEMES[s.bestTower.kind].name}</span> · ${Math.round(s.bestTower.damage)} DMG</div>`
+      : ''
     return `<div class="pcb-overlay-stats">
       ${cell(i18n.t('result.stat_kills'), s.kills)}
       ${cell(i18n.t('result.stat_leaks'), s.leaks)}
       ${cell(i18n.t('result.stat_gold'), '⚡' + s.goldEarned)}
-    </div>`
+    </div>${best}`
   }
 
   closeOverlay(): void {
@@ -827,16 +944,17 @@ export class GameUI {
 
   // ---------------------------------------------------------- pause menu
   private pauseMenuEl: HTMLElement | null = null
+  private lastPauseOpts: { onResume(): void; onRestart(): void; onMenu(): void } | null = null
   get isPauseMenuOpen(): boolean { return !!this.pauseMenuEl }
 
   /** Genre-standard pause overlay. Also the confirmation layer for leaving a run:
    * the MAP button routes here instead of instantly killing 20 minutes of progress. */
   showPauseMenu(opts: { onResume(): void; onRestart(): void; onMenu(): void }): void {
     if (this.pauseMenuEl) return
+    this.lastPauseOpts = opts
     const el = document.createElement('div')
     el.className = 'pcb-settings-modal'
     el.style.display = 'flex'
-    el.style.zIndex = '250'
     el.innerHTML = `
       <div class="pcb-settings-card" style="min-width: 240px;">
         <h2>${i18n.t('pause.title')}</h2>
@@ -848,35 +966,33 @@ export class GameUI {
     const done = (cb: () => void) => () => { audioEngine.playClick(); this.hidePauseMenu(); cb() }
     el.onclick = (e) => { if (e.target === el) done(opts.onResume)() }
     ;(el.querySelector('.pm-resume') as HTMLElement).onclick = done(opts.onResume)
-    ;(el.querySelector('.pm-settings') as HTMLElement).onclick = () => { audioEngine.playClick(); this.hidePauseMenu(); this.showSettings() }
+    ;(el.querySelector('.pm-settings') as HTMLElement).onclick = () => { audioEngine.playClick(); this.hidePauseMenu(); this.showSettings(true) }
     ;(el.querySelector('.pm-restart') as HTMLElement).onclick = done(opts.onRestart)
     ;(el.querySelector('.pm-menu') as HTMLElement).onclick = done(opts.onMenu)
     mountUi(el)
     this.pauseMenuEl = el
+    this.pauseTrapOff = installFocusTrap(el)
   }
 
   hidePauseMenu(): void {
+    this.pauseTrapOff?.(); this.pauseTrapOff = null
     this.pauseMenuEl?.remove()
     this.pauseMenuEl = null
   }
 
   get isSettingsOpen(): boolean { return this.settingsModal.style.display !== 'none' && this.settingsModal.style.display !== '' }
-  closeSettings(): void { this.settingsModal.style.display = 'none'; this.opts.onModalClose?.() }
+  closeSettings(): void {
+    this.settingsTrapOff?.(); this.settingsTrapOff = null
+    this.settingsModal.style.display = 'none'
+    if (this.settingsReturnToPause && this.lastPauseOpts) {
+      // Back to the pause menu the settings were opened from — the game stays paused.
+      this.settingsReturnToPause = false
+      this.showPauseMenu(this.lastPauseOpts)
+      return
+    }
+    this.settingsReturnToPause = false
+    this.opts.onModalClose?.()
+  }
   get isRadialOpen(): boolean { return this.radial.classList.contains('open') }
 }
 
-function getEnemyColor(kind: string): string {
-  const map: Record<string, string> = {
-    normal: '#ff4d4d',
-    fast: '#36e0e0',
-    healer: '#f0c43a',
-    brute: '#c23bff',
-    tank: '#ff9b3a',
-    rogue: '#4dff7a',
-    boss: '#c23bff',
-    shielded: '#3a7bff',
-    carrier: '#d08aff',
-    fragment: '#ff8a8a',
-  }
-  return map[kind] || '#fff'
-}

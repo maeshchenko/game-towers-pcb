@@ -6,10 +6,13 @@ function svg(inner: string, size: number, viewBox = '0 0 16 16'): string {
   return `<svg width="${size}" height="${size}" viewBox="${viewBox}" fill="none" xmlns="http://www.w3.org/2000/svg" style="vertical-align:-2px">${inner}</svg>`
 }
 
-export type IconName = 'pause' | 'book' | 'gear' | 'bolt'
+export type IconName = 'pause' | 'book' | 'gear' | 'bolt' | 'overload'
 
 export function icon(name: IconName, size = 13): string {
   switch (name) {
+    case 'overload':
+      // double chevron up — "clock the towers higher"
+      return svg('<path d="M8 2.2 3.2 7.4h9.6z" fill="currentColor"/><path d="M8 7.6 3.2 12.8h9.6z" fill="currentColor" opacity="0.55"/>', size)
     case 'pause':
       return svg('<rect x="3.5" y="2.5" width="3.2" height="11" fill="currentColor"/><rect x="9.3" y="2.5" width="3.2" height="11" fill="currentColor"/>', size)
     case 'book':

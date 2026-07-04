@@ -1,7 +1,7 @@
 // tests/game/campaign.test.ts
 // @vitest-environment jsdom
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
-import { loadProgress, saveProgress, registerVictory, resetProgress, completeTutorial, migrateSave, exportProgressCode, importProgressCode, SAVE_VERSION } from '../../src/game/campaign'
+import { loadProgress, saveProgress, registerVictory, resetProgress, completeTutorial, migrateSave, exportProgressCode, importProgressCode, SAVE_VERSION, starsAvailable, buyMetaUpgrade, respecMetaUpgrades } from '../../src/game/campaign'
 import { startLives } from '../../src/game/difficulty'
 
 let store: Record<string, string> = {}
@@ -34,7 +34,22 @@ describe('campaign', () => {
     const custom = { unlockedLevelIndex: 3, stars: { 0: 3, 1: 2 }, highscores: { 0: 20, 1: 12 }, tutorialCompleted: true, seenIntroductions: {}, storyIntroSeen: false, storyBriefSeen: {} }
     saveProgress(custom)
     const loaded = loadProgress()
-    expect(loaded).toEqual(custom)
+    // v3 migration adds the meta fields with empty defaults.
+    expect(loaded).toEqual({ ...custom, metaUpgrades: {}, achievements: [] })
+  })
+
+  it('workshop: stars buy meta tiers, respec refunds everything', () => {
+    saveProgress({ unlockedLevelIndex: 5, stars: { 0: 3, 1: 3 }, highscores: {}, tutorialCompleted: true })
+    expect(starsAvailable()).toBe(6)
+    expect(buyMetaUpgrade('reserve')).toBe(true)   // cost 1
+    expect(buyMetaUpgrade('firmware')).toBe(true)  // cost 2
+    expect(starsAvailable()).toBe(3)
+    expect(loadProgress().metaUpgrades).toEqual({ reserve: 1, firmware: 1 })
+    expect(buyMetaUpgrade('firmware')).toBe(true)  // tier 2, cost 3 — exactly affordable
+    expect(buyMetaUpgrade('reserve')).toBe(false)  // 0 stars left
+    respecMetaUpgrades()
+    expect(starsAvailable()).toBe(6)
+    expect(loadProgress().metaUpgrades).toEqual({})
   })
 
   it('calculates stars rating correctly', () => {

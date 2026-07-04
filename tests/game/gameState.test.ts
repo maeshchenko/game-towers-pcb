@@ -39,6 +39,32 @@ describe('endless mode', () => {
   })
 })
 
+describe('endless early call (wave-dupe exploit regression)', () => {
+  it('advanceWaveEarly keeps advancing past waveCount in endless', () => {
+    const s = new GameState(1, 2)
+    s.endless = true
+    s.startWave()
+    s.advanceWaveEarly()
+    expect(s.wave).toBe(1)
+    // Beyond the scripted count: the guard must NOT freeze the counter in endless —
+    // a frozen counter re-runs the same wave and pays the early-call bonus every click.
+    s.advanceWaveEarly()
+    expect(s.wave).toBe(2)
+    s.advanceWaveEarly()
+    expect(s.wave).toBe(3)
+  })
+  it('non-endless still refuses to advance past the last wave', () => {
+    const s = new GameState(1, 2)
+    s.startWave()
+    s.advanceWaveEarly()
+    expect(s.wave).toBe(1)
+    const gold = s.gold
+    s.advanceWaveEarly() // last wave — no advance, no free clear gold
+    expect(s.wave).toBe(1)
+    expect(s.gold).toBe(gold)
+  })
+})
+
 describe('GameState', () => {
   it('starts in build with gold/lives', () => {
     const g = new GameState(0, 10)

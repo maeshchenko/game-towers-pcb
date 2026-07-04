@@ -5,27 +5,17 @@ import { i18n } from './i18n'
 import { audioEngine } from './AudioEngine'
 import { mountUi } from './uiRoot'
 import { storageGet } from '../util/safeStorage'
+import { showConfirm } from './confirmModal'
+import { enemyColorHex } from '../render/theme'
+import { showWorkshop, showAchievements, showDossier } from './metaScreens'
+import { starsAvailable } from '../game/campaign'
+import { rollDailyMods } from '../game/dailyMods'
+import { dailyStreak } from '../game/dailyHistory'
 
 /** Local-date stamp YYYYMMDD — one shared daily board per calendar day. */
 export function dailyStamp(): string {
   const d = new Date()
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`
-}
-
-function getEnemyColor(kind: string): string {
-  const map: Record<string, string> = {
-    normal: '#ff4d4d',
-    fast: '#36e0e0',
-    healer: '#f0c43a',
-    brute: '#c23bff',
-    tank: '#ff9b3a',
-    rogue: '#4dff7a',
-    boss: '#c23bff',
-    shielded: '#3a7bff',
-    carrier: '#d08aff',
-    fragment: '#ff8a8a',
-  }
-  return map[kind] || '#fff'
 }
 
 function isEnemyUnlocked(kind: string, unlockedLevelIndex: number): boolean {
@@ -78,9 +68,15 @@ export class CampaignMenu {
     const cleanup = cleanupPercent(completedCount)
 
     const dailyDone = storageGet(`pcb_td_daily_${dailyStamp()}`)
-    const dailyLabel = dailyDone !== null
-      ? `${i18n.t('mode.daily')} · ❤${dailyDone}`
-      : i18n.t('mode.daily')
+    const streak = dailyStreak(dailyStamp())
+    const streakSuffix = streak > 0 ? ` · 🔥${streak}` : ''
+    // Today's twist is public knowledge — players decide whether to engage before clicking.
+    const dailyModNames = rollDailyMods(dailyStamp()).ids
+      .map((id) => i18n.tk(`daily.mod.${id}.name`)).join(' + ')
+    const dailyLabel = (dailyDone !== null
+      ? `${i18n.t('mode.daily')} · ❤${dailyDone}${streakSuffix}`
+      : `${i18n.t('mode.daily')}${streakSuffix}`)
+      + `<span style="display: block; font-size: 9px; opacity: 0.75; margin-top: 2px;">${dailyModNames}</span>`
     const endlessBest = storageGet('pcb_td_endless_best_v1')
     const endlessLabel = endlessBest !== null
       ? `${i18n.t('mode.endless')} · ${i18n.t('mode.endless_best')} ${endlessBest}`
@@ -93,10 +89,13 @@ export class CampaignMenu {
       </div>
       <div class="pcb-campaign-levels"></div>
       <div class="pcb-campaign-footer" style="display: flex; justify-content: center; gap: 20px; flex-wrap: wrap;">
-        <button class="pcb-campaign-daily pcb-campaign-reset" style="background: rgba(240,196,58,0.1); border-color: #f0c43a; color: #f0c43a; box-shadow: 0 0 10px rgba(240,196,58,0.15);">${dailyLabel}</button>
-        ${(progress.stars[11] || 0) > 0 ? `<button class="pcb-campaign-endless pcb-campaign-reset" style="background: rgba(194,59,255,0.1); border-color: #c23bff; color: #c23bff; box-shadow: 0 0 10px rgba(194,59,255,0.15);">${endlessLabel}</button>` : ''}
-        <button class="pcb-campaign-bestiary pcb-campaign-reset" style="background: rgba(54,224,224,0.1); border-color: #36e0e0; color: #36e0e0; box-shadow: 0 0 10px rgba(54,224,224,0.15);">${i18n.t('bestiary.btn')}</button>
-        <button class="pcb-campaign-reset">${i18n.t('campaign.reset')}</button>
+        <button class="pcb-campaign-footer-btn pcb-campaign-daily" style="background: rgba(240,196,58,0.1); border-color: #f0c43a; color: #f0c43a; box-shadow: 0 0 10px rgba(240,196,58,0.15);">${dailyLabel}</button>
+        ${(progress.stars[11] || 0) > 0 ? `<button class="pcb-campaign-footer-btn pcb-campaign-endless" style="background: rgba(194,59,255,0.1); border-color: #c23bff; color: #c23bff; box-shadow: 0 0 10px rgba(194,59,255,0.15);">${endlessLabel}</button>` : ''}
+        <button class="pcb-campaign-footer-btn pcb-campaign-bestiary" style="background: rgba(54,224,224,0.1); border-color: #36e0e0; color: #36e0e0; box-shadow: 0 0 10px rgba(54,224,224,0.15);">${i18n.t('bestiary.btn')}</button>
+        <button class="pcb-campaign-footer-btn pcb-campaign-workshop" style="background: rgba(240,196,58,0.08); border-color: #b98a2e; color: #f0c43a;">${i18n.t('meta.btn')} ★${starsAvailable(progress)}</button>
+        <button class="pcb-campaign-footer-btn pcb-campaign-achievements" style="background: rgba(43,208,106,0.08); border-color: #1f8f4d; color: #6cf2a0;">${i18n.t('ach.btn')}</button>
+        <button class="pcb-campaign-footer-btn pcb-campaign-dossier" style="background: rgba(143,179,160,0.08); border-color: #5b7a68; color: #8fb3a0;">${i18n.t('profile.btn')}</button>
+        <button class="pcb-campaign-footer-btn pcb-campaign-reset">${i18n.t('campaign.reset')}</button>
       </div>
     `
 
@@ -106,9 +105,9 @@ export class CampaignMenu {
       const starsCount = progress.stars[i] || 0
       const starsHtml = '★'.repeat(starsCount) + '☆'.repeat(3 - starsCount)
       
-      const recordStr = i18n.lang === 'ru' ? 'РЕКОРД' : 'RECORD'
-      const noneStr = i18n.lang === 'ru' ? 'НЕТ РЕКОРДА' : 'NO RECORD'
-      const highscore = progress.highscores[i] !== undefined ? `${recordStr}: ❤${progress.highscores[i]}` : noneStr
+      const highscore = progress.highscores[i] !== undefined
+        ? `${i18n.t('campaign.record')}: ❤${progress.highscores[i]}`
+        : i18n.t('campaign.norecord')
       
       const diffClass = lvl.difficulty >= 7 ? 'hard' : lvl.difficulty >= 3 ? 'medium' : 'easy'
       const diffNameKey = lvl.difficulty >= 7 ? 'difficulty.hard' : lvl.difficulty >= 3 ? 'difficulty.medium' : 'difficulty.easy'
@@ -160,8 +159,9 @@ export class CampaignMenu {
     })
 
     const btnReset = this.element.querySelector('.pcb-campaign-reset') as HTMLButtonElement
-    btnReset.onclick = () => {
-      if (confirm(i18n.t('campaign.reset_confirm'))) {
+    btnReset.onclick = async () => {
+      // In-DOM confirm: native confirm() is silently blocked inside the itch.io iframe.
+      if (await showConfirm(i18n.t('campaign.reset_confirm'))) {
         resetProgress()
         this.render()
       }
@@ -176,20 +176,25 @@ export class CampaignMenu {
       audioEngine.playClick()
       this.showBestiary(unlocked)
     }
+    const btnWorkshop = this.element.querySelector('.pcb-campaign-workshop') as HTMLButtonElement | null
+    if (btnWorkshop) btnWorkshop.onclick = () => { audioEngine.playClick(); showWorkshop(() => this.render()) }
+    const btnAch = this.element.querySelector('.pcb-campaign-achievements') as HTMLButtonElement | null
+    if (btnAch) btnAch.onclick = () => { audioEngine.playClick(); showAchievements() }
+    const btnDossier = this.element.querySelector('.pcb-campaign-dossier') as HTMLButtonElement | null
+    if (btnDossier) btnDossier.onclick = () => { audioEngine.playClick(); showDossier() }
   }
 
   showBestiary(unlockedLevelIndex: number, onClose?: () => void): void {
     const modal = document.createElement('div')
     modal.className = 'pcb-settings-modal'
-    modal.style.zIndex = '300'
     modal.style.display = 'flex'
-    
+
     let itemsHtml = ''
     // Display order follows the FORM-NN nomenclature (story spec, Task 5).
     const kinds = ['normal', 'fast', 'rogue', 'tank', 'healer', 'brute', 'boss', 'shielded', 'carrier', 'fragment']
     kinds.forEach((k) => {
       const unlocked = isEnemyUnlocked(k, unlockedLevelIndex)
-      const color = getEnemyColor(k)
+      const color = enemyColorHex(k)
       
       if (unlocked) {
         const name = i18n.t(`enemy.${k}` as any)

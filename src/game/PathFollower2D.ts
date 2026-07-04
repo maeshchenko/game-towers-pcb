@@ -4,11 +4,19 @@ export class PathFollower2D {
   pos: Pt
   done = false
   traveled = 0
+  /** Full polyline length (px). */
+  readonly totalLen: number
   private target = 1
   constructor(private points: Pt[], private speedPx: number) {
     this.pos = { x: points[0]?.x ?? 0, y: points[0]?.y ?? 0 }
     if (points.length < 2) this.done = true
+    let len = 0
+    for (let i = 1; i < points.length; i++) len += Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y)
+    this.totalLen = len
   }
+  /** Distance (px) still to walk before the end of the path. Unlike `traveled`, this is
+   * comparable across enemies on DIFFERENT paths (multi-entrance maps). */
+  get remaining(): number { return Math.max(0, this.totalLen - this.traveled) }
   /** Jump forward by a raw distance (px) — used to place split-off fragments at the parent's
    * path position, independent of this follower's own speed. */
   advanceDistance(d: number): void {

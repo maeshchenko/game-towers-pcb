@@ -53,9 +53,13 @@ export class StoryScreen {
 
   private readonly handleKeydown = (e: KeyboardEvent): void => {
     if (e.ctrlKey || e.metaKey || e.altKey) return
+    // No keyboard trap: only swallow keys the screen actually handles — a blanket
+    // preventDefault() used to block Tab (focus escape) and even F5.
+    const handled = e.key === 'Enter' || e.key === ' ' || e.key === 'Escape' || e.key.length === 1
+    if (!handled) return
     e.preventDefault()
     // Enter/Space close once typing is done (keyboard path to the CONTINUE button);
-    // any key fast-forwards while typing.
+    // any printable key fast-forwards while typing.
     if (this.typingDone && (e.key === 'Enter' || e.key === ' ')) { this.close(); return }
     this.advance()
   }

@@ -1,5 +1,6 @@
 import type { Pt } from '../geom/types'
 import type { EnemyDef, EnemyKind, EnemyAbilities } from './enemyTypes'
+import type { Tower } from './Tower'
 import { PathFollower2D } from './PathFollower2D'
 import { effectiveDamage } from './difficulty'
 
@@ -32,6 +33,15 @@ export class Enemy {
   phaseChanged = false
   /** px/sec, updated each update(dt>0) from position delta — used for missile lead-aim. */
   readonly vel: Pt = { x: 0, y: 0 }
+  /** Last tower whose hit connected — the kill is credited to it (per-tower stats). */
+  lastHitBy: Tower | null = null
+  /** Active status effects (tier-4 weapons). Reapplication refreshes, never stacks. */
+  private burnDps = 0
+  private burnT = 0
+  private shredAmount = 0
+  private shredT = 0
+  get isBurning(): boolean { return this.burnT > 0 }
+  get armorShred(): number { return this.shredT > 0 ? this.shredAmount : 0 }
 
   constructor(def: EnemyDef, points: Pt[], hpScale: number, speedPx: number) {
     this.hp = Math.round(def.hp * hpScale)
@@ -50,6 +60,8 @@ export class Enemy {
   get alive(): boolean { return this.hp > 0 && !this.follower.done }
   get reachedBase(): boolean { return this.follower.done && this.hp > 0 }
   get traveled(): number { return this.follower.traveled }
+  /** Px left to the base — the honest "who gets there first" metric on multi-path maps. */
+  get distToBase(): number { return this.follower.remaining }
   get phase(): number { return this.currentPhase }
   get isSlowed(): boolean { return this.slowFactor < 1 }
 
@@ -63,6 +75,15 @@ export class Enemy {
       this.slowTimer -= dt
       if (this.slowTimer <= 0) this.slowFactor = 1
     }
+    // Burn ticks straight through armor and shields (it's already inside). The tick is
+    // clamped to the remaining burn time so a big dt can't over-burn past expiry.
+    if (this.burnT > 0) {
+      const burnTick = Math.min(dt, this.burnT)
+      this.burnT -= dt
+      this.hp = Math.max(0, this.hp - this.burnDps * burnTick)
+      if (this.hp <= 0) return // died to the fire — skip movement this step
+    }
+    if (this.shredT > 0) this.shredT -= dt
 
     let speedFactor = this.slowFactor
     const err = this.abilities.erratic
@@ -97,11 +118,28 @@ export class Enemy {
     }
   }
 
-  takeDamage(n: number, pierce = 0): void {
+  /** Returns the hp actually removed (0 when a shield charge ate the hit) — callers use it
+   * to credit per-tower damage stats honestly. */
+  takeDamage(n: number, pierce = 0): number {
     // A charged shield eats the whole hit, whatever its size — burst weapons overkill it,
     // rapid-fire strips it. Chain/splash hits consume charges too.
-    if (this.shieldHits > 0) { this.shieldHits -= 1; return }
-    this.hp = Math.max(0, this.hp - effectiveDamage(n, this.armor, pierce))
+    if (this.shieldHits > 0) { this.shieldHits -= 1; return 0 }
+    const armor = Math.max(0, this.armor - this.armorShred)
+    const dealt = Math.min(this.hp, effectiveDamage(n, armor, pierce))
+    this.hp -= dealt
+    return dealt
+  }
+
+  /** Ignite: hp/sec for dur seconds. Refresh-not-stack keeps the DoT predictable. */
+  applyBurn(dps: number, dur: number): void {
+    this.burnDps = Math.max(this.burnDps * (this.burnT > 0 ? 1 : 0), dps)
+    this.burnT = Math.max(this.burnT, dur)
+  }
+
+  /** Armor shred: −amount armor for dur seconds (floored at 0 in takeDamage). */
+  applyShred(amount: number, dur: number): void {
+    this.shredAmount = Math.max(this.shredT > 0 ? this.shredAmount : 0, amount)
+    this.shredT = Math.max(this.shredT, dur)
   }
 
   applySlow(factor: number, dur: number): void {

@@ -45,6 +45,11 @@ export class EnemyViews {
   // Pooled per kind: a pooled view holds a kind-specific baked texture that is never
   // reassigned, so views must only be reused for an enemy of the same kind.
   private poolByKind = new Map<string, EnemyView[]>()
+  /** Views mid death-tween: out of `views`, not yet destroyed. Tracked so destroy() can
+   * kill their tweens — otherwise leaving the level inside the 160 ms window lets the
+   * tween's onComplete touch an already-destroyed layer (exception in the gsap ticker). */
+  private dying = new Set<EnemyView>()
+  private liveSet = new Set<Enemy>() // reused each frame (no per-frame Set allocation)
   private clock = 0
   constructor(private app: Application, private layer: Container) {}
 
@@ -79,18 +84,24 @@ export class EnemyViews {
     const v = this.views.get(enemy)
     if (!v) return
     this.views.delete(enemy)
+    this.dying.add(v)
     v.hpBar.visible = false
     v.pulse.visible = false
     gsap.to(v.body.scale, { x: 1.45, y: 1.45, duration: 0.16, ease: EASE.ui })
     gsap.to(v.root, {
       alpha: 0, duration: 0.16, ease: EASE.ui,
-      onComplete: () => { this.layer.removeChild(v.root); v.root.destroy({ children: true }) },
+      onComplete: () => {
+        if (!this.dying.delete(v)) return // destroy() already tore it down
+        this.layer.removeChild(v.root)
+        v.root.destroy({ children: true })
+      },
     })
   }
 
   sync(enemies: Enemy[], timeSec: number, dt: number): void {
     this.clock += dt
-    const live = new Set<Enemy>()
+    const live = this.liveSet
+    live.clear()
     for (const e of enemies) {
       if (!e.alive) continue
       live.add(e)
@@ -159,7 +170,8 @@ export class EnemyViews {
 
   destroy(): void {
     for (const v of this.views.values()) { gsap.killTweensOf(v.body.scale); gsap.killTweensOf(v.root); v.root.destroy({ children: true }) }
+    for (const v of this.dying) { gsap.killTweensOf(v.body.scale); gsap.killTweensOf(v.root); v.root.destroy({ children: true }) }
     for (const arr of this.poolByKind.values()) for (const v of arr) v.root.destroy({ children: true })
-    this.views.clear(); this.poolByKind.clear()
+    this.views.clear(); this.dying.clear(); this.poolByKind.clear()
   }
 }

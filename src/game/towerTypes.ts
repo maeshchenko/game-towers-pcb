@@ -4,6 +4,12 @@ export interface TowerLevel {
   slow?: number; aura?: boolean; splashRadius?: number; chainCount?: number; chainRange?: number; pierce?: number
   /** Cells/sec — presence marks this tower as projectile-based (damage lands on arrival). */
   projectileSpeed?: number
+  /** Ignite on hit: hp/sec over burnDur seconds (tier-4 status weapons). */
+  burnDps?: number
+  burnDur?: number
+  /** Armor shred on hit: enemy armor −N for shredDur seconds (stacks refresh, not add). */
+  shredArmor?: number
+  shredDur?: number
 }
 export const TOWER_DEFS: Record<TowerKind, TowerLevel[]> = {
   cannon: [
@@ -52,13 +58,15 @@ export const TOWER_BRANCHES: Record<TowerKind, [TowerBranch, TowerBranch]> = {
     { id: 'fieldcoil', range: 7.5, fireRate: 1.0, damage: 0, slow: 0.32, aura: true, cost: 190 },
   ],
   sniper: [
-    // A: single-target boss killer  B: beam forks into nearby targets
-    { id: 'railgun', range: 17.0, fireRate: 0.3, damage: 760, pierce: 12, cost: 320 },
+    // A: single-target boss killer that STRIPS armor — every other tower hits harder after
+    // a railgun tag (the game's first cross-tower synergy)
+    { id: 'railgun', range: 17.0, fireRate: 0.3, damage: 700, pierce: 12, shredArmor: 3, shredDur: 4, cost: 320 },
     { id: 'splitbeam', range: 15.0, fireRate: 0.5, damage: 340, pierce: 6, chainCount: 3, chainRange: 2.5, cost: 300 },
   ],
   mortar: [
-    // A: wide cluster carpet        B: slow, devastating anti-tank shell
-    { id: 'cluster', range: 9.5, fireRate: 0.95, damage: 95, splashRadius: 4.6, cost: 280, projectileSpeed: 7 },
+    // A: wide incendiary carpet (burn = the game's first DoT: splash tags crowds, fire
+    // finishes them — synergizes with SLOW keeping enemies inside the burning patch)
+    { id: 'cluster', range: 9.5, fireRate: 0.95, damage: 80, splashRadius: 4.6, burnDps: 9, burnDur: 3, cost: 280, projectileSpeed: 7 },
     { id: 'buster', range: 10.5, fireRate: 0.45, damage: 360, splashRadius: 1.8, pierce: 10, cost: 300, projectileSpeed: 9 },
   ],
   tesla: [

@@ -78,7 +78,9 @@ export class TowerViews {
   // Pulsing gold halo on specialized (branch-tier) towers.
   private halos = new Map<Tower, Graphics>()
   private lastSelected: Tower | null = null
-  private lastTowersSig = ''
+  private lastTowerCount = -1
+  private lastLevelSum = -1
+  private liveSet = new Set<Tower>() // reused each frame (no per-frame Set allocation)
   // Internal clock advanced by sync()'s dt param, used only to throttle recoil tweens — avoids
   // depending on performance.now() so this stays deterministic/testable in principle.
   private clock = 0
@@ -120,7 +122,9 @@ export class TowerViews {
 
   sync(game: Game, selected: Tower | null, dt: number): void {
     this.clock += dt
-    const live = new Set(game.towers)
+    const live = this.liveSet
+    live.clear()
+    for (const t of game.towers) live.add(t)
     for (const t of game.towers) {
       let g = this.views.get(t)
       if (!g) {
@@ -179,10 +183,14 @@ export class TowerViews {
 
     // overlayG: slow-tower aura fills + selected tower's range ring — redraw only when the
     // selection or the tower set/levels changes (aura/range radius grows on upgrade).
-    const sig = `${game.towers.length}:${game.towers.map((t) => t.level).join(',')}`
-    if (selected !== this.lastSelected || sig !== this.lastTowersSig) {
+    // Cheap numeric signature: count + summed levels. Order-independent, but the overlay it gates
+    // (aura fills + selection ring) is order-independent too — any build/sell/upgrade shifts one.
+    let levelSum = 0
+    for (const t of game.towers) levelSum += t.level
+    if (selected !== this.lastSelected || game.towers.length !== this.lastTowerCount || levelSum !== this.lastLevelSum) {
       this.lastSelected = selected
-      this.lastTowersSig = sig
+      this.lastTowerCount = game.towers.length
+      this.lastLevelSum = levelSum
       this.overlayG.clear()
       for (const t of game.towers) {
         if (t.stats.aura) {
@@ -195,9 +203,10 @@ export class TowerViews {
         this.overlayG.circle(selected.pos.x, selected.pos.y, selected.stats.range * game.pitch)
           .stroke({ color: PALETTE.traceCore, width: 1.5, alpha: 0.5 })
       }
+      // Re-assert z-order only when the tower set changed (a newly-added chip lands above the
+      // overlay). Steady frames skip the reorder — this is inside the same dirty-gate above.
+      this.layer.addChild(this.overlayG)
     }
-    // keep the overlay on top of all tower chips (selected ring must read above other towers)
-    this.layer.addChild(this.overlayG)
   }
 
   destroy(): void {

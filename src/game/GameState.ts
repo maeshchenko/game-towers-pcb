@@ -21,7 +21,9 @@ export class GameState {
   /** Early next-wave call: bank the running wave's clear reward and advance the counter
    * WITHOUT leaving the 'wave' phase — the new wave overlaps the tail of the old one. */
   advanceWaveEarly(): void {
-    if (this.phase !== 'wave' || this.wave + 1 >= this.waveCount) return
+    // Endless has no "last wave": freezing the counter here would re-run the same wave
+    // and pay the early-call bonus on every click (infinite-gold exploit).
+    if (this.phase !== 'wave' || (!this.endless && this.wave + 1 >= this.waveCount)) return
     this.add(waveClearGold(this.waveNumber))
     this.wave += 1
   }

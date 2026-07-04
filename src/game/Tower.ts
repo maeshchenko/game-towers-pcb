@@ -10,6 +10,10 @@ export interface ShotResult {
   from: Pt; target?: Enemy; damage?: number; slow?: number
   splashRadius?: number; chainCount?: number; chainRange?: number; pierce?: number
   aura?: { slow: number; range: number }
+  /** Status payloads (tier-4 weapons) — applied to every enemy the shot damages. */
+  burnDps?: number; burnDur?: number; shredArmor?: number; shredDur?: number
+  /** Source tower — hit resolvers credit damage/kill stats through it. */
+  tower?: Tower
 }
 
 export class Tower {
@@ -18,6 +22,19 @@ export class Tower {
   private cooldown: number
   targetMode: TargetMode = 'first'
   special = false // placed on a special spot → boosted range + damage
+  /** Global damage multiplier from station meta-upgrades (firmware track); 1 = no meta. */
+  damageMul = 1
+  /** Lifetime combat stats (per-tower panel line + debrief "best tower"). */
+  damageDealt = 0
+  kills = 0
+  /** Temporary fire-rate buff (the OVERLOAD ability). */
+  private buffMul = 1
+  private buffT = 0
+  get isOverloaded(): boolean { return this.buffT > 0 }
+  applyRateBuff(mul: number, dur: number): void {
+    this.buffMul = mul
+    this.buffT = Math.max(this.buffT, dur)
+  }
   constructor(readonly kind: TowerKind, readonly pos: Pt, private pitch: number) {
     this.cooldown = 1 / TOWER_DEFS[kind][0].fireRate
   }
@@ -38,6 +55,7 @@ export class Tower {
   chooseBranch(b: 0 | 1): boolean { if (!this.canBranch) return false; this.br = b; return true }
 
   update(dt: number, enemies: Enemy[], grid?: SpatialGrid<Enemy>): ShotResult | null {
+    if (this.buffT > 0) this.buffT -= dt
     const s = this.stats
     const k = this.special ? 1.35 : 1 // special-spot boost
     const rangePx = s.range * this.pitch * k
@@ -51,19 +69,24 @@ export class Tower {
     for (const e of candidates) {
       if (!e.alive || dist(e.pos, this.pos) > rangePx) continue
       if (!target) { target = e; continue }
+      // first/last compare remaining distance to the base (comparable across different
+      // paths on multi-entrance maps — absolute `traveled` is not). strong keys off maxHp
+      // so a wounded boss keeps the focus; weak stays on current hp (finish kills).
       const better =
-        this.targetMode === 'first' ? e.traveled > target.traveled :
-        this.targetMode === 'last' ? e.traveled < target.traveled :
-        this.targetMode === 'strong' ? e.hp > target.hp : e.hp < target.hp
+        this.targetMode === 'first' ? e.distToBase < target.distToBase :
+        this.targetMode === 'last' ? e.distToBase > target.distToBase :
+        this.targetMode === 'strong' ? e.maxHp > target.maxHp : e.hp < target.hp
       if (better) target = e
     }
     // No target: don't bank negative cooldown into a burst when one appears later.
     if (!target) { this.cooldown = 0; return null }
     // Carry the remainder so the long-run rate is exactly fireRate regardless of dt size.
-    this.cooldown += 1 / s.fireRate
+    this.cooldown += 1 / (s.fireRate * (this.buffT > 0 ? this.buffMul : 1))
     return {
-      from: this.pos, target, damage: s.damage * k, slow: s.slow,
+      from: this.pos, target, damage: s.damage * k * this.damageMul, slow: s.slow,
       splashRadius: s.splashRadius, chainCount: s.chainCount, chainRange: s.chainRange, pierce: s.pierce,
+      burnDps: s.burnDps, burnDur: s.burnDur, shredArmor: s.shredArmor, shredDur: s.shredDur,
+      tower: this,
     }
   }
 }

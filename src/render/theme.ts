@@ -23,6 +23,13 @@ export function enemyTheme(kind: string): EnemyTheme {
   return ENEMY_THEME[kind] ?? { name: kind.toUpperCase(), color: 0xffffff, glyph: 'circle' }
 }
 
+/** CSS hex for an enemy kind — the ONE source of truth for DOM UI (bestiary, intro cards,
+ * wave preview). The dictionaries this replaces (GameUI/CampaignMenu/main) had drifted:
+ * the boss rendered pink on the board but violet in the bestiary. */
+export function enemyColorHex(kind: string): string {
+  return '#' + enemyTheme(kind).color.toString(16).padStart(6, '0')
+}
+
 export type TowerIcon = 'rings' | 'diamond' | 'targetRing' | 'triangle' | 'bolt'
 export interface TowerTheme { name: string; color: number; icon: TowerIcon }
 

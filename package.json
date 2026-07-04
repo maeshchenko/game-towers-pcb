@@ -8,6 +8,10 @@
     "package": "npm run build && cd dist && zip -rq ../pcb-td.zip . && cd .. && ls -lh pcb-td.zip",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint .",
+    "check": "tsc --noEmit && eslint . && vitest run",
+    "e2e": "playwright test",
     "balance:optimize": "vitest run scripts/balance-optimize.ts --config vitest.scripts.config.ts",
     "balance:waves": "vitest run scripts/wave-telemetry.ts --config vitest.scripts.config.ts"
   },
@@ -17,9 +21,13 @@
     "pixi.js": "^8.6.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@types/node": "^22.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "eslint": "^9.39.4",
     "jsdom": "^29.1.1",
     "typescript": "^5.6.0",
+    "typescript-eslint": "^8.62.1",
     "vite": "^5.4.0",
     "vitest": "^2.1.0"
   }

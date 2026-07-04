@@ -3,6 +3,7 @@ import { startLives } from './difficulty'
 import type { Board, Level } from '../model/level'
 import { AUTHORED_LEVELS } from '../levels'
 import { storageGet, storageSet } from '../util/safeStorage'
+import { buyTier, starsEarned, starsSpent, type MetaLevels, type MetaUpgradeId } from './metaUpgrades'
 
 export interface CampaignLevelDef {
   name: string
@@ -25,6 +26,10 @@ export interface PlayerProgress {
   storyIntroSeen?: boolean
   /** Per-level pre-level briefing, keyed by campaign level index. */
   storyBriefSeen?: Record<number, boolean>
+  /** Station meta-upgrades bought with stars (v3+). Sparse track → tier map. */
+  metaUpgrades?: MetaLevels
+  /** Achievement ids already earned (v3+). */
+  achievements?: string[]
 }
 
 export const CAMPAIGN_LEVELS: CampaignLevelDef[] = [
@@ -50,7 +55,7 @@ const SAVE_KEY = 'pcb_td_campaign_progress_v1'
 /** Version stamped INSIDE the JSON. Bump on any structural change and extend migrateSave() —
  * pre-versioned saves (no `v` field) are treated as v1 and migrated forward, so players never
  * lose progress across updates. */
-export const SAVE_VERSION = 2
+export const SAVE_VERSION = 3
 
 /** Normalize/upgrade a parsed save of any known version to the current PlayerProgress shape.
  * Returns null for garbage (wrong types, not an object) — caller falls back to a fresh save. */
@@ -59,7 +64,7 @@ export function migrateSave(parsed: unknown): PlayerProgress | null {
   const raw = parsed as Record<string, unknown>
   if (typeof raw.unlockedLevelIndex !== 'number') return null
   // v1 (unstamped) → v2: identical fields, just adds the explicit `v` stamp on next save.
-  // Future migrations chain here, e.g.: if (v === 2) { ...transform...; v = 3 }
+  // v2 → v3: adds metaUpgrades + achievements (default empty — nothing to transform).
   return {
     unlockedLevelIndex: Math.max(0, Math.min(CAMPAIGN_LEVELS.length - 1, raw.unlockedLevelIndex)),
     stars: (raw.stars as Record<number, number>) || {},
@@ -68,7 +73,31 @@ export function migrateSave(parsed: unknown): PlayerProgress | null {
     seenIntroductions: (raw.seenIntroductions as Record<string, boolean>) || {},
     storyIntroSeen: !!raw.storyIntroSeen,
     storyBriefSeen: (raw.storyBriefSeen as Record<number, boolean>) || {},
+    metaUpgrades: (raw.metaUpgrades && typeof raw.metaUpgrades === 'object' ? raw.metaUpgrades : {}) as MetaLevels,
+    achievements: Array.isArray(raw.achievements) ? raw.achievements.filter((a): a is string => typeof a === 'string') : [],
   }
+}
+
+/** Stars still spendable in the workshop: earned across the campaign minus sunk into the tree. */
+export function starsAvailable(progress = loadProgress()): number {
+  return Math.max(0, starsEarned(progress.stars) - starsSpent(progress.metaUpgrades))
+}
+
+/** Buy the next tier of a meta track. Returns false when maxed or unaffordable. */
+export function buyMetaUpgrade(id: MetaUpgradeId): boolean {
+  const progress = loadProgress()
+  const next = buyTier(id, progress.metaUpgrades, starsAvailable(progress))
+  if (!next) return false
+  progress.metaUpgrades = next
+  saveProgress(progress)
+  return true
+}
+
+/** Free respec: refund every spent star, keep everything else. Stars are a testament, not a trap. */
+export function respecMetaUpgrades(): void {
+  const progress = loadProgress()
+  progress.metaUpgrades = {}
+  saveProgress(progress)
 }
 
 export function loadProgress(): PlayerProgress {
@@ -139,7 +168,7 @@ export function registerVictory(
 }
 
 export function resetProgress(): void {
-  const reset: PlayerProgress = { unlockedLevelIndex: 0, stars: {}, highscores: {}, tutorialCompleted: false }
+  const reset: PlayerProgress = { unlockedLevelIndex: 0, stars: {}, highscores: {}, tutorialCompleted: false, metaUpgrades: {}, achievements: [] }
   saveProgress(reset)
 }
 

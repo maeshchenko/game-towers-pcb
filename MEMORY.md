@@ -37,6 +37,153 @@ PCB TD — tower defense на печатной плате (Pixi.js v8 + TypeScri
   волну — враги поздних волн обязаны расти тоже, иначе вся сложность схлопывается в босса);
   босс убиваем топовой обороной (hp 1800, armor 4, leak 6), не гарантированный штраф.
 
+## Сделано (2026-07-04 — этап 2 «Публикация», внутренняя часть без токенов)
+
+- **hidden sourcemaps** (vite build.sourcemap:'hidden') — .map эмитятся для Sentry, но без
+  //# sourceMappingURL → браузер не тянет, исходник приватен. CI дропает .map перед публикацией.
+- **LICENSE** (proprietary, Mizhgan Games, all rights reserved) + **CREDITS.md** — 3rd-party:
+  Pixi.js/pixi-filters MIT, **GSAP GreenSock Standard 'No Charge' License** (не MIT! аттрибуция
+  обязательна, нельзя перепродавать сам GSAP — для игры ок). Шрифты только системные, ассетов 0.
+- **public/privacy.html** — только localStorage-сейвы, ноль куки/трекинга, аналитика (если
+  включат) — анонимная cookieless. Линк на почту.
+- **og:image** — public/og-image.png (брендовая карточка, отрендерил HTML→скрин через Chrome
+  MCP 1200×630@2x); og:image + twitter summary_large_image в index.html.
+- **export-code тост после L3** — hint id 'backup' (одноразовый), фаер в win-блоке при
+  levelIndex===2, зовёт в Настройки→Код сохранения (страховка от очистки localStorage на itch CDN).
+- **Coverage-гейт** (@vitest/coverage-v8): scope src/game (framework-free ядро), текущее
+  94.7%/91.7%, порог 88/85/90/88. `npm run test:coverage`.
+- **ESLint** (flat config, typescript-eslint) — bug-net не стайл: eqeqeq/no-var/prefer-const
+  (ignoreReadBeforeAssign для `let ui!`)/no-fallthrough/no-empty(allowEmptyCatch)/no-explicit-any
+  (warn). 0 ошибок, 39 warn (any на границах pixi/тестов). Игнор kit/kit2/editor/scripts.
+  `npm run lint`, `npm run check` (tsc+eslint+vitest).
+- **Playwright smoke-e2e** (e2e/smoke.spec.ts) — бут прод-бандла (vite preview :4173) на
+  desktop+mobile chromium: сплэш ушёл, canvas виден, START кликабелен, 0 console errors +
+  START уводит с тайтла. 4 теста зелёные. `npm run e2e`.
+- **CI** (.github/workflows/ci.yml): check (tsc/lint/coverage/build) + e2e джобы на push/PR;
+  deploy-pages (token-free, actions/deploy-pages, дропает .map) с дефолтной ветки; deploy-itch
+  стаб (вооружается secrets.BUTLER_API_KEY + vars.ITCH_TARGET, иначе no-op).
+- **ОСТАЛОСЬ (нужны токены/ключи от юзера)**: Sentry (DSN) для крашей + upload .map; PostHog
+  (ключ, cookieless через events.ts) для аналитики; itch butler (BUTLER_API_KEY). FPS-сэмплер:
+  PerfMonitor.fps getter готов, останется прокинуть в аналитику когда будет endpoint.
+
+## Сделано (2026-07-04 — этап 3 «Устойчивость на устройствах», частично)
+
+- **PerfMonitor** (src/render/PerfMonitor.ts, framework-free, TDD): EMA FPS, при устойчивом
+  <45 FPS ≥4с один раз зовёт onDegrade → setReducedFx(true) + тост + синк чекбокса
+  (ui.syncReducedFx). Сэмплится в тикере ТОЛЬКО в фазе 'wave' и пока reducedFx off. Спайки
+  (dt>0.5с, альт-таб/GC) игнорятся и сбрасывают стрик.
+- **Восстановление WebGL-контекста** (main.ts): было showFatalError (тупик). Теперь на
+  webglcontextlost — preventDefault + пауза сима + тост «ВОССТАНОВЛЕНИЕ»; на restored (в rAF,
+  чтобы pixi достроил GL) — clear*TextureCache (три кэша generateTexture) + renderer.render
+  (ре-бейк copper/decor) + gameView.destroy()+new GameView (пулы держали спрайты с мёртвыми
+  текстурами → alphaMode null; полный ребилд лечит). Проверено в Chrome через
+  WEBGL_lose_context: 0 ошибок, плата перерисована, враги идут. clear*TextureCache РАНЬШЕ были
+  без вызовов — теперь используются.
+- **PixiApp.ts**: powerPreference 'high-performance', ticker.maxFPS=60 (120/144Гц не жгут батарею),
+  на мобиле (pointer:coarse & !fine) antialias off + resolution cap 1.5 вместо 2.
+- **Hot-path (per-frame alloc убраны)**: main camPose строка+3×toFixed → числовые эпсилоны
+  (0.05px/0.0005zoom); TowerViews `new Set` + sig-строка (map+join) → reused Set + числовая
+  сигнатура (count+Σlevel); EnemyViews `new Set` → reused Set; BeamFx `.filter` ×2/кадр →
+  in-place swap-remove.
+- **prefers-reduced-motion**: motion.ts теперь live-подписан на mediaquery (меняется без релоада,
+  если нет ручного override); CSS-блок расширен — комикс-панели/CRT-sweep/blink + общий
+  safety-net (*,::before,::after animation/transition 0.01ms).
+- **a11y**: focusTrap.ts (installFocusTrap) — role=dialog + aria-modal + Tab-цикл + возврат
+  фокуса. Применён к confirmModal (свой inline-вариант), pause-меню и settings-модалке (GameUI
+  pauseTrapOff/settingsTrapOff).
+- **Lossless-оптимизация (ноль потери качества)** — убраны per-frame аллокации/DOM-трэш БЕЗ
+  изменения визуала: ui.update() полностью dirty-checked (lives/gold/wave пишутся только при
+  смене; formatHud не аллоцируется на стабильном кадре; .level-num элемент закэширован, не
+  querySelector каждый кадр; updateDiffBadge только при смене сложности; invalidateHudCache()
+  на смене языка/уровня); shake.applyTo — scratch-объект shakeCenter + инлайн portrait-свопа
+  (без {w,h}/{x,y} аллокаций); TowerViews addChild(overlayG) reorder только при смене набора башен.
+- **СОЗНАТЕЛЬНО НЕ делали** (жертвуют качеством/видом при требовании «ноль потери»): понижение
+  bakeRes по deviceMemory (потеря чёткости silkscreen), healer-pulse через scale (меняет толщину
+  линии), бамп мелких шрифтов ≥10px (ломает неон-терминал эстетику), портретный рефактор на
+  screen.orientation (рабочий монкипатч, рискованно). Остаток этапа 3 закрыт этим решением.
+
+## Сделано (2026-07-03, вечер — этап «Стабилизация» по прод-аудиту)
+
+Полный аудит-отчёт (6 агентов): артефакт-страница + docs/audits. Порядок этапов от юзера:
+1 (стабилизация) → 4 (мета) → 3 (устройства) → 2 (публикация). Сделан этап 1:
+- **Эксплойт endless**: advanceWaveEarly не двигал счётчик за пределами скрипта →
+  повторный спавн той же волны + бонус за каждый клик. Guard учитывает endless (GameState).
+- **Targeting честный**: first/last сравнивают `Enemy.distToBase` (= PathFollower2D.remaining,
+  totalLen считается в конструкторе) вместо traveled — на мульти-входовых картах traveled лгал;
+  strong — по maxHp (раненый босс держит фокус). hpMul НЕ перекалибровывался — все 12 WIN.
+- **Снапшот рана**: dischargeCd + runStats сериализуются (конец сейв-скаму кулдауна);
+  `Game.restore` двухфазный — полная валидация (validSnapshot) до ЛЮБОЙ мутации;
+  уровень башни через TOWER_DEFS[kind].length, не магическую 2.
+- **Кламп tick**: total ≤ 1 c (MAX_FRAME) — свёрнутая вкладка больше не проигрывает волны «за кадром».
+  ВАЖНО: тесты тикают по 1 с — кламп 0.5 их ломал, поэтому именно 1.
+- **meta.waves валидация значений**: count≥1, interval>0, jitter∈[0,1), delay≥0 — падение на сборке Game.
+- **useDischarge ребилдит грид** перед query (иначе первые мс волны бьют по старому гриду).
+- **z-шкала в CSS-переменных** (:root --z-*): backdrop 190 (был 90 — HUD кликался сквозь
+  затемнение радиала), modal 300; ВСЕ inline zIndex из TS удалены.
+- **confirmModal.ts**: showConfirm/showAlert вместо нативных alert/confirm (в iframe itch
+  молча блокируются). Кнопка «Сбросить прогресс» была мертва: все футер-кнопки носили класс
+  pcb-campaign-reset, querySelector цеплял daily → теперь общий класс pcb-campaign-footer-btn,
+  reset уникален.
+- **enemyColorHex() в theme.ts** — канон цвета для DOM; 3 дублированные getEnemyColor удалены
+  (боss был фиолетовым в бестиарии, розовым в игре).
+- Пауза→настройки→закрыть = возврат в ПАУЗУ (settingsReturnToPause в GameUI), не в бой.
+- StoryScreen: preventDefault только на обрабатываемые клавиши (был keyboard trap — Tab/F5 глотались).
+- Endless: autoWaveBeforeEndless — принудительная автоволна восстанавливается при выходе в меню.
+- Утечки: vignette-текстура кэшируется module-level (текла по 256×256 на уровень);
+  EnemyViews.dying Set — death-tween убивается в destroy() (гонка с выходом в меню);
+  Panels.stopTipRotation при скрытии; tutorialActive в GameUI кэширует querySelector (150мс).
+- Перф UI: wavePreview ребилд только при смене волны/языка/уровня (previewKey, сбрасывается
+  в setLevelNumber); setAbilityState — dirty-key.
+- Гигиена: .DS_Store из гита, .gitignore + pcb-td.zip/coverage; i18n ключи campaign.record/
+  norecord/confirm.* (тернарники RU/EN убраны из CampaignMenu).
+- Смоук в Chrome (dev-сервер): титул→комикс→L1→туториал→пауза→настройки→карта→reset-confirm —
+  всё работает, консоль чистая (pre-existing pixi warn в TowerViews.sync:144 — не трогал).
+
+## Сделано (2026-07-04 — этап 4 «Мета-слой» по прод-аудиту)
+
+Порядок этапов: 1✓ → **4✓** → 3 → 2. Всё через TDD, 426→ тесты зелёные, build чистый.
+- **Дерево звёзд** (metaUpgrades.ts): 5 веток × 3 тира (резерв/броня/ресайкл/конденсатор/прошивка),
+  полное дерево 33★. Кампания+endless получают meta, **daily НЕТ** (общая честная доска).
+  Экраны в metaScreens.ts (showWorkshop с respec, тир-пипсы).
+- **Ачивки**: 32 defs в 5 категориях (achievements.ts) — per-run EventBus-трекер + lifetime
+  profileStats (pcb_td_stats_v1). Арт код-рисованный SVG (achievementArt.ts, хекс-бейдж + 32 глифа).
+  Тосты staggered (showAchievementToasts). Оценка отложена setTimeout(900) — ПОСЛЕ registerVictory
+  (иначе all_stars не видит только что забанканную звезду).
+  **LIVE-ачивки** (флаг `live` на def): те, что читают только live-счётчики (tracker/game/текущая
+  волна), НЕ won и НЕ post-run profile — оцениваются в тикере на throttle 0.5с в фазе 'wave',
+  тост всплывает в момент триггера (boss_down, discharge_ace, branch_master, recycler, architect,
+  capacitor_hero, overclocker, endless_15/25). evaluateAchievements(ctx, liveOnly). В конце рана
+  полная оценка добирает won/lifetime; live уже в save → have.has их пропускает (без дубль-тоста).
+  **40 ачивок** (было 32): +8 micro-moment live-ачивок для вау-эффекта в бою. Трекер получил
+  frame(dt) (клок рана + per-tick счётчик убийств + slow-стрики по WeakMap<enemy>): last_stand
+  (форма убита на клетке<pitch от ядра), interception (босс убит до середины маршрута:
+  traveled/(traveled+distToBase)<0.5), chain_reaction (maxKillsInTick≥5 — AOE-вайп за 1 тик),
+  quick_flip (продажа ≤3с после постройки: buildAt Map по pos-key), deep_freeze (форма под slow
+  10с подряд), capitalist (gold≥1000 в бою), first_blood (башня с ≥100 килл), instant_call
+  (вызов волны ≤1с от доступности — таймштамп в main.ts на клике, не на summon). Все RU-имена
+  переименованы (ИНИЦИАЛИЗАЦИЯ, УГРОЗА УСТРАНЕНА, ОВЕРКЛОКИНГ, ТЕХНОЭЛИТА…). i18n-completeness
+  теперь итерирует ВСЕ ACHIEVEMENTS (name+desc в обеих локалях); missingGlyphs()===[] в тесте.
+- **2-я активка OVERLOAD** (радиус 3.2, rateMul 1.7, dur 6, cd 60): buffMul/buffT в Tower,
+  useOverload отказывает по пустому клику. armedAbility 'discharge'|'overload', armAbility(),
+  хоткеи Q/W, циан-круг прицела. Дебют-карты L3 discharge / L6 overload (showAbilityIntroduction).
+- **Статусы**: burn (DoT, игнорит щит/броню, refresh-not-stack, тик клампится Math.min(dt,burnT))
+  и armor shred на тир-4 ветках (mortar 'cluster', sniper 'railgun'). applyStatuses в combat.ts
+  вызывается на КАЖДОМ задетом враге (direct/splash/chain).
+- **Daily-моды** (dailyMods.ts): 2 разных модификатора в день из сида-штампа (swarm ×1.3 count,
+  iron ×1.15 hp, blackout −40⚡, windfall +60⚡, embargo бан башни кроме cannon). ВАЖНО: LCG
+  прогревается 12 итераций — иначе соседние штампы («…01»/«…02») схлопывались в один и тот же
+  первый мод (регресс-тест это ловит). Game opts: countMul/goldDelta/banned; goldDelta с полом 40⚡.
+  Радиал показывает ЗАПРЕТ на banned. Alert с условиями при входе; имена модов на кнопке daily.
+- **Daily история/серия** (dailyHistory.ts, pcb_td_daily_history_v1): recordDailyWin + dailyStreak
+  (сегодня-или-вчера, чтобы несыгранный сегодня не рвал серию). 🔥N на кнопке daily.
+- **Share-результат**: dailies+endless получают Wordle-строку в буфер (ui.setShareText + кнопка
+  на экранах победы/поражения). **Endless сид фиксирован по дню** (был random) — «волна 23» сравнима.
+- **Контекстные хинты** (hints.ts, pcb_td_hints_v1): одноразовые тосты branch/earlycall/upgrade
+  (циан, слева снизу). Отдельно от туториала (тот — скрипт для L1). Не показываются под activeTutorial.
+- **Комикс-пролог починен** (comicArt.ts): тарелка P1 нацелена на источник (ось −34°, волновые
+  фронты центрированы на красной точке), клавиатура/кружка P2 выровнены, красная паутина P3
+  дотянута до края + красные виасы на стыке с зелёным, чип P4 сдвинут вверх (не лез в подпись).
+
 ## Текущее направление (2026-07)
 
 Курс на production-ready: рендер-фундамент → честные снаряды → juice-пас → звук → мета-прогрессия.

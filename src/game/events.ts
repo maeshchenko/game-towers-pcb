@@ -19,7 +19,7 @@ export type GameEvent =
   | { type: 'projectileImpact'; kind: TowerKind; pos: Pt; splashRadius?: number }
   | { type: 'enemyHealed'; kind: EnemyKind; amount: number; pos: Pt; enemy: Enemy }
   | { type: 'bossPhase'; phase: number; pos: Pt; enemy: Enemy }
-  | { type: 'abilityUsed'; ability: 'discharge'; pos: Pt; radius: number }
+  | { type: 'abilityUsed'; ability: 'discharge' | 'overload'; pos: Pt; radius: number }
 
 export class EventBus {
   private handlers = new Set<(e: GameEvent) => void>()
