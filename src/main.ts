@@ -301,6 +301,7 @@ async function boot() {
     }
     resetPlay()
     activeCampaignLevelIndex = null
+    app.ticker.stop() // back on the static menu — idle the render loop until a level starts
     campaignMenu.show()
   }
   function restartLevel(): void {
@@ -934,6 +935,10 @@ async function boot() {
 
   // --- explicit mode switch: Editor (author/generate/save levels) vs Play (towers + waves) ---
   function setMode(m: 'edit' | 'play'): void {
+    // Both play and edit render on the Pixi ticker (sim frames / camera pan). Static DOM screens
+    // (title, comic, campaign menu) stop it — see the menu-return sites. This is the single entry
+    // to every rendering state, so starting here guarantees a level never boots into a frozen loop.
+    app.ticker.start()
     if (m === 'play') {
       const lvl = editor.state.level
       if (!lvl || (lvl.paths?.[0]?.waypoints.length ?? lvl.trace.waypoints.length) < 2) {
@@ -1007,6 +1012,7 @@ async function boot() {
       resetPlay()
       gameBar.style.display = 'none'
       editorBar.style.display = 'none'
+      app.ticker.stop() // title + comic + campaign menu are static DOM; nothing to render on canvas
       // Cold boot on the root path: the retro-monitor title screen. START plays the CRT
       // collapse; a fresh save then gets the comic prologue and drops straight into level 1,
       // a veteran goes to the campaign map.
@@ -1494,6 +1500,7 @@ async function boot() {
                 ui.closeOverlay()
                 resetPlay()
                 activeCampaignLevelIndex = null
+                app.ticker.stop() // back on the static menu — idle the render loop
                 campaignMenu.show()
               },
               debrief
@@ -1547,6 +1554,7 @@ async function boot() {
             resetPlay()
             if (activeCampaignLevelIndex !== null) {
               activeCampaignLevelIndex = null
+              app.ticker.stop() // back on the static menu — idle the render loop
               campaignMenu.show()
             } else {
               exitToRoot()

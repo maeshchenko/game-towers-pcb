@@ -17,8 +17,11 @@ export async function createPixiApp(opts: { width: number; height: number; backg
     // Antialias costs a full-screen resolve every frame; on phones (already DPR-supersampled and
     // fill-rate bound) it's the first thing to drop. Desktop keeps the smooth edges.
     antialias: !mobile,
-    // Ask the driver for the discrete GPU on laptops — bloom/CRT filters are fill-heavy.
-    powerPreference: 'high-performance',
+    // No powerPreference hint: omitting it = browser default, which on laptops lets the driver
+    // stay on the integrated GPU and downclock when idle. 'high-performance' (the old value)
+    // forced the discrete GPU on and kept it engaged the whole session — fans spun even on the
+    // idle menu. This is a light game; the integrated GPU handles it, and PerfMonitor auto-drops
+    // effects if a heavy scene ever starves.
     // Render at native pixel density (capped at 2 — DPR 3 phones pay too much for bloom; on mobile
     // cap harder at 1.5), autoDensity keeps the canvas CSS size in logical pixels so input math holds.
     resolution: Math.min(globalThis.devicePixelRatio ?? 1, mobile ? 1.5 : 2),
